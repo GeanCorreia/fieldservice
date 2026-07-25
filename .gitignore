@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+**/bin/
+**/obj/
+
+# Rider / JetBrains
+.idea/
+*.sln.DotSettings.user
+*.user
+*.suo
+
+# Env / secrets
+.env
+.env.*
+
+# Test artifacts
+TestResults/
+coverage/
+coverage.*
+
+# OS files
+.DS_Store
