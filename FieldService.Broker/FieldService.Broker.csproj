@@ -14,7 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FieldService.Domain\FieldService.Domain.csproj" />
+    <ProjectReference Include="..\FieldService.TemplateService\FieldService.TemplateService.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
   </ItemGroup>
 
 </Project>

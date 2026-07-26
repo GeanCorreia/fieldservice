@@ -20,9 +20,9 @@ internal sealed class RabbitMqMessageConsumer(
     private readonly ConcurrentBag<IModel> _channels = [];
     private bool _disposed;
 
-    public Task RegisterAsync<T>(
+    public Task RegisterAsync<TPayload>(
         BrokerSubscribeContext context,
-        Func<BrokerMessage<T>, CancellationToken, Task> handler,
+        Func<BrokerMessage<TPayload>, CancellationToken, Task> handler,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -51,15 +51,18 @@ internal sealed class RabbitMqMessageConsumer(
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.Received += async (_, ea) =>
         {
+            BrokerMessage<TPayload>? message = null;
+            var lockAcquired = false;
+
             try
             {
                 var json = Encoding.UTF8.GetString(ea.Body.Span);
-                var message = JsonSerializer.Deserialize<BrokerMessage<T>>(json, JsonOptions)
+                message = JsonSerializer.Deserialize<BrokerMessage<TPayload>>(json, JsonOptions)
                               ?? throw new InvalidOperationException("Failed to deserialize broker message.");
 
                 var messageLockKey = $"broker:processed:{message.TenantId}:{message.MessageId}";
-                var acquired = await messageProcessingLock.TryAcquireAsync(messageLockKey, ProcessingLockTtl, ct);
-                if (!acquired)
+                lockAcquired = await messageProcessingLock.TryAcquireAsync(messageLockKey, ProcessingLockTtl, ct);
+                if (!lockAcquired)
                 {
                     if (!context.AutoAck)
                         channel.BasicAck(ea.DeliveryTag, false);
@@ -73,17 +76,14 @@ internal sealed class RabbitMqMessageConsumer(
             }
             catch
             {
-                var json = Encoding.UTF8.GetString(ea.Body.Span);
-                var message = JsonSerializer.Deserialize<BrokerMessage<T>>(json, JsonOptions);
-                if (message is not null)
+                if (message is not null && lockAcquired)
                 {
                     var messageLockKey = $"broker:processed:{message.TenantId}:{message.MessageId}";
                     await messageProcessingLock.ReleaseAsync(messageLockKey, ct);
                 }
-
                 if (!context.AutoAck)
                     channel.BasicNack(ea.DeliveryTag, false, true);
-                throw;
+                    channel.BasicNack(ea.DeliveryTag, false, true);
             }
         };
 

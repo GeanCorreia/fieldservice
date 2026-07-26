@@ -7,11 +7,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		DOCKER.md = DOCKER.md
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Domain", "FieldService.Domain\FieldService.Domain.csproj", "{EE0DD127-3ABB-4ACF-93EC-11B6E6BF2523}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.TemplateService", "FieldService.TemplateService\FieldService.TemplateService.csproj", "{EE0DD127-3ABB-4ACF-93EC-11B6E6BF2523}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Shared", "FieldService.Shared\FieldService.Shared.csproj", "{8F83E6C5-44A0-4A77-99AF-357DEC5FA231}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Grpc", "FieldService.Grpc\FieldService.Grpc.csproj", "{653978B1-90FF-41E6-AE34-EE428D669D40}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Bootstrap", "FieldService.Bootstrap\FieldService.Bootstrap.csproj", "{653978B1-90FF-41E6-AE34-EE428D669D40}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Broker", "FieldService.Broker\FieldService.Broker.csproj", "{4ABED5EC-5A77-4A47-8283-ECB9753CF0C2}"
 EndProject
@@ -20,6 +20,12 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Data", "FieldService.Data\FieldService.Data.csproj", "{B6D8C622-F219-4683-A1B5-88EB938B62AF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.InfraTest", "FieldService.InfraTest\FieldService.InfraTest.csproj", "{35CA1C49-B0E5-4F87-9A5E-6BF3548A9950}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Authorization", "FieldService.Authorization\FieldService.Authorization.csproj", "{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Notification", "FieldService.Notification\FieldService.Notification.csproj", "{63D0E48D-CA99-46D3-81D0-B1E76F793430}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.SignalR", "FieldService.SignalR\FieldService.SignalR.csproj", "{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -115,6 +121,42 @@ Global
 		{35CA1C49-B0E5-4F87-9A5E-6BF3548A9950}.Release|x64.Build.0 = Release|Any CPU
 		{35CA1C49-B0E5-4F87-9A5E-6BF3548A9950}.Release|x86.ActiveCfg = Release|Any CPU
 		{35CA1C49-B0E5-4F87-9A5E-6BF3548A9950}.Release|x86.Build.0 = Release|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Debug|x64.Build.0 = Debug|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Debug|x86.Build.0 = Debug|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Release|x64.ActiveCfg = Release|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Release|x64.Build.0 = Release|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Release|x86.ActiveCfg = Release|Any CPU
+		{8E94CC6B-63D3-4AF9-8D08-DA416AE3E77A}.Release|x86.Build.0 = Release|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Debug|x64.Build.0 = Debug|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Debug|x86.Build.0 = Debug|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Release|Any CPU.Build.0 = Release|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Release|x64.ActiveCfg = Release|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Release|x64.Build.0 = Release|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Release|x86.ActiveCfg = Release|Any CPU
+		{63D0E48D-CA99-46D3-81D0-B1E76F793430}.Release|x86.Build.0 = Release|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Debug|x64.Build.0 = Debug|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Debug|x86.Build.0 = Debug|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Release|x64.ActiveCfg = Release|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Release|x64.Build.0 = Release|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Release|x86.ActiveCfg = Release|Any CPU
+		{9EF4F62A-E8B9-4FC5-96DA-60D7DE61D64C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

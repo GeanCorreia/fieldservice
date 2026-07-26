@@ -7,7 +7,7 @@ namespace FieldService.Data.Contexts;
 internal sealed class MongoWriteDbContextFactory(
     IMongoClient mongoClient,
     IMongoDatabaseNameResolver databaseNameResolver,
-    IUnitOfWork unitOfWork) : IMongoWriteDbContextFactory
+    IMongoUnitOfWork unitOfWork) : IMongoWriteDbContextFactory
 {
     public IMongoWriteDbContext Create(string moduleName)
     {

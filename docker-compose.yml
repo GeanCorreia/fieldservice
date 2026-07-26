@@ -1,6 +1,26 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fieldservice-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: ${POSTGRES_DB:-fieldservice}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fieldservice-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-fieldservice}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   mongodb:
     image: mongo:7.0
     container_name: fieldservice-mongodb
@@ -61,6 +81,8 @@ services:
       retries: 5
 
 volumes:
+  postgres_data:
+    driver: local
   mongodb_data:
     driver: local
   mongodb_config:

@@ -3,10 +3,16 @@ using MongoDB.Driver;
 
 namespace FieldService.Data.Services;
 
-internal sealed class MongoUnitOfWork(IMongoClient mongoClient) : IUnitOfWork, IDisposable
+internal sealed class MongoUnitOfWork(IMongoClient mongoClient) : IMongoUnitOfWork, IDisposable
 {
     public IClientSessionHandle? Session { get; private set; }
     public bool HasActiveTransaction => Session is { IsInTransaction: true };
+
+    public Task PersistChangesAsync(CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
 
     public async Task BeginAsync(CancellationToken ct = default)
     {

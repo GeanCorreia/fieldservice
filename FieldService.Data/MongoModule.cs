@@ -28,7 +28,8 @@ public static class MongoModule
         services.Configure<MongoDbOptions>(configuration.GetSection(MongoDbOptions.SectionName));
         services.AddSingleton<IMongoClient>(_ => new MongoClient(connectionString));
         services.AddSingleton<IMongoDatabaseNameResolver, MongoDatabaseNameResolver>();
-        services.AddScoped<IUnitOfWork, MongoUnitOfWork>();
+        services.AddScoped<IMongoUnitOfWork, MongoUnitOfWork>();
+        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<IMongoUnitOfWork>());
         services.AddScoped<IMongoReadDbContextFactory, MongoReadDbContextFactory>();
         services.AddScoped<IMongoWriteDbContextFactory, MongoWriteDbContextFactory>();
         services.AddScoped(sp =>
