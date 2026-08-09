@@ -1,11 +1,16 @@
 using FieldService.Data.Interfaces;
+using FieldService.Shared.Types;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage;
 using MongoDB.Driver;
 
 namespace FieldService.Data.Services;
 
-internal sealed class SqlUnitOfWork<TDbContext>(TDbContext dbContext)
+internal sealed class SqlUnitOfWork<TDbContext>(
+    TDbContext dbContext, 
+    IEntityChangeCollector? changeCollector = null,
+    IEntityChangeExtractor? changeExtractor = null)
     : ISqlUnitOfWork<TDbContext>, IDisposable
     where TDbContext : DbContext
 {
@@ -19,7 +24,17 @@ internal sealed class SqlUnitOfWork<TDbContext>(TDbContext dbContext)
         if (HasActiveTransaction)
             return;
 
-        _ = await dbContext.SaveChangesAsync(ct);
+        var changes = ExtractTrackedChanges();
+
+        try
+        {
+            _ = await dbContext.SaveChangesAsync(ct);
+            CollectCommittedChanges(changes);
+        }
+        catch
+        {
+            throw;
+        }
     }
 
     public async Task BeginAsync(CancellationToken ct = default)
@@ -35,10 +50,32 @@ internal sealed class SqlUnitOfWork<TDbContext>(TDbContext dbContext)
         if (_transaction is null)
             throw new InvalidOperationException("No active transaction to commit.");
 
-        _ = await dbContext.SaveChangesAsync(ct);
-        await _transaction.CommitAsync(ct);
-        await _transaction.DisposeAsync();
-        _transaction = null;
+        var changes = ExtractTrackedChanges();
+
+        try
+        {
+            _ = await dbContext.SaveChangesAsync(ct);
+            await _transaction.CommitAsync(ct);
+            CollectCommittedChanges(changes);
+        }
+        catch
+        {
+            try
+            {
+                await _transaction.RollbackAsync(ct);
+            }
+            catch
+            {
+                // Preserve the original failure from SaveChanges/Commit.
+            }
+
+            throw;
+        }
+        finally
+        {
+            await _transaction.DisposeAsync();
+            _transaction = null;
+        }
     }
 
     public async Task RollbackAsync(CancellationToken ct = default)
@@ -55,5 +92,29 @@ internal sealed class SqlUnitOfWork<TDbContext>(TDbContext dbContext)
     {
         _transaction?.Dispose();
         _transaction = null;
+    }
+
+    private IReadOnlyCollection<CollectedEntityChange> ExtractTrackedChanges()
+    {
+        if (changeCollector is null || changeExtractor is null)
+            return [];
+
+        return changeExtractor.Extract(GetTrackedEntries());
+    }
+
+    private void CollectCommittedChanges(IReadOnlyCollection<CollectedEntityChange> changes)
+    {
+        if (changes.Count == 0)
+            return;
+
+        changeCollector?.Collect(changes);
+    }
+
+    private IReadOnlyCollection<EntityEntry> GetTrackedEntries()
+    {
+        return dbContext.ChangeTracker.Entries()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .ToList()
+            .AsReadOnly();
     }
 }

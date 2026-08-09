@@ -16,6 +16,7 @@ internal sealed class RedisContext : IRedisContext, IDisposable
     }
 
     public IDatabase Database { get; }
+    public IConnectionMultiplexer Connection => _multiplexer;
 
     public void Dispose()
     {

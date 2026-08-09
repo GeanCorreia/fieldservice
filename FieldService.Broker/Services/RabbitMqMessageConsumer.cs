@@ -83,14 +83,13 @@ internal sealed class RabbitMqMessageConsumer(
                 }
                 if (!context.AutoAck)
                     channel.BasicNack(ea.DeliveryTag, false, true);
-                    channel.BasicNack(ea.DeliveryTag, false, true);
             }
         };
 
         channel.BasicConsume(
             queue: context.Queue,
             autoAck: context.AutoAck,
-            consumerTag: context.ConsumerTag,
+            consumerTag: context.ConsumerTag ?? string.Empty,
             noLocal: context.NoLocal,
             exclusive: context.Exclusive,
             arguments: context.ConsumerArguments,

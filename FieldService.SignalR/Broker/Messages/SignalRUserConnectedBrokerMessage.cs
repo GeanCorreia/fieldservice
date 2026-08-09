@@ -1,7 +1,8 @@
 using FieldService.Broker;
 using FieldService.Broker.Message;
+using FieldService.Shared.Services;
+using FieldService.Shared.Types;
 using FieldService.SignalR.Types;
-using DomainVersion = FieldService.Shared.Types.Version;
 
 namespace FieldService.SignalR.Broker.Messages;
 
@@ -12,7 +13,8 @@ public sealed class SignalRUserConnectedBrokerMessage
     public const string RoutingKey = "signalr.user.connected";
     public const string MessageTypeName = "signalr.user.connected";
 
-    public SignalRUserConnectedBrokerMessage(SignalRConnectionContext payload)
+    public SignalRUserConnectedBrokerMessage(
+        SignalRConnectionContext payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
         Payload = payload;
@@ -24,10 +26,10 @@ public sealed class SignalRUserConnectedBrokerMessage
         => new(
             MessageId: Guid.NewGuid(),
             TenantId: ResolveTenantId(Payload),
+            TraceId: null,
             MessageType: MessageTypeName,
-            CreatedAt: DateTime.UtcNow,
-            CorrelationId: Payload.ConnectionId,
-            SchemaVersion: new DomainVersion(1, 0, 0),
+            CreatedAt: DateTimeService.GetNow(),
+            SchemaVersion: new SchemaVersion(1, 0, 0),
             Payload: Payload,
             Context: new BrokerPublishContext(
                 Exchange: ExchangeName,

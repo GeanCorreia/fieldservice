@@ -35,13 +35,13 @@ public class Template
 
     public TemplateVersion? GetVersion(string version)
     {
-        return Versions.FirstOrDefault(v => v.Version.Equals(version));
+        return Versions.FirstOrDefault(v => v.SchemaVersion.Equals(version));
     }
 
-    public TemplateVersion? GetVersion(Version version)
+    public TemplateVersion? GetVersion(SchemaVersion schemaVersion)
     {
-        ArgumentNullException.ThrowIfNull(version);
-        return Versions.FirstOrDefault(v => v.Version == version);
+        ArgumentNullException.ThrowIfNull(schemaVersion);
+        return Versions.FirstOrDefault(v => v.SchemaVersion == schemaVersion);
     }
 
     
@@ -68,13 +68,13 @@ public class Template
 
         var changeType = ClassifyChange(currentVersion.Fields, proposedFieldList);
         if (changeType == VersionChangeType.None)
-            return new TemplateUpdateResult(VersionChangeType.None, currentVersion.Version, currentVersion);
+            return new TemplateUpdateResult(VersionChangeType.None, currentVersion.SchemaVersion, currentVersion);
 
         var nextVersion = changeType switch
         {
-            VersionChangeType.Patch => Version.PlusPatch(currentVersion.Version),
-            VersionChangeType.Minor => Version.PlusMinor(currentVersion.Version),
-            VersionChangeType.Major => Version.PlusMajor(currentVersion.Version),
+            VersionChangeType.Patch => SchemaVersion.PlusPatch(currentVersion.SchemaVersion),
+            VersionChangeType.Minor => SchemaVersion.PlusMinor(currentVersion.SchemaVersion),
+            VersionChangeType.Major => SchemaVersion.PlusMajor(currentVersion.SchemaVersion),
             _ => throw new InvalidOperationException($"Unsupported change type '{changeType}'.")
         };
 

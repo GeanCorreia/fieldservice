@@ -3,8 +3,12 @@ using MongoDB.Driver;
 
 namespace FieldService.Data.Services;
 
-internal sealed class MongoUnitOfWork(IMongoClient mongoClient) : IMongoUnitOfWork, IDisposable
+internal sealed class MongoUnitOfWork(
+    IMongoClient mongoClient,
+    IEntityChangeCollector? changeCollector = null) : IMongoUnitOfWork, IDisposable
 {
+    private readonly IEntityChangeCollector? _changeCollector = changeCollector;
+
     public IClientSessionHandle? Session { get; private set; }
     public bool HasActiveTransaction => Session is { IsInTransaction: true };
 

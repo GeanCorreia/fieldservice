@@ -1,6 +1,6 @@
 using System.Text.Json;
+using FieldService.Shared.Types;
 using FieldService.SignalR.Types;
-using DomainVersion = FieldService.Shared.Types.Version;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -14,10 +14,10 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Entit
             value => value.GetRawText(),
             value => JsonDocument.Parse(value, new JsonDocumentOptions()).RootElement.Clone());
 
-    private static readonly ValueConverter<DomainVersion, string> VersionConverter =
+    private static readonly ValueConverter<SchemaVersion, string> VersionConverter =
         new(
             value => value.ToString(),
-            value => DomainVersion.FromString(value));
+            value => SchemaVersion.FromString(value));
 
     public void Configure(EntityTypeBuilder<Entities.Notification> builder)
     {
@@ -43,7 +43,7 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Entit
                 .HasMaxLength(200)
                 .IsRequired();
 
-            target.Property(t => t.Version)
+            target.Property(t => t.SchemaVersion)
                 .HasColumnName("TargetVersion")
                 .HasConversion(VersionConverter)
                 .HasMaxLength(32)

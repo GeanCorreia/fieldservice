@@ -1,5 +1,4 @@
 using FieldService.Shared.Types;
-using DomainVersion = FieldService.Shared.Types.Version;
 
 namespace FieldService.Broker.Message;
 
@@ -8,8 +7,8 @@ public sealed record BrokerMessage<TPayload>(
     Guid TenantId,
     string MessageType,
     DateTime CreatedAt,
-    string? CorrelationId,
-    DomainVersion SchemaVersion,
+    string? TraceId,
+    SchemaVersion SchemaVersion,
     TPayload Payload,
     BrokerPublishContext Context)
     : Message<TPayload, BrokerPublishContext>(
@@ -17,7 +16,7 @@ public sealed record BrokerMessage<TPayload>(
         TenantId,
         MessageType,
         CreatedAt,
-        CorrelationId,
+        TraceId,
         SchemaVersion,
         Payload,
         Context)

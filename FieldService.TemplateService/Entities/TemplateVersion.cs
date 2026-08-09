@@ -10,7 +10,7 @@ public class TemplateVersion
     public Guid Id { get; } = Guid.NewGuid();
     public string? Description { get; private set; }
     public IReadOnlyCollection<Field> Fields => _fields;
-    public Version Version { get; private set; }
+    public SchemaVersion SchemaVersion { get; private set; }
     public TemplateUI Ui { get; private set; }
 
     private ICollection<DateTimeInterval> _activeIntervals;
@@ -18,14 +18,14 @@ public class TemplateVersion
     public bool IsActive => ActiveIntervals.Any(interval => interval.IsActive());
     
     public TemplateVersion(
-        Version version, 
+        SchemaVersion schemaVersion, 
         IEnumerable<Field> fields,
         IEnumerable<DateTimeInterval>activeIntervals,
         TemplateUI? ui = null,
         string? description = null)
     {
         Description = description;
-        Version = version;
+        SchemaVersion = schemaVersion;
         _fields = new List<Field>(fields);
         _activeIntervals = new List<DateTimeInterval>(activeIntervals);
         Ui = ui ?? new TemplateUI();
@@ -34,11 +34,11 @@ public class TemplateVersion
     public void Activate(DateTime activationDate)
     {
         if (IsActive)
-            throw new InvalidOperationException($"Template version '{Version}' is already active.");
+            throw new InvalidOperationException($"Template version '{SchemaVersion}' is already active.");
         
         if (ActiveIntervals.Any(interval => interval.IsActive()))
             throw new InvalidOperationException(
-                $"Template version '{Version}' was previously active and cannot be reactivated. Create a new version instead.");
+                $"Template version '{SchemaVersion}' was previously active and cannot be reactivated. Create a new version instead.");
         
         _activeIntervals.Add(new DateTimeInterval(activationDate));
     }
@@ -46,11 +46,11 @@ public class TemplateVersion
     public void Deactivate(DateTime deactivationDate)
     {
         if (!IsActive)
-            throw new InvalidOperationException($"Template version '{Version}' is not active.");
+            throw new InvalidOperationException($"Template version '{SchemaVersion}' is not active.");
         
         var activeInterval = ActiveIntervals.FirstOrDefault(interval => interval.IsActive());
         if (activeInterval == null)
-            throw new InvalidOperationException($"Template version '{Version}' has no active interval.");
+            throw new InvalidOperationException($"Template version '{SchemaVersion}' has no active interval.");
         
         if (deactivationDate <= activeInterval.Start)
             throw new ArgumentException(
@@ -73,7 +73,7 @@ public class TemplateVersion
         var orderedFields = _fields.OrderBy(field => field.Order).ToList();
         var targetField = orderedFields.FirstOrDefault(field => field.Id == fieldId);
         if (targetField == null)
-            throw new KeyNotFoundException($"Field '{fieldId}' was not found in template version '{Version}'.");
+            throw new KeyNotFoundException($"Field '{fieldId}' was not found in template version '{SchemaVersion}'.");
 
         orderedFields.Remove(targetField);
         var insertionIndex = Math.Min(newOrder - 1, orderedFields.Count);
@@ -91,12 +91,12 @@ public class TemplateVersion
     public static TemplateVersion Create(
         DateTime createdAt,
         IEnumerable<Field> fields,
-        Version version,
+        SchemaVersion schemaVersion,
         string? description = null,
         TemplateUI? ui = null)
     {
-        if (version == null)
-            throw new ArgumentException("Version cannot be null.", nameof(version));
+        if (schemaVersion == null)
+            throw new ArgumentException("Version cannot be null.", nameof(schemaVersion));
 
         var activeInterval = new[]{ new DateTimeInterval(createdAt) };
     
@@ -105,7 +105,7 @@ public class TemplateVersion
             throw new ArgumentException("Fields cannot be empty.", nameof(fields));
 
         var templateVersion = new TemplateVersion(
-            version,
+            schemaVersion,
             fieldList,
             activeInterval,
             ui: ui,

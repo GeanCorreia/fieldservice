@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FieldService.Shared.Message;
 using FieldService.SignalR.Types;
 
 namespace FieldService.Notification.Entities;
@@ -42,7 +43,7 @@ public class Notification
         }
     }
 
-    public static Notification Create<TPayload>(SignalRMessage<TPayload> message, JsonSerializerOptions? options = null)
+    public static Notification Create<TPayload>(Message<TPayload> message, JsonSerializerOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(message);
 

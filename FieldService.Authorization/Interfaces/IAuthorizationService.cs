@@ -1,11 +1,10 @@
-using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using FieldService.Authorization.Types;
 
 namespace FieldService.Authorization.Interfaces;
 
 public interface IAuthorizationService
 {
-    bool IsAuthorized(ClaimsPrincipal user, string permission);
-    Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string permission, CancellationToken ct = default);
-    bool HasRole(ClaimsPrincipal user, string role);
-    bool IsInTenant(ClaimsPrincipal user, Guid tenantId);
+    Task<UserAuthorizationSnapshot?> GetSnapshotAsync(AuthorizationHandlerContext context, CancellationToken ct = default);
+    Task<UserAuthorizationSnapshot?> GetSnapshotAsync(Guid userId, Guid tenantId, CancellationToken ct = default);
 }

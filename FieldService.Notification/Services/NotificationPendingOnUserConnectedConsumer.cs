@@ -3,12 +3,12 @@ using FieldService.Broker;
 using FieldService.Broker.Interfaces;
 using FieldService.Broker.Message;
 using FieldService.Notification.Interfaces;
+using FieldService.Shared.Types;
 using FieldService.SignalR.Broker.Messages;
 using FieldService.SignalR.Interfaces;
 using FieldService.SignalR.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using DomainVersion = FieldService.Shared.Types.Version;
 
 namespace FieldService.Notification.Services;
 
@@ -78,15 +78,15 @@ internal sealed class NotificationPendingOnUserConnectedConsumer(
                 SignalRTargetType.User,
                 connection.UserId.ToString(),
                 messageType,
-                new DomainVersion(1, 0, 0));
+                new SchemaVersion(1, 0, 0));
 
             var message = new SignalRMessage<JsonElement>(
                 MessageId: notificationId,
                 TenantId: brokerMessage.TenantId,
                 MessageType: messageType,
                 CreatedAt: DateTime.UtcNow,
-                CorrelationId: brokerMessage.CorrelationId,
-                SchemaVersion: context.Version,
+                TraceId: brokerMessage.TraceId,
+                SchemaVersion: context.SchemaVersion,
                 Payload: payload.Clone(),
                 Context: context);
 

@@ -27,7 +27,7 @@ internal sealed class RabbitMqMessageProducer(IRabbitMqChannelFactory channelFac
         basicProperties.ContentType ??= "application/json";
         basicProperties.MessageId ??= brokerMessage.MessageId.ToString();
         basicProperties.Type ??= brokerMessage.MessageType;
-        basicProperties.CorrelationId ??= brokerMessage.CorrelationId;
+        basicProperties.CorrelationId ??= brokerMessage.TraceId;
         basicProperties.Timestamp = new AmqpTimestamp(new DateTimeOffset(brokerMessage.CreatedAt).ToUnixTimeSeconds());
         basicProperties.Headers ??= new Dictionary<string, object>();
         basicProperties.Headers["tenant-id"] = brokerMessage.TenantId.ToString();

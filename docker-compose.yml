@@ -80,6 +80,19 @@ services:
       timeout: 5s
       retries: 5
 
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
+    container_name: fieldservice-aspire-dashboard
+    restart: unless-stopped
+    ports:
+      - "${ASPIRE_DASHBOARD_PORT:-18888}:18888"
+      - "${ASPIRE_OTLP_GRPC_PORT:-18889}:18889"
+    environment:
+      DASHBOARD__FRONTEND__AUTHMODE: Unsecured
+      DASHBOARD__OTLP__AUTHMODE: Unsecured
+    networks:
+      - fieldservice-network
+
 volumes:
   postgres_data:
     driver: local

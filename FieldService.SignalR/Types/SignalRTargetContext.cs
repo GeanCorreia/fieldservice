@@ -1,5 +1,5 @@
 using System.Text.Json;
-using DomainVersion = FieldService.Shared.Types.Version;
+using FieldService.Shared.Types;
 
 namespace FieldService.SignalR.Types;
 
@@ -18,7 +18,7 @@ public sealed class SignalRTargetContext
         SignalRTargetType targetType,
         string? targetId,
         string messageType,
-        DomainVersion version)
+        SchemaVersion schemaVersion)
     {
         if (targetType == SignalRTargetType.All)
         {
@@ -36,13 +36,13 @@ public sealed class SignalRTargetContext
         TargetType = targetType;
         TargetId = targetId;
         MessageType = messageType;
-        Version = version ?? throw new ArgumentNullException(nameof(version));
+        SchemaVersion = schemaVersion ?? throw new ArgumentNullException(nameof(schemaVersion));
     }
 
     public SignalRTargetType TargetType { get; private set; }
     public string? TargetId { get; private set; }
     public string MessageType { get; private set; }
-    public DomainVersion Version { get; private set; }
+    public SchemaVersion SchemaVersion { get; private set; }
 
     public string ToJson(JsonSerializerOptions? options = null)
     {

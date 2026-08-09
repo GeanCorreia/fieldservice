@@ -5,5 +5,5 @@ namespace FieldService.Shared.Types;
 
 public record TemplateUpdateResult(
     VersionChangeType ChangeType,
-    Version Version,
+    SchemaVersion SchemaVersion,
     TemplateVersion TemplateVersion);
