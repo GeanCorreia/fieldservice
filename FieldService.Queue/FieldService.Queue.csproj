@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Hangfire.AspNetCore" Version="1.8.14" />
+      <PackageReference Include="Hangfire.PostgreSql" Version="1.20.8" />
+      <PackageReference Include="Hangfire.Tags" Version="1.8.5" />
+      <PackageReference Include="Hangfire.Tags.PostgreSql" Version="1.9.6" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Services\" />
+    </ItemGroup>
+
+</Project>

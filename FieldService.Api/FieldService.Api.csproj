@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>FieldService.Api</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\FieldService.Audit\FieldService.Audit.csproj" />
+        <ProjectReference Include="..\FieldService.Authorization\FieldService.Authorization.csproj" />
+        <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />
+        <ProjectReference Include="..\FieldService.Authentication\FieldService.Authentication.csproj" />
+        <ProjectReference Include="..\FieldService.Cache\FieldService.Cache.csproj" />
+        <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />
+        <ProjectReference Include="..\FieldService.Http\FieldService.Http.csproj" />
+        <ProjectReference Include="..\FieldService.Notification\FieldService.Notification.csproj" />
+        <ProjectReference Include="..\FieldService.Observability\FieldService.Observability.csproj" />
+        <ProjectReference Include="..\FieldService.Queue\FieldService.Queue.csproj" />
+        <ProjectReference Include="..\FieldService.SignalR\FieldService.SignalR.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Http\" />
+    </ItemGroup>
+
+</Project>
