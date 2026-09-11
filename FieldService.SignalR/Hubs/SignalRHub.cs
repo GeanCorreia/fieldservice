@@ -1,11 +1,12 @@
+using FieldService.Authentication.SessionAttribute;
 using FieldService.SignalR.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 
 namespace FieldService.SignalR.Hubs;
 
+[SessionAtributes.SignalRAttribute]
 public sealed class SignalRHub(
-    ISignalRConnectionRegistry connectionRegistry,
-    ISignalRReceiver receiver) : Hub
+    ISignalRConnectionRegistry connectionRegistry) : Hub
 {
     public override async Task OnConnectedAsync()
     {
@@ -21,15 +22,5 @@ public sealed class SignalRHub(
     {
         await connectionRegistry.OnDisconnectedAsync(Context.ConnectionId, Context.ConnectionAborted);
         await base.OnDisconnectedAsync(exception);
-    }
-
-    public Task AckDelivered(Guid notificationId, Guid deviceId, Guid userId)
-    {
-        return receiver.AckDeliveredAsync(notificationId, deviceId, userId, Context.ConnectionAborted);
-    }
-
-    public Task AckRead(Guid notificationId, Guid deviceId, Guid userId)
-    {
-        return receiver.AckReadAsync(notificationId, deviceId, userId, Context.ConnectionAborted);
     }
 }

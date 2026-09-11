@@ -4,8 +4,12 @@ using FieldService.Authorization;
 using FieldService.Cache;
 using FieldService.Data;
 using FieldService.Http;
+using FieldService.Notification;
 using FieldService.Observability;
+using FieldService.Storage;
 using FieldService.Queue;
+using FieldService.SignalR;
+using FieldService.SignalR.Hubs;
 using FieldService.Shared;
 using FiledService.Audit;
 
@@ -36,19 +40,23 @@ builder.Services.AddSharedModule();
 builder.Services.AddAuthenticationModule(builder.Configuration, builder.Environment);
 builder.Services.AddAuthorizationModule(builder.Configuration);
 builder.Services.AddDataModule(builder.Configuration, builder.Environment);
-builder.Services.AddBrokerModule(builder.Configuration);
+builder.Services.AddBrokerModule(builder.Configuration, builder.Environment);
 builder.Services.AddCacheModule(builder.Configuration);
 builder.Services.AddAuditModule(builder.Configuration);
+builder.Services.AddStorageModule(builder.Configuration);
 builder.Services.AddQueueModule(builder.Configuration);
-builder.Services.AddHttpPipeline();
-// builder.Services.AddNotificationModule(builder.Configuration);
+builder.Services.AddSignalR();
+builder.Services.AddSignalRModule(builder.Configuration);
+builder.Services.AddHttpModule();
+builder.UseHttpPipeline();
+builder.Services.AddNotificationModule(builder.Configuration, builder.Environment);
 
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 app.UseHttpPipeline(builder.Environment);
 app.UseQueueModule(builder.Environment);
+app.MapHub<SignalRHub>("/hubs/signalr");
 app.MapGet("/", () => "FieldService API running.");
 
 app.Run();

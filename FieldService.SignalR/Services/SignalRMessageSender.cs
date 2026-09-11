@@ -5,20 +5,28 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace FieldService.SignalR.Services;
 
-internal sealed class SignalRMessageSender(IHubContext<SignalRHub> hubContext) : ISignalRMessageSender
+internal sealed class SignalRMessageSender(
+    ISignalRPresenceRegistry presenceRegistry,
+    IHubContext<SignalRHub> hubContext) : ISignalRMessageSender
 {
     private const string NotificationEvent = "notification";
 
-    public Task SendDeviceAsync<TPayload>(Guid deviceId, Message<TPayload> message, CancellationToken ct = default)
+    public async Task SendSessionAsync<TPayload>(Guid sessionId, IMessage<TPayload> message, CancellationToken ct = default)
+        where TPayload : class, IMessagePayload
     {
-        if (deviceId == default)
-            throw new ArgumentException("DeviceId is required.", nameof(deviceId));
+        if (sessionId == default)
+            throw new ArgumentException("SessionId is required.", nameof(sessionId));
         ArgumentNullException.ThrowIfNull(message);
 
-        return hubContext.Clients.Group($"device:{deviceId}").SendAsync(NotificationEvent, message, ct);
+        var sessionConnection = await presenceRegistry.GetSessionConnectionAsync(sessionId, ct);
+        if (sessionConnection is null)
+            return;
+
+        await hubContext.Clients.Client(sessionConnection.ConnectionId).SendAsync(NotificationEvent, message, ct);
     }
 
-    public Task SendUserAsync<TPayload>(Guid userId, Message<TPayload> message, CancellationToken ct = default)
+    public Task SendUserAsync<TPayload>(Guid userId, IMessage<TPayload> message, CancellationToken ct = default)
+        where TPayload : class, IMessagePayload
     {
         if (userId == default)
             throw new ArgumentException("UserId is required.", nameof(userId));
@@ -27,7 +35,8 @@ internal sealed class SignalRMessageSender(IHubContext<SignalRHub> hubContext) :
         return hubContext.Clients.Group($"user:{userId}").SendAsync(NotificationEvent, message, ct);
     }
 
-    public Task SendRoomAsync<TPayload>(Guid roomId, Message<TPayload> message, CancellationToken ct = default)
+    public Task SendRoomAsync<TPayload>(Guid roomId, IMessage<TPayload> message, CancellationToken ct = default)
+        where TPayload : class, IMessagePayload
     {
         if (roomId == default)
             throw new ArgumentException("RoomId is required.", nameof(roomId));
@@ -36,7 +45,8 @@ internal sealed class SignalRMessageSender(IHubContext<SignalRHub> hubContext) :
         return hubContext.Clients.Group($"room:{roomId}").SendAsync(NotificationEvent, message, ct);
     }
 
-        public Task SendTenantAsync<TPayload>(Guid tenantId, Message<TPayload> message, CancellationToken ct = default)
+    public Task SendTenantAsync<TPayload>(Guid tenantId, IMessage<TPayload> message, CancellationToken ct = default)
+        where TPayload : class, IMessagePayload
     {
         if (tenantId == default)
             throw new ArgumentException("TenantId is required.", nameof(tenantId));
@@ -45,7 +55,8 @@ internal sealed class SignalRMessageSender(IHubContext<SignalRHub> hubContext) :
         return hubContext.Clients.Group($"tenant:{tenantId}").SendAsync(NotificationEvent, message, ct);
     }
 
-    public Task SendAllAsync<TPayload>(Message<TPayload> message, CancellationToken ct = default)
+    public Task SendAllAsync<TPayload>(IMessage<TPayload> message, CancellationToken ct = default)
+        where TPayload : class, IMessagePayload
     {
         ArgumentNullException.ThrowIfNull(message);
         return hubContext.Clients.All.SendAsync(NotificationEvent, message, ct);

@@ -37,7 +37,7 @@ public class ValidationRule
     public static ValidationRule FileExtension(params string[] extensions) 
         => new() { Type = ValidatorType.FileExtension, Parameters = new() { { "extensions", extensions } } };
 
-    public static ValidationRule DateRange(DateTime from, DateTime to)
+    public static ValidationRule DateRange(DateTimeOffset from, DateTimeOffset to)
     {
         return new() 
         { 

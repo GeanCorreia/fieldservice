@@ -2,7 +2,7 @@ namespace FieldService.Shared.Interfaces;
 
 public interface IDateTimeService
 {
-    public DateTime Now();
+    public DateTimeOffset Now();
     public DateOnly Today();
     
 }

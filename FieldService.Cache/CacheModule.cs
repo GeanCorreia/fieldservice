@@ -1,7 +1,7 @@
-using FieldService.Broker.Interfaces;
 using FieldService.Cache.Interfaces;
 using FieldService.Cache.Services;
-using Microsoft.Extensions.Caching.StackExchangeRedis;
+using Medallion.Threading;
+using Medallion.Threading.Redis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
@@ -24,7 +24,11 @@ public static class CacheModule
             options.InstanceName = redisOptions.InstanceName;
         });
         services.AddSingleton<IRedisContext>(_ => new RedisContext(configurationOptions, redisOptions.Database));
-        services.AddSingleton<IMessageProcessingLock, RedisMessageProcessingLock>();
+        services.AddSingleton<IDistributedLockProvider>(_ =>
+        {
+            var multiplexer = ConnectionMultiplexer.Connect(configurationOptions);
+            return new RedisDistributedSynchronizationProvider(multiplexer.GetDatabase(redisOptions.Database));
+        });
 
         return services;
     }
@@ -68,7 +72,11 @@ public static class CacheModule
 
         return configurationOptions;
     }
+
+    
 }
+
+
 
 public sealed class RedisOptions
 {

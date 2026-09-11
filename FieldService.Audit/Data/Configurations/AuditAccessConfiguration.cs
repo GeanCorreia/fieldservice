@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FieldService.Shared.Types;
 using FiledService.Audit.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -33,8 +34,16 @@ public sealed class AuditAccessConfiguration : IEntityTypeConfiguration<AuditAcc
             .HasColumnName("OccurredAt")
             .IsRequired();
 
-        builder.Property(e => e.Resource)
-            .HasColumnName("Resource")
+        builder.Property(e => e.ResourceName)
+            .HasColumnName("ResourceName")
+            .IsRequired();
+        
+        builder.Property(e => e.SchemaVersion)
+            .HasColumnName("SchemaVersion")
+            .HasColumnType("text")
+            .HasConversion(
+                value => value.ToString(),
+                value => SchemaVersion.FromString(value))
             .IsRequired();
         
         builder.Property(e => e.ResourceId)
@@ -44,7 +53,7 @@ public sealed class AuditAccessConfiguration : IEntityTypeConfiguration<AuditAcc
         builder.Property<JsonDocument?>("_parameters")
             .HasColumnName("Parameters")
             .HasColumnType("jsonb");
-        
+
         builder.Ignore(e => e.Parameters);
 
         builder.HasIndex(e => e.RequestId)
@@ -55,5 +64,8 @@ public sealed class AuditAccessConfiguration : IEntityTypeConfiguration<AuditAcc
 
         builder.HasIndex(e => e.OccurredAt)
             .HasDatabaseName("idx_AuditAccesses_OccurredAt");
+
+        builder.HasIndex(e => new { e.ResourceName, e.SchemaVersion })
+            .HasDatabaseName("idx_AuditAccesses_ResourceName_SchemaVersion");
     }
 }

@@ -11,7 +11,7 @@ public enum PermissionEventType
 public class PermissionEvent
 {
     public Guid Id { get; private set; }
-    public DateTime CreatedAt { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
     public Guid CreatedBy { get; private set; }
     public Guid UserId { get; private set; }
     public Guid TenantId { get; private set; }
@@ -23,8 +23,8 @@ public class PermissionEvent
         Permission = null!;
     }
 
-    public PermissionEvent(
-        DateTime createdAt,
+    private PermissionEvent(
+        DateTimeOffset createdAt,
         Guid createdBy,
         Guid userId,
         Guid tenantId,
@@ -42,7 +42,7 @@ public class PermissionEvent
     }
     
     public static PermissionEvent CreatePermissionGrantedEvent(
-        DateTime createdAt,
+        DateTimeOffset createdAt,
         Guid createdBy,
         Guid userId,
         Guid tenantId,
@@ -60,7 +60,7 @@ public class PermissionEvent
     }
 
     public static PermissionEvent CreatePermissionRevokedEvent(
-        DateTime createdAt,
+        DateTimeOffset createdAt,
         Guid createdBy,
         Guid userId,
         Guid tenantId,

@@ -14,7 +14,7 @@ public sealed class AuditChange
 
     public Guid TenantId { get; init; }
 
-    public DateTime OccurredAt { get; init; }
+    public DateTimeOffset OccurredAt { get; init; }
 
     public string ResourceId { get; init; } = default!;
 
@@ -35,7 +35,7 @@ public sealed class AuditChange
         Guid requestId,
         Guid userId,
         Guid tenantId,
-        DateTime occurredAt,
+        DateTimeOffset occurredAt,
         string resource,
         string resourceId,
         IEnumerable<FieldService.Shared.Types.AuditChangeItem> changedProperties)

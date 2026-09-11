@@ -10,7 +10,8 @@ internal sealed class RedisUserCacheService(
     IRedisContext redisContext,
     IOptions<AuthenticationOptions> options) : IUserCacheService
 {
-    private const string UserPrefix = "user:";
+    private const string AuthenticationPrefix = "authentication:";
+    private const string UserPrefix = $"{AuthenticationPrefix}user:";
     private const string UserExternalPrefix = "user:external:";
     private readonly TimeSpan _cacheTtl =
         TimeSpan.FromMinutes(options.Value.Session.TokenLifetimeInMinutes) +

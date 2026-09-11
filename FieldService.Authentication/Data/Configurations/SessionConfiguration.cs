@@ -32,9 +32,6 @@ internal sealed class SessionConfiguration : IEntityTypeConfiguration<Session>
             .HasColumnName("RevocationReason")
             .HasConversion<int?>();
 
-        builder.Property(x => x.LastActivityAt)
-            .HasColumnName("LastActivityAt");
-
         builder.Property<Guid>("UserId")
             .HasColumnName("UserId")
             .IsRequired();
@@ -51,15 +48,7 @@ internal sealed class SessionConfiguration : IEntityTypeConfiguration<Session>
             .HasColumnName("Provider")
             .HasConversion<int>()
             .IsRequired();
-
-        builder.HasMany(x => x.Activities)
-            .WithOne()
-            .HasForeignKey(x => x.SessionId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Navigation(x => x.Activities)
-            .UsePropertyAccessMode(PropertyAccessMode.Field);
-
+        
         builder.HasIndex("UserId", "TenantId")
             .HasDatabaseName("idx_Session_UserId_TenantId");
         

@@ -2,6 +2,12 @@ namespace FieldService.Broker.Interfaces;
 
 public interface IMessageProcessingLock
 {
-    Task<bool> TryAcquireAsync(string key, TimeSpan ttl, CancellationToken ct = default);
-    Task ReleaseAsync(string key, CancellationToken ct = default);
+    Task<bool> BrokerConfiguratorAcquireLock(CancellationToken ct = default);
+    Task<bool> BrokerConfiguratorReleaseLock(CancellationToken ct = default);
+    Task<bool> MessageAcquireLock(Guid messageId, CancellationToken ct = default);
+    Task<bool> MessageReleaseLock(Guid messageId, CancellationToken ct = default);
+    
+    Task<IEnumerable<Guid>> MessageAcquireLocks(IEnumerable<Guid> messageIds,  CancellationToken ct = default);
+    Task<IEnumerable<Guid>> MessageReleaseLocks(IEnumerable<Guid> messageIds, CancellationToken ct = default);
+
 }

@@ -8,9 +8,7 @@ public sealed record SessionCacheModel(
     Guid TenantId,
     string ExternalId,
     AuthenticationProvider Provider,
-    DateTime StartedAt,
-    DateTime ExpiresAt,
-    DateTime? RevokedAt,
-    RevocationReason? RevocationReason,
-    DateTime? LastActivityAt,
-    IReadOnlyCollection<SessionActivityCacheModel> Activities);
+    DateTimeOffset StartedAt,
+    DateTimeOffset ExpiresAt,
+    DateTimeOffset? RevokedAt,
+    RevocationReason? RevocationReason);

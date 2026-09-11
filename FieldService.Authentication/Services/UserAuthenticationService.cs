@@ -21,14 +21,14 @@ public class UserAuthenticationService : IUserAuthenticationService
         _userMapper = userMapper ?? throw new ArgumentNullException(nameof(userMapper));
     }
 
-    public async Task<UserAuthentication?> GetUserAsync(
+    public async Task<UserAuthenticationCacheModel?> GetUserAsync(
         Guid userId, 
         CancellationToken cancellationToken = default)
     {
         var cacheModel = await _userCacheService.GetUserAsync(userId, cancellationToken);
         if (cacheModel != null)
         {
-            return _userMapper.Map(cacheModel);
+            return cacheModel;
         }
 
         var user = await _userAuthenticationRepository.GetById(userId, cancellationToken);
@@ -39,7 +39,7 @@ public class UserAuthenticationService : IUserAuthenticationService
         
         cacheModel = _userMapper.Map(user);
         await _userCacheService.SaveUserAsync(cacheModel, cancellationToken);
-        return user;
+        return cacheModel;
     }
 
     public async Task<UserAuthenticationCacheModel?> GetUserAsync(

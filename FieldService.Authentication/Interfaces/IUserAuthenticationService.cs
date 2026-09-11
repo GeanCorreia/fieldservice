@@ -6,7 +6,7 @@ namespace FieldService.Authentication.Interfaces;
 
 public interface IUserAuthenticationService
 {
-    Task<UserAuthentication?> GetUserAsync(
+    Task<UserAuthenticationCacheModel?> GetUserAsync(
         Guid userId, 
         CancellationToken cancellationToken = default);
     

@@ -15,8 +15,9 @@ public sealed class AuditAccess
     public Guid RequestId { get; init; }
     public Guid UserId { get; init; }
     public Guid? TenantId { get; init; }
-    public DateTime OccurredAt { get; init; }
-    public string Resource { get; init; } = default!;
+    public DateTimeOffset OccurredAt { get; init; }
+    public string ResourceName { get; init; } = default!;
+    public SchemaVersion SchemaVersion { get; init; }
     public Guid? ResourceId { get; init; }
 
     private JsonDocument? _parameters;
@@ -27,12 +28,14 @@ public sealed class AuditAccess
             : JsonSerializer.Deserialize<List<AuditAccessParameter>>(
                 _parameters.RootElement.GetRawText()) ?? [];
     
+
     public static AuditAccess Create(
         Guid requestId,
         Guid userId,
         Guid? tenantId,
-        DateTime occurredAt,
-        string resource,
+        DateTimeOffset occurredAt,
+        string resourceName,
+        SchemaVersion schemaVersion,
         Guid? resourceId = null,
         IEnumerable<AuditAccessParameter>? parameters = null)
     {
@@ -43,9 +46,10 @@ public sealed class AuditAccess
             UserId = userId,
             TenantId = tenantId,
             OccurredAt = occurredAt,
-            Resource = resource,
+            ResourceName = resourceName,
+            SchemaVersion = schemaVersion,
             ResourceId = resourceId,
-            _parameters = JsonSerializer.SerializeToDocument(parameters)
+            _parameters = JsonSerializer.SerializeToDocument(parameters),
         };
     }
 }

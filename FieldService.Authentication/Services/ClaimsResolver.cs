@@ -72,7 +72,7 @@ public static class ClaimsResolver
         return jwtId;
     }
 
-    public static DateTime GetExpiresAt(ClaimsPrincipal principal)
+    public static DateTimeOffset GetExpiresAt(ClaimsPrincipal principal)
     {
         var exp = principal.FindFirst(JwtRegisteredClaimNames.Exp)?.Value;
 
@@ -80,7 +80,7 @@ public static class ClaimsResolver
         {
             throw new InvalidOperationException("Exp claim not found.");
         }
-        return DateTimeOffset.FromUnixTimeSeconds(long.Parse(exp)).UtcDateTime;
+        return DateTimeOffset.FromUnixTimeSeconds(long.Parse(exp));
         
     }
     
@@ -105,5 +105,11 @@ public static class ClaimsResolver
             identity.RemoveClaim(claim);
 
         identity.AddClaim(new Claim(claimType, claimValue));
+    }
+
+    public static Guid? GetOptionalGuid(ClaimsPrincipal principal, string claimType)
+    {
+        var value = principal.FindFirst(claimType)?.Value;
+        return Guid.TryParse(value, out var guid) ? guid : null;
     }
 }

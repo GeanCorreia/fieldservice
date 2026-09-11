@@ -53,4 +53,6 @@ public record SchemaVersion(
     }
 
     public override string ToString() => $"{Major}.{Minor}.{Patch}";
+    
+
 }

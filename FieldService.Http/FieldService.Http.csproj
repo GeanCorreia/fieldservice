@@ -7,10 +7,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Folder Include="Interfaces\" />
-    </ItemGroup>
-
-    <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 
@@ -21,6 +17,8 @@
     <ItemGroup>
       <ProjectReference Include="..\FieldService.Audit\FieldService.Audit.csproj" />
       <ProjectReference Include="..\FieldService.Authentication\FieldService.Authentication.csproj" />
+      <ProjectReference Include="..\FieldService.Authorization\FieldService.Authorization.csproj" />
+      <ProjectReference Include="..\FieldService.Observability\FieldService.Observability.csproj" />
       <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
     </ItemGroup>
 

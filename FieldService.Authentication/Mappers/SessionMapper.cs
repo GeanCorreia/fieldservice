@@ -6,13 +6,14 @@ namespace FieldService.Authentication.Mappers;
 
 internal sealed class SessionMapper : ISessionMapper
 {
-    private readonly IUserAuthenticationMapper  _userAuthenticationMapper;
+    private readonly IUserAuthenticationMapper _userAuthenticationMapper;
 
     public SessionMapper(IUserAuthenticationMapper userAuthenticationMapper)
     {
         _userAuthenticationMapper = userAuthenticationMapper ?? throw new ArgumentNullException(
             nameof(userAuthenticationMapper));
     }
+
     public SessionCacheModel Map(Session session)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -26,21 +27,14 @@ internal sealed class SessionMapper : ISessionMapper
             session.StartedAt,
             session.ExpiresAt,
             session.RevokedAt,
-            session.RevocationReason,
-            session.LastActivityAt,
-            session.Activities.Select(Map).ToArray());
+            session.RevocationReason);
     }
 
     public Session Map(SessionCacheModel cacheModel)
     {
         ArgumentNullException.ThrowIfNull(cacheModel);
 
-        var activities = cacheModel.Activities.Select(Map).OfType<SessionActivity>().ToArray();
-
-
-
         return new Session(
-            activities!,
             cacheModel.Id,
             cacheModel.UserId,
             cacheModel.TenantId,
@@ -49,8 +43,7 @@ internal sealed class SessionMapper : ISessionMapper
             cacheModel.StartedAt,
             cacheModel.ExpiresAt,
             cacheModel.RevokedAt,
-            cacheModel.RevocationReason,
-            cacheModel.LastActivityAt);
+            cacheModel.RevocationReason);
     }
 
     public SessionActivityCacheModel Map(SessionActivity activity)

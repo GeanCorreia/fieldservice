@@ -17,8 +17,8 @@ public class WorkOrder
     public required string Number { get; set; }
     public Dictionary<string, object> Data { get; private set; } = new();
     public WorkOrderStatus Status { get; set; } = WorkOrderStatus.Draft;
-    public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; private set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public string? Description { get; set; }
     public Dictionary<string, object> Metadata { get; set; } = new();
 
@@ -42,7 +42,7 @@ public class WorkOrder
     public void SetFieldValue<T>(string fieldName, T value)
     {
         Data[fieldName] = value ?? throw new ArgumentNullException(nameof(value));
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     public bool TryGetFieldValue<T>(string fieldName, out T? value) where T : class

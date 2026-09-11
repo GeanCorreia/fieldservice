@@ -7,6 +7,7 @@ public sealed class AuditDbContext(DbContextOptions<AuditDbContext> options) : D
 {
     public DbSet<AuditAccess> Accesses => Set<AuditAccess>();
     public DbSet<AuditChange> Changes => Set<AuditChange>();
+    public DbSet<AuditDtoSchema> DtoSchemas => Set<AuditDtoSchema>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

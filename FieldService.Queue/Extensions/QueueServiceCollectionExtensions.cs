@@ -6,25 +6,33 @@ namespace FieldService.Queue.Extensions;
 
 public static class QueueServiceCollectionExtensions
 {
-    /// <summary>
-    /// Escaneia os assemblies fornecidos e registra todos os IJobConsumer no DI como Scoped.
-    /// </summary>
+
     public static IServiceCollection AddQueueConsumers(
         this IServiceCollection services, 
         params Assembly[] assembliesToScan)
     {
-        var consumerType = typeof(IQueueConsumer<>);
+        var typedConsumerType = typeof(IQueueConsumer<>);
+        var nonTypedConsumerType = typeof(IQueueConsumer);
 
         var implementations = assembliesToScan
             .SelectMany(a => a.GetTypes())
             .Where(t => !t.IsAbstract && !t.IsInterface)
-            .SelectMany(t => t.GetInterfaces(), (type, implInterface) => new { type, implInterface })
-            .Where(i => i.implInterface.IsGenericType && i.implInterface.GetGenericTypeDefinition() == consumerType);
+            .Where(type =>
+            {
+                var interfaces = type.GetInterfaces();
 
-        foreach (var item in implementations)
+                var hasNonTypedConsumer = interfaces.Any(i => i == nonTypedConsumerType);
+                if (hasNonTypedConsumer)
+                    return true;
+
+                return interfaces.Any(i =>
+                    i.IsGenericType &&
+                    i.GetGenericTypeDefinition() == typedConsumerType);
+            });
+
+        foreach (var implementationType in implementations)
         {
-            // Registra a implementação como Scoped para garantir que dependências como DbContext funcionem corretamente
-            services.AddScoped(item.type);
+            services.AddScoped(implementationType);
         }
 
         return services;

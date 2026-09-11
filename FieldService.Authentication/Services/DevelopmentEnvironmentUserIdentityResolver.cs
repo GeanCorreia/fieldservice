@@ -1,69 +1,76 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using FieldService.Authentication.Interfaces;
 using FieldService.Authentication.Types;
 using FieldService.Shared.Interfaces;
 using FieldService.Shared.Types;
+using Microsoft.AspNetCore.Http;
 
 namespace FieldService.Authentication.Services;
 
 public sealed class DevelopmentEnvironmentUserIdentityResolver : IUserIdentityResolver
 {
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserAuthenticationService _userAuthenticationService;
-    private readonly IRequestContextManager _requestContextManager;
-    private readonly ISessionAuthenticationService _sessionAuthenticationService;
     private readonly IUserAuthenticationMapper _userAuthenticationMapper;
     
     public DevelopmentEnvironmentUserIdentityResolver(
+        IHttpContextAccessor httpContextAccessor,
         IUserAuthenticationService userAuthenticationService,
-        IRequestContextManager requestContextManager,
-        ISessionAuthenticationService sessionAuthenticationService,
         IUserAuthenticationMapper userAuthenticationMapper)
     {
+        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
         _userAuthenticationService = userAuthenticationService ?? throw new ArgumentNullException(
             nameof(userAuthenticationService));
-        _requestContextManager = requestContextManager ?? throw new ArgumentNullException(
-            nameof(requestContextManager));
+
         _userAuthenticationMapper = userAuthenticationMapper ?? throw new ArgumentNullException(
             nameof(userAuthenticationMapper));
-        _sessionAuthenticationService = sessionAuthenticationService ?? throw new ArgumentNullException(
-            nameof(sessionAuthenticationService));
     }
 
 
     public async Task ResolveUserAsync(CancellationToken cancellationToken = default)
     {
         var userId = Guid.Parse("8961fdf5-f889-46a2-86a1-81bd35a876aa");
-        var principal = _requestContextManager.Principal;
-        var userCacheModel = await GetUserAuthenticationCache(userId);
-        
+
+        var userCacheModel = await GetUserAuthenticationCache(userId, cancellationToken);
+    
         if (userCacheModel == null)
         {
             throw new UnauthorizedAccessException("User not found.");
         }
+
+        var httpContext = GetHttpContext();
         
-        var identity = ClaimsResolver.GetOrCreateAuthenticationIdentity(principal);
+        var existingIdentity = httpContext.User.Identity as ClaimsIdentity;
+    
+        var identity = existingIdentity ?? new ClaimsIdentity(authenticationType: "DevelopmentAuth");
         
-        ClaimsResolver.UpsertClaim(identity, 
-            ClaimsExtensions.UserId, 
-            userCacheModel.UserId.ToString());
+        if (string.IsNullOrEmpty(identity.AuthenticationType))
+        {
+            identity = new ClaimsIdentity(
+                httpContext.User.Claims, 
+                authenticationType: "DevelopmentAuth", 
+                nameType: ClaimTypes.NameIdentifier, 
+                roleType: ClaimTypes.Role);
+        }
+        
+        ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.UserId, userCacheModel.UserId.ToString());
+        ClaimsResolver.UpsertClaim(identity, JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"));
+        ClaimsResolver.UpsertClaim(identity, JwtRegisteredClaimNames.Exp, DateTimeOffset.UtcNow.AddHours(12).ToUnixTimeSeconds().ToString());
+        
+        httpContext.User = new ClaimsPrincipal(identity);
     }
 
-    public Task ResolveSessionAsync(CancellationToken cancellationToken = default)
-    {
-        return Task.CompletedTask;
-    }
-    
     private async Task<UserAuthenticationCacheModel?> GetUserAuthenticationCache(Guid userId, CancellationToken cancellationToken = default)
     {
 
-        var user = await _userAuthenticationService.GetUserAsync(userId, cancellationToken);
+        return await _userAuthenticationService.GetUserAsync(userId, cancellationToken);
 
-        if (user == null)
-        {
-            return null;
-        }
-        return _userAuthenticationMapper.Map(user);
+        
             
         
     }
+
+    private HttpContext GetHttpContext() =>
+        _httpContextAccessor.HttpContext ?? throw new InvalidOperationException("HttpContext is not available.");
 }

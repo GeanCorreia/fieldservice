@@ -15,6 +15,8 @@ internal sealed class SqlUnitOfWork<TDbContext>(
     where TDbContext : DbContext
 {
     private IDbContextTransaction? _transaction;
+    private readonly List<Func<CancellationToken, Task>> _committedCallbacks = [];
+    private readonly List<Func<CancellationToken, Task>> _rolledBackCallbacks = [];
 
     public bool HasActiveTransaction => _transaction is not null;
     public IClientSessionHandle? Session => null;
@@ -30,6 +32,7 @@ internal sealed class SqlUnitOfWork<TDbContext>(
         {
             _ = await dbContext.SaveChangesAsync(ct);
             CollectCommittedChanges(changes);
+            await ExecuteCallbacksAsync(_committedCallbacks, ct);
         }
         catch
         {
@@ -57,12 +60,14 @@ internal sealed class SqlUnitOfWork<TDbContext>(
             _ = await dbContext.SaveChangesAsync(ct);
             await _transaction.CommitAsync(ct);
             CollectCommittedChanges(changes);
+            await ExecuteCallbacksAsync(_committedCallbacks, ct);
         }
         catch
         {
             try
             {
                 await _transaction.RollbackAsync(ct);
+                await ExecuteCallbacksAsync(_rolledBackCallbacks, ct);
             }
             catch
             {
@@ -84,8 +89,21 @@ internal sealed class SqlUnitOfWork<TDbContext>(
             return;
 
         await _transaction.RollbackAsync(ct);
+        await ExecuteCallbacksAsync(_rolledBackCallbacks, ct);
         await _transaction.DisposeAsync();
         _transaction = null;
+    }
+
+    public void OnCommitted(Func<CancellationToken, Task> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        _committedCallbacks.Add(callback);
+    }
+
+    public void OnRolledBack(Func<CancellationToken, Task> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        _rolledBackCallbacks.Add(callback);
     }
 
     public void Dispose()
@@ -108,6 +126,22 @@ internal sealed class SqlUnitOfWork<TDbContext>(
             return;
 
         changeCollector?.Collect(changes);
+    }
+
+    private static async Task ExecuteCallbacksAsync(
+        List<Func<CancellationToken, Task>> callbacks,
+        CancellationToken ct)
+    {
+        if (callbacks.Count == 0)
+            return;
+
+        var pendingCallbacks = callbacks.ToArray();
+        callbacks.Clear();
+
+        foreach (var callback in pendingCallbacks)
+        {
+            await callback(ct);
+        }
     }
 
     private IReadOnlyCollection<EntityEntry> GetTrackedEntries()

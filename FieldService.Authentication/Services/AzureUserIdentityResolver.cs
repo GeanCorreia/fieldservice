@@ -4,32 +4,28 @@ using FieldService.Authentication.Types;
 using FieldService.Shared.Interfaces;
 using FieldService.Shared.Types;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
 namespace FieldService.Authentication.Services;
 
 public class AzureUserIdentityResolver : IUserIdentityResolver
 {
     private readonly IUserAuthenticationService _userAuthenticationService;
-    private readonly IRequestContextManager _requestContextManager;
-    private readonly ISessionAuthenticationService _sessionAuthenticationService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
 
     public AzureUserIdentityResolver(
         IUserAuthenticationService userAuthenticationService,
-        IRequestContextManager requestContextManager,
-        ISessionAuthenticationService sessionAuthenticationService )
+        IHttpContextAccessor httpContextAccessor)    
     {
         _userAuthenticationService = userAuthenticationService ?? throw new ArgumentNullException(
             nameof(userAuthenticationService));
-        _requestContextManager = requestContextManager ?? throw new ArgumentNullException(
-            nameof(requestContextManager));
-        _sessionAuthenticationService = sessionAuthenticationService ?? throw new ArgumentNullException(
-            nameof(sessionAuthenticationService));
+        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
     }
 
     public async Task ResolveUserAsync(CancellationToken cancellationToken = default)
     {
-        var principal = _requestContextManager.Principal;
+        var principal = GetHttpContext().User;
         var userCacheModel = await GetUserAuthenticationCache(principal);
         
         if (userCacheModel == null)
@@ -37,48 +33,11 @@ public class AzureUserIdentityResolver : IUserIdentityResolver
             throw new UnauthorizedAccessException("User not found.");
         }
         
-        var identity = ClaimsResolver.GetOrCreateAuthenticationIdentity(principal);
+        var identity = ClaimsResolver.GetOrCreateAuthenticationIdentity(GetHttpContext().User);
         
         ClaimsResolver.UpsertClaim(identity, 
             ClaimsExtensions.UserId, 
             userCacheModel.UserId.ToString());
-    }
-
-    public async Task ResolveSessionAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var principal = _requestContextManager.Principal;
-        var sessionId = _requestContextManager.Request.SessionId;
-        if(sessionId == null)
-        {
-            throw new UnauthorizedAccessException("Session not found.");
-        }
-        
-        var sessionCacheModel = await _sessionAuthenticationService.GetSessionAsync(
-            sessionId.Value,
-            cancellationToken);
-
-        if (sessionCacheModel == null)
-        {
-            throw new UnauthorizedAccessException("Session not found.");
-        }
-        
-        var userId = ClaimsResolver.GetUserId(principal);
-        
-        if (userId != sessionCacheModel.UserId)
-        {
-            throw new UnauthorizedAccessException("User not authorized for this session.");
-        }
-        
-        var identity = ClaimsResolver.GetOrCreateAuthenticationIdentity(principal);
-        ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.SessionId, 
-            sessionCacheModel.Id.ToString());
-        ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.TenantId, 
-            sessionCacheModel.TenantId.ToString());
-        
-        var context = _requestContextManager.Request;
-        context.TenantId = sessionCacheModel.TenantId;
-        
     }
 
     private async Task<UserAuthenticationCacheModel?> GetUserAuthenticationCache(ClaimsPrincipal principal)
@@ -93,8 +52,8 @@ public class AzureUserIdentityResolver : IUserIdentityResolver
         
         return userCacheModel;
     }
-    
-    
 
-    
+    private HttpContext GetHttpContext() =>
+        _httpContextAccessor.HttpContext ?? throw new InvalidOperationException("HttpContext is not available.");
+
 }

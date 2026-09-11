@@ -18,7 +18,11 @@ public static class AuditModule
 
         services.AddSqlModule<AuditDbContext>(configuration);
         services.AddScoped<IAuditChangeRepository, AuditRepository>();
-        services.AddScoped<IAuditTracker, AuditTracker>();
+        services.AddScoped<IAuditDtoSchemaRepository, AuditDtoSchemaRepository>();
+        services.AddScoped<IAuditAccessService, AuditAccessService>();
+        services.AddScoped<IAuditChangeService, AuditChangeService>();
+        services.AddScoped<IAuditDtoSchemaBootstrapService, AuditDtoSchemaBootstrapService>();
+        services.AddHostedService<AuditDtoSchemaHostedService>();
         return services;
     }
 }

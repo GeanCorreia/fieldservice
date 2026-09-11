@@ -1,8 +1,16 @@
-using FieldService.Http.Middlewares;
+using System.Text.Json.Serialization.Metadata;
+using FieldService.Cache;
+using FieldService.Cache.Interfaces;
+using FieldService.Http.Interfaces;
+using FieldService.Http.Mappers;
+using FieldService.Http.PipeLine;
+using FieldService.Shared.Dtos;
 using FieldService.Http.Services;
-using FieldService.Shared.Interfaces;
+using Microsoft.AspNetCore.Authentication.JwtBearer; // Adicionar este namespace
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -10,13 +18,61 @@ namespace FieldService.Http;
 
 public static class HttpModule
 {
-    public static IServiceCollection AddHttpPipeline(this IServiceCollection services)
+    private const int AuditChangeFilterOrder = -100;
+    private const int AuditAccessFilterOrder = 0;
+    private const int ApiResponseFilterOrder = 100;
+
+    public static WebApplicationBuilder UseHttpPipeline(this WebApplicationBuilder builder)
     {
-        services.AddScoped<IRequestContextAdapter<HttpContext>, HttpRequestContextAdapter>();
-        SwaggerModuleDiscovery.AddSwagger(services);
-        return services;
+        ArgumentNullException.ThrowIfNull(builder);
+
+        AddHttpPipeline(builder.Services);
+        return builder;
     }
-    
+
+    private static void AddHttpPipeline(IServiceCollection services)
+    {
+        services.AddScoped<HttpApiResponseFilter>();
+        services.AddScoped<HttpAuditAccessFilter>();
+        services.AddScoped<HttpAuditChangeFilter>();
+        services.Configure<MvcOptions>(ConfigureFilterOrder);
+        services.Configure<JsonOptions>(ConfigureJsonSerialization);
+        SwaggerModuleDiscovery.AddSwagger(services);
+        
+        services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+        {
+            var existingOnMessageReceived = options.Events?.OnMessageReceived;
+
+            options.Events ??= new JwtBearerEvents();
+            options.Events.OnMessageReceived = async context =>
+            {
+                if (existingOnMessageReceived != null)
+                {
+                    await existingOnMessageReceived(context);
+                }
+
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/signalr"))
+                {
+                    context.Token = accessToken;
+                }
+            };
+        });
+        
+        services.AddCors(options =>
+        {
+            options.AddPolicy("SignalRCorsPolicy", policy =>
+            {
+                policy.SetIsOriginAllowed(_ => true) 
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials(); // OBRIGATÓRIO para o SignalR
+            });
+        });
+    }
+
     public static WebApplication UseHttpPipeline(
         this WebApplication app,
         IHostEnvironment environment)
@@ -37,19 +93,57 @@ public static class HttpModule
         }
 
         app.UseRouting();
+        app.UseCors("SignalRCorsPolicy");
+
         if (!environment.IsDevelopment())
             app.UseAuthentication();
-
-        if (environment.IsDevelopment())
-            app.UseMiddleware<DevelopmentHttpRequestContextMiddleware>();
-        else
-            app.UseMiddleware<HttpRequestContextMiddleware>();
-
-        app.UseMiddleware<HttpSessionMiddleware>();
+        
+        app.UseMiddleware<HttpAuthenticationMiddleware>();
+        app.UseMiddleware<HttpObservabilityMiddleware>();
         app.UseAuthorization();
-        app.UseMiddleware<HttpAuditMiddleware>();
 
         app.MapControllers();
         return app;
+    }
+
+    private static void ConfigureFilterOrder(MvcOptions options)
+    {
+        options.Filters.AddService<HttpAuditChangeFilter>(AuditChangeFilterOrder);
+        options.Filters.AddService<HttpAuditAccessFilter>(AuditAccessFilterOrder);
+        options.Filters.AddService<HttpApiResponseFilter>(ApiResponseFilterOrder);
+    }
+
+    private static void ConfigureJsonSerialization(JsonOptions options)
+    {
+        var resolver = new DefaultJsonTypeInfoResolver();
+        resolver.Modifiers.Add(typeInfo =>
+        {
+            if (!typeof(AbstractDto).IsAssignableFrom(typeInfo.Type))
+                return;
+
+            var hiddenProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "version",
+                "resourceName",
+                "properties"
+            };
+
+            for (var i = typeInfo.Properties.Count - 1; i >= 0; i--)
+            {
+                if (hiddenProperties.Contains(typeInfo.Properties[i].Name))
+                    typeInfo.Properties.RemoveAt(i);
+            }
+        });
+
+        options.JsonSerializerOptions.TypeInfoResolverChain.Insert(0, resolver);
+    }
+    
+    public static IServiceCollection AddHttpModule(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddScoped<ILoginService, LoginService>();
+        services.AddSingleton<IUserMapper, UserMapper>();
+        return services;
     }
 }

@@ -16,10 +16,16 @@
     <ItemGroup>
       <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
       <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />
+      <ProjectReference Include="..\FieldService.Authentication\FieldService.Authentication.csproj" />
+      <ProjectReference Include="..\FieldService.Observability\FieldService.Observability.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 
 </Project>

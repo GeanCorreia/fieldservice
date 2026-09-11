@@ -15,7 +15,6 @@ internal sealed class SessionRepository(
         
 
         var existing = await dbContext.Sessions
-            .Include(x => x.Activities)
             .FirstOrDefaultAsync(x => x.Id == session.Id, ct);
 
         if (existing is null)
@@ -25,8 +24,6 @@ internal sealed class SessionRepository(
         else
         {
             dbContext.Entry(existing).CurrentValues.SetValues(session);
-            dbContext.SessionActivities.RemoveRange(existing.Activities);
-            await dbContext.SessionActivities.AddRangeAsync(session.Activities, ct);
         }
 
         await unitOfWork.PersistChangesAsync(ct);
@@ -43,7 +40,6 @@ internal sealed class SessionRepository(
         
         var sessionIds = sessionsList.Select(s => s.Id).ToList();
         var existingSessions = await dbContext.Sessions
-            .Include(x => x.Activities)
             .Where(x => sessionIds.Contains(x.Id))
             .ToListAsync(ct);
 
@@ -59,9 +55,6 @@ internal sealed class SessionRepository(
             else
             {
                 dbContext.Entry(existing).CurrentValues.SetValues(session);
-
-                dbContext.SessionActivities.RemoveRange(existing.Activities);
-                await dbContext.SessionActivities.AddRangeAsync(session.Activities, ct);
             }
         }
 
@@ -75,7 +68,6 @@ internal sealed class SessionRepository(
             throw new ArgumentException("SessionId is required.", nameof(sessionId));
 
         return await dbContext.Sessions
-            .Include(x => x.Activities)
             .FirstOrDefaultAsync(x => x.Id == sessionId, ct);
     }
 

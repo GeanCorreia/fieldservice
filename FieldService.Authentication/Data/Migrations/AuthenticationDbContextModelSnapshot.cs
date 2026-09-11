@@ -28,7 +28,7 @@ namespace FieldService.Authentication.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("Id");
 
-                    b.Property<DateTime>("ExpiresAt")
+                    b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ExpiresAt");
 
@@ -36,10 +36,6 @@ namespace FieldService.Authentication.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("ExternalId");
-
-                    b.Property<DateTime?>("LastActivityAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("LastActivityAt");
 
                     b.Property<int>("Provider")
                         .HasColumnType("integer")
@@ -49,11 +45,11 @@ namespace FieldService.Authentication.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("RevocationReason");
 
-                    b.Property<DateTime?>("RevokedAt")
+                    b.Property<DateTimeOffset?>("RevokedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("RevokedAt");
 
-                    b.Property<DateTime>("StartedAt")
+                    b.Property<DateTimeOffset>("StartedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("StartedAt");
 
@@ -106,7 +102,7 @@ namespace FieldService.Authentication.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("SessionId");
 
-                    b.Property<DateTime>("Timestamp")
+                    b.Property<DateTimeOffset>("Timestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("Timestamp");
 
@@ -157,7 +153,7 @@ namespace FieldService.Authentication.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("Id");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("CreatedAt");
 
@@ -165,7 +161,7 @@ namespace FieldService.Authentication.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("CreatedBy");
 
-                    b.Property<DateTime?>("EndedAt")
+                    b.Property<DateTimeOffset?>("EndedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("EndedAt");
 
@@ -198,15 +194,6 @@ namespace FieldService.Authentication.Data.Migrations
                     b.ToTable("UserTenantEvent", (string)null);
                 });
 
-            modelBuilder.Entity("FieldService.Authentication.Entities.SessionActivity", b =>
-                {
-                    b.HasOne("FieldService.Authentication.Entities.Session", null)
-                        .WithMany("Activities")
-                        .HasForeignKey("SessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("FieldService.Authentication.Events.UserTenantEvent", b =>
                 {
                     b.HasOne("FieldService.Authentication.Entities.UserAuthentication", null)
@@ -214,11 +201,6 @@ namespace FieldService.Authentication.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("FieldService.Authentication.Entities.Session", b =>
-                {
-                    b.Navigation("Activities");
                 });
 
             modelBuilder.Entity("FieldService.Authentication.Entities.UserAuthentication", b =>

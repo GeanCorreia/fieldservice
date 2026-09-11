@@ -1,5 +1,4 @@
-using FieldService.Shared.Types;
-using FieldService.Shared.Services;
+using FieldService.Observability.Types;
 
 namespace FieldService.Authentication.Entities;
 
@@ -10,7 +9,7 @@ public class SessionActivity
     public string JwtId { get; private set; }
     public string IpAddressHash { get; private set; }
     public string? UserAgentHash { get; private set; }
-    public DateTime Timestamp { get; private set; }
+    public DateTimeOffset Timestamp { get; private set; }
     public RequestChannel Channel { get; private set; }
     public Guid RequestId { get; private set; }
     
@@ -21,7 +20,7 @@ public class SessionActivity
         Guid sessionId, 
         string jwtId,
         string ipAddressHash,
-        DateTime timestamp, 
+        DateTimeOffset timestamp, 
         RequestChannel channel, 
         Guid requestId,
         string? userAgentHash = null)
@@ -31,7 +30,7 @@ public class SessionActivity
         JwtId = jwtId;
         IpAddressHash = ipAddressHash;
         UserAgentHash = userAgentHash;
-        Timestamp = DateTimeService.EnsureUtc(timestamp);
+        Timestamp = timestamp;
         Channel = channel;
         RequestId = requestId;
     }

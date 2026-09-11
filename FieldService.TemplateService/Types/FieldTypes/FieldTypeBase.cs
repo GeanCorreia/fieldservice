@@ -126,10 +126,10 @@ public abstract record FieldTypeBase
                decimal.TryParse(rawValue?.ToString(), out value);
     }
 
-    private static bool TryGetDateTimeParameter(ValidationRule rule, string parameterName, out DateTime value)
+    private static bool TryGetDateTimeParameter(ValidationRule rule, string parameterName, out DateTimeOffset value)
     {
         value = default;
         return rule.Parameters.TryGetValue(parameterName, out var rawValue) &&
-               DateTime.TryParse(rawValue?.ToString(), out value);
+               DateTimeOffset.TryParse(rawValue?.ToString(), out value);
     }
 }

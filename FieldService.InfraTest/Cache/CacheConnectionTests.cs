@@ -1,4 +1,3 @@
-using FieldService.Broker.Interfaces;
 using FieldService.Cache;
 using FieldService.Cache.Interfaces;
 using Microsoft.Extensions.Configuration;
@@ -25,11 +24,8 @@ public sealed class CacheConnectionTests
         using var provider = services.BuildServiceProvider();
 
         var redisContext = provider.GetRequiredService<IRedisContext>();
-        var processingLock = provider.GetRequiredService<IMessageProcessingLock>();
-
         var ping = await redisContext.Database.PingAsync();
 
-        Assert.NotNull(processingLock);
         Assert.True(ping >= TimeSpan.Zero);
     }
 

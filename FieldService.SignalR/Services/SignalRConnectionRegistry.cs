@@ -1,14 +1,16 @@
 using FieldService.SignalR.Hubs;
 using FieldService.SignalR.Interfaces;
+using FieldService.SignalR.Types;
+using FieldService.Shared.Types;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 
 namespace FieldService.SignalR.Services;
 
 internal sealed class SignalRConnectionRegistry(
-    ISignalRGetaway signalRGetaway,
     ISignalRPresenceRegistry presenceRegistry,
     ISignalRConnectionEventProducer connectionEventProducer,
+    ISignalRRoomRegistry roomRegistry,
     IHubContext<SignalRHub> hubContext) : ISignalRConnectionRegistry
 {
     public async Task OnConnectedAsync(string connectionId, HttpContext? httpContext, CancellationToken ct = default)
@@ -16,65 +18,63 @@ internal sealed class SignalRConnectionRegistry(
         if (string.IsNullOrWhiteSpace(connectionId))
             throw new ArgumentException("ConnectionId is required.", nameof(connectionId));
 
-        var token = ResolveToken(httpContext);
-        var connection = await signalRGetaway.ConnectAsync(token, connectionId, ct);
+        var connection = ResolveConnectionContext(connectionId, httpContext);
+        
+        await RegisterSignalRGroupsAsync(connection, ct);
+        
+        await presenceRegistry.RegisterAsync(
+            connection.ConnectionId,
+            connection.UserId,
+            connection.SessionId,
+            connection.TenantId,
+            ct: ct);
+        
+        await roomRegistry.RestoreSessionRoomsAsync(connection.ConnectionId, connection.SessionId, ct);
+        
+        await connectionEventProducer.PublishAsync(connection, ct);
+    }
 
-        await hubContext.Groups.AddToGroupAsync(connectionId, $"user:{connection.UserId}", ct);
-        await hubContext.Groups.AddToGroupAsync(connectionId, $"device:{connection.DeviceId}", ct);
-        await presenceRegistry.RegisterAsync(connectionId, connection.UserId, connection.DeviceId, ct);
+    public async Task OnDisconnectedAsync(string connectionId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(connectionId))
+            throw new ArgumentException("ConnectionId is required.", nameof(connectionId));
+        
+        using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        foreach (var tenantId in connection.TenantIds)
+        await roomRegistry.UnregisterFromAllRoomsAsync(connectionId, cleanupCts.Token);
+        await presenceRegistry.UnregisterAsync(connectionId, cleanupCts.Token);
+    }
+
+    private async Task RegisterSignalRGroupsAsync(SignalRConnectionContext connection, CancellationToken ct)
+    {
+        var groupTasks = new[]
         {
-            await hubContext.Groups.AddToGroupAsync(connectionId, $"tenant:{tenantId}", ct);
-            await presenceRegistry.SubscribeTenantAsync(connectionId, tenantId, ct);
-        }
+            hubContext.Groups.AddToGroupAsync(connection.ConnectionId, $"user:{connection.UserId}", ct),
+            hubContext.Groups.AddToGroupAsync(connection.ConnectionId, $"tenant:{connection.TenantId}", ct)
+        };
 
-        await connectionEventProducer.PublishConnectedAsync(connection, ct);
+        await Task.WhenAll(groupTasks);
     }
 
-    public Task OnDisconnectedAsync(string connectionId, CancellationToken ct = default)
+    private static SignalRConnectionContext ResolveConnectionContext(string connectionId, HttpContext? httpContext)
     {
-        if (string.IsNullOrWhiteSpace(connectionId))
-            throw new ArgumentException("ConnectionId is required.", nameof(connectionId));
+        var principal = httpContext?.User;
+        if (principal?.Identity?.IsAuthenticated != true)
+            throw new UnauthorizedAccessException("Authenticated user is required for SignalR connection.");
 
-        return presenceRegistry.UnregisterAsync(connectionId, ct);
+        var userId = ReadRequiredGuidClaim(principal, ClaimsExtensions.UserId);
+        var sessionId = ReadRequiredGuidClaim(principal, ClaimsExtensions.SessionId);
+        var tenantId = ReadRequiredGuidClaim(principal, ClaimsExtensions.TenantId);
+
+        return new SignalRConnectionContext(connectionId, userId, sessionId, tenantId, DateTimeOffset.UtcNow);
     }
 
-    public async Task SubscribeTenantAsync(string connectionId, Guid tenantId, CancellationToken ct = default)
+    private static Guid ReadRequiredGuidClaim(System.Security.Claims.ClaimsPrincipal principal, string claimType)
     {
-        if (string.IsNullOrWhiteSpace(connectionId))
-            throw new ArgumentException("ConnectionId is required.", nameof(connectionId));
-        if (tenantId == default)
-            throw new ArgumentException("TenantId is required.", nameof(tenantId));
+        var claim = principal.FindFirst(claimType)?.Value;
+        if (!Guid.TryParse(claim, out var value) || value == default)
+            throw new UnauthorizedAccessException($"Required claim '{claimType}' is missing or invalid.");
 
-        await hubContext.Groups.AddToGroupAsync(connectionId, $"tenant:{tenantId}", ct);
-        await presenceRegistry.SubscribeTenantAsync(connectionId, tenantId, ct);
-    }
-
-    public async Task UnsubscribeTenantAsync(string connectionId, Guid tenantId, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(connectionId))
-            throw new ArgumentException("ConnectionId is required.", nameof(connectionId));
-        if (tenantId == default)
-            throw new ArgumentException("TenantId is required.", nameof(tenantId));
-
-        await hubContext.Groups.RemoveFromGroupAsync(connectionId, $"tenant:{tenantId}", ct);
-        await presenceRegistry.UnsubscribeTenantAsync(connectionId, tenantId, ct);
-    }
-
-    private static string ResolveToken(HttpContext? httpContext)
-    {
-        var token = httpContext?.Request.Query["access_token"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(token))
-            return token;
-
-        var authHeader = httpContext?.Request.Headers.Authorization.ToString();
-        if (!string.IsNullOrWhiteSpace(authHeader) &&
-            authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            return authHeader["Bearer ".Length..].Trim();
-        }
-
-        throw new UnauthorizedAccessException("JWT token was not provided.");
+        return value;
     }
 }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+</head>
+<body>
+<h2>Testando SignalR Hub</h2>
+<div id="status">Conectando...</div>
+
+<script>
+    const sessionId = "8c3adf2c-eb54-4512-9aa3-e7d88230d091";
+    const hubUrl = `http://localhost:5221/hubs/signalr?sessionId=${sessionId}`;
+
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl(hubUrl, {
+            skipNegotiation: true,
+            transport: signalR.HttpTransportType.WebSockets
+        })
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+    connection.start()
+        .then(() => {
+            document.getElementById("status").innerText = "CONECTADO COM SUCESSO!";
+            console.log("Conectado via WebSockets nativos!");
+        })
+        .catch(err => {
+            document.getElementById("status").innerText = "ERRO: " + err;
+            console.error(err);
+        });
+</script>
+</body>
+</html>

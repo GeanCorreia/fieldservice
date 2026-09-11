@@ -1,6 +1,6 @@
 using FieldService.Authentication.Entities;
 using FieldService.Authentication.Types;
-using FieldService.Shared.Types;
+using FieldService.Observability.Types;
 
 namespace FieldService.Authentication.Types;
 
@@ -10,6 +10,6 @@ public sealed record SessionActivityCacheModel(
     string JwtId,
     string IpAddressHash,
     string? UserAgentHash,
-    DateTime Timestamp,
+    DateTimeOffset Timestamp,
     RequestChannel Channel,
     Guid RequestId);

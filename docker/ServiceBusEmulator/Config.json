@@ -1,0 +1,32 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Topics": [
+          {
+            "Name": "signalr.user-client.ws-connection-context",
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT5M"
+            },
+            "Subscriptions": [
+              {
+                "Name": "notification.pending-user-connected.sub",
+                "Properties": {
+                  "DeadLetteringOnMessageExpiration": true,
+                  "LockDuration": "PT1M",
+                  "MaxDeliveryCount": 10,
+                  "RequiresSession": false
+                }
+              }
+            ]
+          }
+        ],
+        "Queues": []
+      }
+    ],
+    "Logging": {
+      "Type": "File"
+    }
+  }
+}

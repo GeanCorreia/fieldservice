@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <FrameworkReference Include="Microsoft.AspNetCore.App" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
+      <PackageReference Include="AWSSDK.S3" Version="3.7.407.0" />
+      <PackageReference Include="Azure.Storage.Blobs" Version="12.23.0" />
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.1" />
+      <PackageReference Include="Google.Cloud.Storage.V1" Version="4.11.0" />
+      <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />
+      <ProjectReference Include="..\FieldService.Cache\FieldService.Cache.csproj" />
+      <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />
+      <ProjectReference Include="..\FieldService.Observability\FieldService.Observability.csproj" />
+      <ProjectReference Include="..\FieldService.Queue\FieldService.Queue.csproj" />
+      <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Data\" />
+    </ItemGroup>
+
+</Project>

@@ -2,8 +2,11 @@ using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using OpenTelemetry.Exporter;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace FieldService.Observability;
@@ -19,17 +22,46 @@ public static class ObservabilityModule
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
+        var serviceName = configuration["Observability:ServiceName"]
+            ?? Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME")
+            ?? environment.ApplicationName;
+
+        services.AddLogging(logging =>
+        {
+            logging.AddOpenTelemetry(options =>
+            {
+                options.IncludeFormattedMessage = true;
+                options.IncludeScopes = true;
+                options.ParseStateValues = true;
+                options.SetResourceBuilder(
+                    ResourceBuilder.CreateDefault().AddService(serviceName: serviceName));
+            });
+        });
+
         var telemetryBuilder = services.AddOpenTelemetry()
+            .ConfigureResource(resource =>
+            {
+                resource.AddService(serviceName: serviceName);
+            })
             .WithTracing(tracing =>
             {
-                tracing.AddAspNetCoreInstrumentation();
+                tracing.AddAspNetCoreInstrumentation(options =>
+                {
+                    options.EnrichWithHttpRequest = static (activity, httpRequest) =>
+                    {
+                        var clientAddress = httpRequest.HttpContext.Connection.RemoteIpAddress?.ToString();
+                        if (!string.IsNullOrWhiteSpace(clientAddress))
+                            activity.SetTag("client.address", clientAddress);
+                    };
+                });
                 tracing.AddHttpClientInstrumentation();
                 tracing.AddSource(
                     "Grpc.Net.Client",
                     "Grpc.AspNetCore.Server",
                     "Microsoft.AspNetCore.SignalR.Server",
                     "Microsoft.AspNetCore.SignalR.Client",
-                    "FieldService.Queue.Hangfire");
+                    "FieldService.Queue.Hangfire",
+                    "MassTransit");
             })
             .WithMetrics(metrics =>
             {
@@ -40,7 +72,8 @@ public static class ObservabilityModule
                     "Microsoft.AspNetCore.Http.Connections",
                     "Microsoft.AspNetCore.SignalR",
                     "Grpc.Net.Client",
-                    "FieldService.Queue.Hangfire");
+                    "FieldService.Queue.Hangfire",
+                    "MassTransit");
             });
 
         if (environment.IsDevelopment())
@@ -65,6 +98,15 @@ public static class ObservabilityModule
                         otlpOptions.Protocol = OtlpExportProtocol.Grpc;
                     });
                 });
+
+            services.Configure<OpenTelemetryLoggerOptions>(options =>
+            {
+                options.AddOtlpExporter(otlpOptions =>
+                {
+                    otlpOptions.Endpoint = endpointUri;
+                    otlpOptions.Protocol = OtlpExportProtocol.Grpc;
+                });
+            });
         }
         else
         {

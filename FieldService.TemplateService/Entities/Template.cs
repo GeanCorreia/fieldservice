@@ -48,7 +48,7 @@ public class Template
     public TemplateUpdateResult UpdateFields(
         Guid expectedTemplateVersionId,
         IEnumerable<Field> proposedFields,
-        DateTime changedAt,
+        DateTimeOffset changedAt,
         string? description = null,
         TemplateUI? templateUi = null)
     {

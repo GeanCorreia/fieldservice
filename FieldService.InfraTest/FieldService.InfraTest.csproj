@@ -10,10 +10,10 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.1" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
@@ -24,6 +24,7 @@
     <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />
     <ProjectReference Include="..\FieldService.Cache\FieldService.Cache.csproj" />
     <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />
+    <ProjectReference Include="..\FieldService.Observability\FieldService.Observability.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -33,6 +34,7 @@
   <ItemGroup>
     <Folder Include="Authentication\" />
     <Folder Include="Authorization\" />
+    <Folder Include="Broker\" />
   </ItemGroup>
 
 </Project>

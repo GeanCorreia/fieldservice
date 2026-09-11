@@ -1,16 +1,19 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: fieldservice-postgres
     restart: unless-stopped
+    # 1. Força o início do PostgreSQL em UTC
+    command: postgres -c timezone=UTC
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       POSTGRES_DB: ${POSTGRES_DB:-fieldservice}
+      # 2. Força o sistema operacional do container a rodar em UTC
+      TZ: UTC
+      PGTZ: UTC
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -31,6 +34,7 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USER:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-admin123}
       MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-fieldservice}
+      TZ: UTC
     volumes:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
@@ -59,27 +63,46 @@ services:
       timeout: 5s
       retries: 5
 
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    container_name: fieldservice-rabbitmq
+  asb-sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: fieldservice-asb-sql
     restart: unless-stopped
-    ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
-      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Strong_Passw0rd#2025"
+      TZ: UTC
     networks:
       - fieldservice-network
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
+      test: [ "CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Strong_Passw0rd#2025' -Q 'SELECT 1' -C || exit 1" ]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 15s
 
+  servicebus:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    container_name: fieldservice-servicebus
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "5300:5300"
+    environment:
+      ACCEPT_EULA: "Y"
+      SQL_SERVER: "asb-sql"
+      MSSQL_SA_PASSWORD: "Strong_Passw0rd#2025"
+      EMULATOR_HTTP_PORT: "5300"
+      CONFIG_PATH: "/ServiceBus_Emulator/ConfigFiles/Config.json"
+      TZ: UTC
+    volumes:
+      - ./docker/ServiceBusEmulator/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro
+    depends_on:
+      asb-sql:
+        condition: service_healthy
+    networks:
+      - fieldservice-network
+       
   aspire-dashboard:
     image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
     container_name: fieldservice-aspire-dashboard
@@ -90,6 +113,7 @@ services:
     environment:
       DASHBOARD__FRONTEND__AUTHMODE: Unsecured
       DASHBOARD__OTLP__AUTHMODE: Unsecured
+      TZ: UTC
     networks:
       - fieldservice-network
 

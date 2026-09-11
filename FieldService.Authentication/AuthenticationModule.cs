@@ -28,6 +28,7 @@ public static class AuthenticationModule
                                                    "Configure 'Authentication' section in appsettings.");
 
         services.AddSqlModule<AuthenticationDbContext>(configuration);
+        services.AddHttpContextAccessor();
         services.AddSingleton(authenticationOptions);
         services.AddScoped<IIdentityProvider, AzureEntraIdentityProvider>();
         services.AddSingleton<ISessionCacheService, RedisSessionCacheService>();
@@ -37,7 +38,7 @@ public static class AuthenticationModule
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<IUserAuthenticationRepository, UserAuthenticationRepository>();
         services.AddScoped<IUserAuthenticationService, UserAuthenticationService>();
-        services.AddScoped<ILoginService, LoginService>();
+        services.AddScoped<ISessionPersistenceService, SessionCleanupService>();
         services.AddScoped<ISessionManager, SessionManager>();
         services.AddScoped<ISessionAuthenticationService, SessionAuthenticationService>();
         if (environment?.IsDevelopment() == true)
@@ -48,6 +49,7 @@ public static class AuthenticationModule
         {
             services.AddScoped<IUserIdentityResolver, AzureUserIdentityResolver>();
         }
+        services.AddScoped<ISessionResolver, SessionResolver>();
         services.AddMicrosoftIdentityWebApiAuthentication(configuration, configSectionName: "AzureAdB2C");
         services.AddMicrosoftGraph();
         services.AddInMemoryTokenCaches();

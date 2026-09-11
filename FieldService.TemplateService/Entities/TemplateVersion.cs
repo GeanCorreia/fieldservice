@@ -31,7 +31,7 @@ public class TemplateVersion
         Ui = ui ?? new TemplateUI();
 
     }
-    public void Activate(DateTime activationDate)
+    public void Activate(DateTimeOffset activationDate)
     {
         if (IsActive)
             throw new InvalidOperationException($"Template version '{SchemaVersion}' is already active.");
@@ -43,7 +43,7 @@ public class TemplateVersion
         _activeIntervals.Add(new DateTimeInterval(activationDate));
     }
 
-    public void Deactivate(DateTime deactivationDate)
+    public void Deactivate(DateTimeOffset deactivationDate)
     {
         if (!IsActive)
             throw new InvalidOperationException($"Template version '{SchemaVersion}' is not active.");
@@ -60,9 +60,9 @@ public class TemplateVersion
         activeInterval.EndedAt(deactivationDate);
     }
     
-    public bool WasActiveAt(DateTime moment) => ActiveIntervals.Any(interval => interval.WasActiveAt(moment));
+    public bool WasActiveAt(DateTimeOffset moment) => ActiveIntervals.Any(interval => interval.WasActiveAt(moment));
     
-    public bool WasActiveDuring(DateTime periodStart, DateTime periodEnd) => 
+    public bool WasActiveDuring(DateTimeOffset periodStart, DateTimeOffset periodEnd) => 
         ActiveIntervals.Any(interval => interval.WasActiveDuring(periodStart, periodEnd));
 
     public void ChangeFieldOrder(Guid fieldId, int newOrder)
@@ -89,7 +89,7 @@ public class TemplateVersion
     }
     
     public static TemplateVersion Create(
-        DateTime createdAt,
+        DateTimeOffset createdAt,
         IEnumerable<Field> fields,
         SchemaVersion schemaVersion,
         string? description = null,

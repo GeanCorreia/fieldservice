@@ -6,7 +6,7 @@ namespace FieldService.Authorization.Events;
 public class RoleEvent
 {
     public Guid Id { get; }
-    public DateTime CreatedAt { get; }
+    public DateTimeOffset CreatedAt { get; }
     public Guid CreatedBy { get; }
     public Guid UserId { get; }
     public Guid TenantId { get; }
@@ -15,7 +15,7 @@ public class RoleEvent
     
     protected RoleEvent() { }
     public RoleEvent(
-        DateTime createdAt,
+        DateTimeOffset createdAt,
         Guid createdBy,
         Guid userId,
         Guid tenantId,
@@ -31,7 +31,7 @@ public class RoleEvent
     }
 
     public static RoleEvent CreateRoleAssignmentEvent(
-        DateTime createdAt, 
+        DateTimeOffset createdAt, 
         Guid createdBy, 
         Guid userId, 
         Guid tenantId,

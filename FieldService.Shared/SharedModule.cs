@@ -15,7 +15,6 @@ public static class SharedModule
         
         services.AddSingleton<IDateTimeService, DateTimeService>();
         services.AddSingleton<IHashService, HashService>();
-        services.AddScoped<IRequestContextManager, RequestContextManager>();
         
         var assemblies = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => a.FullName?.StartsWith("FieldService") == true)

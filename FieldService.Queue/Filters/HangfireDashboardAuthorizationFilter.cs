@@ -16,7 +16,9 @@ public sealed class HangfireDashboardAuthorizationFilter(
 
         var httpContext = context.GetHttpContext();
         if (environment.IsDevelopment() && options.AllowAnonymousInDevelopment)
+        {
             return true;
+        }
 
         if (httpContext.User.Identity?.IsAuthenticated != true)
             return false;

@@ -34,7 +34,7 @@ public class UserAuthorizationContext
         .OrderByDescending(e => e.CreatedAt)
         .FirstOrDefault()!.Role; 
         
-    public void AddRole(Role role, DateTime createdAt, Guid createdBy)
+    public void AddRole(Role role, DateTimeOffset createdAt, Guid createdBy)
     {
         if (Role == role)
         {
@@ -76,7 +76,7 @@ public class UserAuthorizationContext
 
     public void AddPermission(
         Permission permission, 
-        DateTime createdAt, 
+        DateTimeOffset createdAt, 
         Guid createdBy)
     {
         if (Permissions.Contains(permission))
@@ -92,7 +92,7 @@ public class UserAuthorizationContext
         _permissionEvents.Add(newEvent);
     }
 
-    public void RemovePermission(Permission permission, DateTime createdAt, Guid createdBy)
+    public void RemovePermission(Permission permission, DateTimeOffset createdAt, Guid createdBy)
     {
         if (!Permissions.Contains(permission))
             return;
@@ -105,7 +105,7 @@ public class UserAuthorizationContext
         _permissionEvents.Add(newEvent);
     }
 
-    public IReadOnlyCollection<UserSuspensionDetails> GetActiveSuspensions(DateTime atTime)
+    public IReadOnlyCollection<UserSuspensionDetails> GetActiveSuspensions(DateTimeOffset atTime)
     {
         var activeSuspensions = new List<UserSuspensionDetails>();
         
@@ -135,13 +135,13 @@ public class UserAuthorizationContext
         return activeSuspensions.AsReadOnly();
     }
 
-    public bool IsActive(DateTime activatedAt)
+    public bool IsActive(DateTimeOffset activatedAt)
     {
         var activeSuspensions = GetActiveSuspensions(activatedAt);
         return !activeSuspensions.Any();
     }
 
-    public void Deactivate(Guid createdBy, SuspensionSource source, DateTime startedAt, DateTime? endedAt = null)
+    public void Deactivate(Guid createdBy, SuspensionSource source, DateTimeOffset startedAt, DateTimeOffset? endedAt = null)
     {
         UserSuspensionEvent suspensionEvent;
         
@@ -149,7 +149,7 @@ public class UserAuthorizationContext
         {
             suspensionEvent = UserSuspensionEvent.CreateTemporaryUserSuspensionEvent(
                 createdBy,
-                DateTime.UtcNow,
+                DateTimeOffset.UtcNow,
                 UserId,
                 TenantId,
                 source,
@@ -160,7 +160,7 @@ public class UserAuthorizationContext
         {
             suspensionEvent = UserSuspensionEvent.CreateIndefiniteUserSuspensionEvent(
                 createdBy,
-                DateTime.UtcNow,
+                DateTimeOffset.UtcNow,
                 UserId,
                 TenantId,
                 source);
@@ -169,7 +169,7 @@ public class UserAuthorizationContext
         _suspensionEvents.Add(suspensionEvent);
     }
     
-    public void CancelSuspension(Guid originalSuspensionEventId, Guid createdBy, SuspensionSource source, DateTime cancelledAt)
+    public void CancelSuspension(Guid originalSuspensionEventId, Guid createdBy, SuspensionSource source, DateTimeOffset cancelledAt)
     {
         var originalEvent = _suspensionEvents
             .FirstOrDefault(e => e.Id == originalSuspensionEventId);
@@ -216,12 +216,10 @@ public class UserAuthorizationContext
         {
             var currentEvent = sortedEvents[i];
             DateTimeOffset? endDate = i + 1 < sortedEvents.Count
-                ? new DateTimeOffset(sortedEvents[i + 1].CreatedAt, TimeSpan.Zero)
+                ? sortedEvents[i + 1].CreatedAt
                 : null;
 
-            var interval = new Interval(
-                new DateTimeOffset(currentEvent.CreatedAt, TimeSpan.Zero),
-                endDate);
+            var interval = new Interval(currentEvent.CreatedAt, endDate);
 
             if (!roleHistory.ContainsKey(currentEvent.Role))
             {
@@ -261,12 +259,8 @@ public class UserAuthorizationContext
                     .OrderBy(e => e.CreatedAt)
                     .FirstOrDefault();
 
-                var startDate = new DateTimeOffset(grantEvent.CreatedAt, TimeSpan.Zero);
-                DateTimeOffset? endDate = revokeEvent != null
-                    ? new DateTimeOffset(revokeEvent.CreatedAt, TimeSpan.Zero)
-                    : null;
-
-                intervals.Add(new Interval(startDate, endDate));
+                DateTimeOffset? endDate = revokeEvent?.CreatedAt;
+                intervals.Add(new Interval(grantEvent.CreatedAt, endDate));
             }
 
             permissionHistory[permissionGroup.Key] = intervals;
@@ -292,10 +286,7 @@ public class UserAuthorizationContext
 
             var startDate = suspensionEvent.StartedAt ?? suspensionEvent.CreatedAt;
             var endDate = cancelEvent?.CreatedAt ?? suspensionEvent.EndedAt;
-
-            var interval = new Interval(
-                new DateTimeOffset(startDate, TimeSpan.Zero),
-                endDate.HasValue ? new DateTimeOffset(endDate.Value, TimeSpan.Zero) : null);
+            var interval = new Interval(startDate, endDate);
 
             suspensionHistory.Add(new UserSuspensionDetails(
                 UserId,

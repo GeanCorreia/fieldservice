@@ -16,7 +16,7 @@ public interface ISessionCacheService
         CancellationToken ct = default);
     Task UpdateSessionJwtIdAsync(Guid sessionId, 
         string jwtId, 
-        DateTime expiresAt,
+        DateTimeOffset expiresAt,
         CancellationToken ct = default);
     Task<SessionCacheModel?> GetSessionAsync(
         Guid sessionId, 

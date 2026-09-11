@@ -28,7 +28,7 @@ namespace FieldService.Authorization.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("Id");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("CreatedAt");
 
@@ -68,7 +68,7 @@ namespace FieldService.Authorization.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("Id");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("CreatedAt");
 
@@ -106,7 +106,7 @@ namespace FieldService.Authorization.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("Id");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("CreatedAt");
 
@@ -114,7 +114,7 @@ namespace FieldService.Authorization.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("CreatedBy");
 
-                    b.Property<DateTime?>("EndedAt")
+                    b.Property<DateTimeOffset?>("EndedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("EndedAt");
 
@@ -126,7 +126,7 @@ namespace FieldService.Authorization.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("Source");
 
-                    b.Property<DateTime?>("StartedAt")
+                    b.Property<DateTimeOffset?>("StartedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("StartedAt");
 

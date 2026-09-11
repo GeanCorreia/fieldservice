@@ -9,6 +9,6 @@ public sealed record UserAuthorizationSnapshot
     Role Role,
     IReadOnlyCollection<Permission> Permissions,
     bool IsActive,
-    DateTime GeneratedAt
+    DateTimeOffset GeneratedAt
 );
  

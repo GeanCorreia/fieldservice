@@ -4,5 +4,5 @@ namespace FieldService.SignalR.Interfaces;
 
 public interface ISignalRConnectionEventProducer
 {
-    Task PublishConnectedAsync(SignalRConnectionContext connectionContext, CancellationToken ct = default);
+    Task PublishAsync(SignalRConnectionContext connectionContext, CancellationToken ct = default);
 }

@@ -3,6 +3,8 @@ using Hangfire.Dashboard;
 using Hangfire.PostgreSql;
 using Hangfire.Tags.PostgreSql;
 using FieldService.Queue.Filters;
+using FieldService.Queue.Interfaces;
+using FieldService.Queue.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,7 +28,9 @@ public static class QueueModule
                                    $"ConnectionStrings:{options.ConnectionStringName} is not configured and fallback ConnectionStrings:Postgres is missing.");
 
         services.AddSingleton(options);
-        services.AddHangfire(config =>
+        services.AddSingleton<HangfireOnCreatingFilter>();
+        services.AddSingleton<HangfireExecutionFilter>();
+        services.AddHangfire((serviceProvider, config) =>
         {
             var retryDelays = options.RetryDelaysInSeconds
                 .Where(delay => delay > 0)
@@ -54,8 +58,8 @@ public static class QueueModule
                         PrepareSchemaIfNecessary = true
                     })
                 .UseTagsWithPostgreSql()
-                .UseFilter(new MessageContextFilter())
-                .UseFilter(new HangfireExecutionTelemetryFilter())
+                .UseFilter(serviceProvider.GetRequiredService<HangfireOnCreatingFilter>())
+                .UseFilter(serviceProvider.GetRequiredService<HangfireExecutionFilter>())
                 .UseFilter(retryFilter)
                 .UseFilter(new SucceededOnlyExpirationFilter(TimeSpan.FromDays(Math.Max(1, options.SuccessfulJobRetentionDays))));
         });
@@ -72,6 +76,13 @@ public static class QueueModule
             serverOptions.Queues = configuredQueues.Length > 0 ? configuredQueues : ["default"];
             serverOptions.SchedulePollingInterval = TimeSpan.FromSeconds(options.SchedulePollingIntervalSeconds);
         });
+
+        var recurringProducerAssemblies = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && (a.FullName?.StartsWith("FieldService") == true))
+            .ToArray();
+
+        services.AddQueueProducers(recurringProducerAssemblies);
+        services.AddQueueRecurringProducers(recurringProducerAssemblies);
 
         return services;
     }

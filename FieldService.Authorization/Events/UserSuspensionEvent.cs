@@ -19,28 +19,28 @@ public enum SuspensionSource
 public class UserSuspensionEvent
 {
     public Guid Id { get; }
-    public DateTime CreatedAt { get; }
+    public DateTimeOffset CreatedAt { get; }
     public Guid CreatedBy { get; }
     public Guid UserId { get; }
     public Guid TenantId { get; }
     public SuspensionEventType Type { get; }
     public SuspensionSource Source { get; }
-    public DateTime? StartedAt { get; }
-    public DateTime? EndedAt { get; }
+    public DateTimeOffset? StartedAt { get; }
+    public DateTimeOffset? EndedAt { get; }
     
     public Guid? OriginalSuspensionEventId { get; }
     
     protected UserSuspensionEvent() { }
 
     private UserSuspensionEvent(
-        DateTime createdAt,
+        DateTimeOffset createdAt,
         Guid createdBy,
         Guid userId,
         Guid tenantId,
         SuspensionEventType type,
         SuspensionSource source,
-        DateTime? startedAt = null,
-        DateTime? endedAt = null,
+        DateTimeOffset? startedAt = null,
+        DateTimeOffset? endedAt = null,
         Guid? id = null,
         Guid? originalSuspensionEventId = null)
     {
@@ -58,12 +58,12 @@ public class UserSuspensionEvent
 
     public static UserSuspensionEvent CreateTemporaryUserSuspensionEvent(
         Guid createdBy,
-        DateTime createdAt,
+        DateTimeOffset createdAt,
         Guid userId,
         Guid tenantId,
         SuspensionSource source,
-        DateTime startedAt,
-        DateTime endedAt
+        DateTimeOffset startedAt,
+        DateTimeOffset endedAt
     )
     {
         return new UserSuspensionEvent(
@@ -81,7 +81,7 @@ public class UserSuspensionEvent
     public static UserSuspensionEvent CreateCancelledUserSuspensionEvent(
         Guid originalSuspensionEventId,
         Guid createdBy,
-        DateTime createdAt,
+        DateTimeOffset createdAt,
         Guid userId,
         Guid tenantId,
         SuspensionSource source)
@@ -99,7 +99,7 @@ public class UserSuspensionEvent
     
     public static UserSuspensionEvent CreateIndefiniteUserSuspensionEvent(
         Guid createdBy,
-        DateTime createdAt,
+        DateTimeOffset createdAt,
         Guid userId,
         Guid tenantId,
         SuspensionSource source)

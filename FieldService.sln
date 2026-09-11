@@ -5,6 +5,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.env = .env
 		docker-compose.yml = docker-compose.yml
 		DOCKER.md = DOCKER.md
+		docker\ServiceBusEmulator\Config.json = docker\ServiceBusEmulator\Config.json
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.TemplateService", "FieldService.TemplateService\FieldService.TemplateService.csproj", "{EE0DD127-3ABB-4ACF-93EC-11B6E6BF2523}"
@@ -36,6 +37,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Observability", "FieldService.Observability\FieldService.Observability.csproj", "{6131CC01-DB13-4BE1-B4F2-51B3DAB2D008}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Queue", "FieldService.Queue\FieldService.Queue.csproj", "{A44967B4-FF3B-494D-9655-8DCC627FE5B3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Seed", "FieldService.Seed\FieldService.Seed.csproj", "{1133797E-3331-431F-B8A2-EB427A718C50}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Storage", "FieldService.Storage\FieldService.Storage.csproj", "{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -227,10 +232,32 @@ Global
 		{A44967B4-FF3B-494D-9655-8DCC627FE5B3}.Release|x64.Build.0 = Release|Any CPU
 		{A44967B4-FF3B-494D-9655-8DCC627FE5B3}.Release|x86.ActiveCfg = Release|Any CPU
 		{A44967B4-FF3B-494D-9655-8DCC627FE5B3}.Release|x86.Build.0 = Release|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Debug|x64.Build.0 = Debug|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Debug|x86.Build.0 = Debug|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Release|x64.ActiveCfg = Release|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Release|x64.Build.0 = Release|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Release|x86.ActiveCfg = Release|Any CPU
+		{1133797E-3331-431F-B8A2-EB427A718C50}.Release|x86.Build.0 = Release|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Debug|x64.Build.0 = Debug|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Debug|x86.Build.0 = Debug|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Release|x64.ActiveCfg = Release|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Release|x64.Build.0 = Release|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Release|x86.ActiveCfg = Release|Any CPU
+		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection
 EndGlobal

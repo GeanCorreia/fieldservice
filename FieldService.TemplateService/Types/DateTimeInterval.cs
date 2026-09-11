@@ -2,12 +2,12 @@ namespace FieldService.TemplateService.Types;
 
 public class DateTimeInterval
 {
-    public DateTime Start { get; }
-    public DateTime? End { get; private set; }
+    public DateTimeOffset Start { get; }
+    public DateTimeOffset? End { get; private set; }
     
     protected DateTimeInterval() { }
 
-    public DateTimeInterval(DateTime start, DateTime? end = null)
+    public DateTimeInterval(DateTimeOffset start, DateTimeOffset? end = null)
     {
         if (end.HasValue && start >= end.Value)
             throw new ArgumentException("Start must be before End.", nameof(start));
@@ -16,7 +16,7 @@ public class DateTimeInterval
         End = end;
     }
     
-    public void EndedAt(DateTime end)
+    public void EndedAt(DateTimeOffset end)
     {
         if (end <= Start)
             throw new ArgumentException("End must be after Start.", nameof(end));
@@ -29,12 +29,12 @@ public class DateTimeInterval
     
     public bool IsActive() => !End.HasValue;
     
-    public bool WasActiveAt(DateTime moment)
+    public bool WasActiveAt(DateTimeOffset moment)
     {
         return moment >= Start && (!End.HasValue || moment < End.Value);
     }
     
-    public bool WasActiveDuring(DateTime periodStart, DateTime periodEnd)
+    public bool WasActiveDuring(DateTimeOffset periodStart, DateTimeOffset periodEnd)
     {
         if (periodStart >= periodEnd)
             throw new ArgumentException("Period start must be before period end.");

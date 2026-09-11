@@ -29,7 +29,7 @@ namespace FiledService.Audit.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("Id");
 
-                    b.Property<DateTime>("OccurredAt")
+                    b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("OccurredAt");
 
@@ -37,14 +37,19 @@ namespace FiledService.Audit.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("RequestId");
 
-                    b.Property<string>("Resource")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("Resource");
-
                     b.Property<Guid?>("ResourceId")
                         .HasColumnType("uuid")
                         .HasColumnName("ResourceId");
+
+                    b.Property<string>("ResourceName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ResourceName");
+
+                    b.Property<string>("SchemaVersion")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("SchemaVersion");
 
                     b.Property<Guid?>("TenantId")
                         .HasColumnType("uuid")
@@ -66,6 +71,9 @@ namespace FiledService.Audit.Data.Migrations
                     b.HasIndex("RequestId")
                         .HasDatabaseName("idx_AuditAccesses_RequestId");
 
+                    b.HasIndex("ResourceName", "SchemaVersion")
+                        .HasDatabaseName("idx_AuditAccesses_ResourceName_SchemaVersion");
+
                     b.HasIndex("UserId", "TenantId")
                         .HasDatabaseName("idx_AuditAccesses_UserId_TenantId");
 
@@ -78,7 +86,7 @@ namespace FiledService.Audit.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("Id");
 
-                    b.Property<DateTime>("OccurredAt")
+                    b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("OccurredAt");
 
@@ -121,6 +129,30 @@ namespace FiledService.Audit.Data.Migrations
                         .HasDatabaseName("idx_AuditChanges_UserId_TenantId");
 
                     b.ToTable("AuditChanges", (string)null);
+                });
+
+            modelBuilder.Entity("FiledService.Audit.Entities.AuditDtoSchema", b =>
+                {
+                    b.Property<string>("ResourceName")
+                        .HasColumnType("text")
+                        .HasColumnName("ResourceName");
+
+                    b.Property<string>("Version")
+                        .HasColumnType("text")
+                        .HasColumnName("Version");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<JsonDocument>("_properties")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("Properties");
+
+                    b.HasKey("ResourceName", "Version");
+
+                    b.ToTable("AuditDtoSchemas", (string)null);
                 });
 #pragma warning restore 612, 618
         }

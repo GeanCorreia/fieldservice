@@ -7,8 +7,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="MediatR" Version="14.2.0" />
-        <PackageReference Include="MediatR.Extensions.FluentValidation.AspNetCore" Version="6.0.0" />
+        <PackageReference Include="MediatR" Version="12.4.1" />
+        <PackageReference Include="MediatR.Extensions.FluentValidation.AspNetCore" Version="5.0.0" />
         <PackageReference Include="Microsoft.Graph" Version="6.2.0" />
         <PackageReference Include="Microsoft.Identity.Web" Version="4.14.2" />
         <PackageReference Include="Microsoft.Identity.Web.GraphServiceClient" Version="4.14.2" />
@@ -27,6 +27,12 @@
     <ItemGroup>
         <ProjectReference Include="..\FieldService.Cache\FieldService.Cache.csproj" />
         <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />
+        <ProjectReference Include="..\FieldService.Observability\FieldService.Observability.csproj" />
+        <ProjectReference Include="..\FieldService.Queue\FieldService.Queue.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Logs\" />
     </ItemGroup>
 
 </Project>

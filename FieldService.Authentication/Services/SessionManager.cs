@@ -1,11 +1,11 @@
-using System.Security.Claims;
+
 using FieldService.Authentication.Entities;
 using FieldService.Authentication.Interfaces;
-using FieldService.Shared.Interfaces;
-using FieldService.Shared.Types;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Principal;
-using Amazon.Runtime;
+using FieldService.Authentication.Logs;
+using ObservabilityExecutionContext = FieldService.Observability.Services.ExecutionContext;
+using FieldService.Shared.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 
 namespace FieldService.Authentication.Services;
@@ -15,27 +15,30 @@ public class SessionManager : ISessionManager
 
     private readonly ISessionCacheService _sessionCacheService;
     private readonly ISessionMapper _sessionMapper;
-    private readonly IRequestContextManager _requestContext;
-    private readonly ILoginService  _loginService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ISessionRepository _sessionRepository;
+    private readonly ILogger<SessionManager> _logger;
 
     public SessionManager(
         ISessionMapper sessionMapper,
         ISessionCacheService sessionCacheService,
-        IRequestContextManager requestContext,
-        ILoginService loginService)
+        IHttpContextAccessor httpContextAccessor,
+        ISessionRepository sessionRepository,
+        ILogger<SessionManager> logger)
     {
 
         _sessionMapper = sessionMapper ?? throw new ArgumentNullException(nameof(sessionMapper));
         _sessionCacheService = sessionCacheService ?? throw new ArgumentNullException(nameof(sessionCacheService));
-        _requestContext = requestContext ?? throw new ArgumentNullException(nameof(requestContext));
-        _loginService = loginService ?? throw new ArgumentNullException(nameof(loginService));
+        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
 
     }
 
     public async Task TouchAsync(
         CancellationToken cancellationToken = default)
     {
-        var principal = _requestContext.Principal;
+        var principal = GetHttpContext().User;
         var jwtId = ClaimsResolver.GetJwtId(principal);
         var sessionId =  ClaimsResolver.GetSessionId(principal);
         
@@ -46,17 +49,23 @@ public class SessionManager : ISessionManager
         if(jwtIdCached == null || jwtId != jwtIdCached)
         {
             var expiresAt = ClaimsResolver.GetExpiresAt(principal);
-            await _sessionCacheService.UpdateSessionJwtIdAsync(
-                sessionId, 
-                jwtId,
-                expiresAt,
-                cancellationToken);
+
+            try
+            {
+                await UpdateSessionExpirationAsync(
+                    sessionId,
+                    jwtId,
+                    expiresAt,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogSessionUpdateExpirationError(LogLevel.Error, sessionId, ex.Message);
+            }
+
         }
         
-        var activity = CreateSessionActivity(
-            sessionId, 
-            jwtId,
-            _requestContext.Request);
+        var activity = CreateSessionActivity(sessionId, jwtId);
         
         var activityCacheModel = _sessionMapper.Map(activity);
         
@@ -66,25 +75,61 @@ public class SessionManager : ISessionManager
             activityCacheModel, 
             cancellationToken);
         
-        
     }
     
-    
-
-    public static SessionActivity CreateSessionActivity(
-        Guid sessionId, 
+    private async Task UpdateSessionExpirationAsync(
+        Guid sessionId,
         string jwtId,
-        RequestContext context)
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
     {
+        try
+        {
+            await _sessionCacheService.UpdateSessionJwtIdAsync(
+                sessionId,
+                jwtId,
+                expiresAt,
+                cancellationToken);
+
+            var sessionCacheModel = await _sessionCacheService.GetSessionAsync(
+                sessionId,
+                cancellationToken);
+
+            var session = _sessionMapper.Map(sessionCacheModel);
+            session.UpdateExpiration(expiresAt);
+            await _sessionRepository.Save(session, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogSessionUpdateExpirationError(LogLevel.Error, sessionId, ex.Message);
+        }
+    }
+
+    private HttpContext GetHttpContext() =>
+        _httpContextAccessor.HttpContext ?? throw new InvalidOperationException("HttpContext is not available.");
+    
+    
+    public static SessionActivity CreateSessionActivity(
+        Guid sessionId,
+        string jwtId)
+    {
+        var requestId = ObservabilityExecutionContext.RequestId ?? 
+                        throw new InvalidOperationException("RequestId is inconsistent.");
+        var ipAddress = string.IsNullOrWhiteSpace(ObservabilityExecutionContext.IpAddress)
+            ? "unknown"
+            : ObservabilityExecutionContext.IpAddress;
+        
         return new SessionActivity(
             Guid.NewGuid(),
             sessionId: sessionId,
             jwtId: jwtId,
-            ipAddressHash: context.IpAddressHash,
-            timestamp: context.Timestamp,
-            channel: context.Channel,
-            requestId: context.RequestId,
-            userAgentHash: context.UserAgentHash
+            ipAddressHash: HashService.GenerateHash(ipAddress),
+            timestamp: ObservabilityExecutionContext.Timestamp,
+            channel: ObservabilityExecutionContext.Channel,
+            requestId: requestId,
+            userAgentHash: string.IsNullOrWhiteSpace(ObservabilityExecutionContext.UserAgent)
+                ? null
+                : HashService.GenerateHash(ObservabilityExecutionContext.UserAgent)
         );
     }
 }

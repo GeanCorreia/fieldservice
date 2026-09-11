@@ -15,7 +15,7 @@ internal sealed class UserAuthenticationMapper : IUserAuthenticationMapper
             cacheModel.ExternalId,
             cacheModel.Provider,
             cacheModel.Tenants.Select(t => new UserTenantAuthentication(
-                cacheModel.UserId,
+                t.UserId,
                 t.TenantId,
                 t.Name)).ToList());
     }
@@ -29,6 +29,7 @@ internal sealed class UserAuthenticationMapper : IUserAuthenticationMapper
             userAuthentication.ExternalId,
             userAuthentication.Provider,
             userAuthentication.Tenants.Select(t => new UserTenantAuthenticationCacheModel(
+                userAuthentication.UserId,
                 t.TenantId,
                 t.Name)).ToList());
     }

@@ -1,5 +1,3 @@
-using FieldService.Shared.Services;
-
 namespace FieldService.Authentication.Events;
 
 public enum TenantMembershipStatus
@@ -11,24 +9,24 @@ public enum TenantMembershipStatus
 public class UserTenantEvent
 {
     public Guid Id { get; }
-    public DateTime CreatedAt { get; }
+    public DateTimeOffset CreatedAt { get; }
     public Guid CreatedBy { get; }
     public Guid UserId { get; }
     public Guid TenantId { get; }
     public string TenantName { get; }
     public TenantMembershipStatus Status { get; }
-    public DateTime? EndedAt { get; }
+    public DateTimeOffset? EndedAt { get; }
     
     protected UserTenantEvent() { }
     
     private UserTenantEvent(
-        DateTime createdAt,
+        DateTimeOffset createdAt,
         Guid createdBy,
         Guid userId,
         Guid tenantId,
         string tenantName,
         TenantMembershipStatus status,
-        DateTime? endedAt = null,
+        DateTimeOffset? endedAt = null,
         Guid? id = null)
     {
         Id = id ?? Guid.NewGuid();
@@ -46,11 +44,11 @@ public class UserTenantEvent
         Guid tenantId,
         string tenantName,
         Guid createdBy,
-        DateTime? endedAt = null
+        DateTimeOffset? endedAt = null
     )
     {
         return new UserTenantEvent(
-            DateTimeService.GetNow(),
+            DateTimeOffset.UtcNow,
             createdBy,
             userId,
             tenantId,
@@ -68,7 +66,7 @@ public class UserTenantEvent
     )
     {
         return new UserTenantEvent(
-            DateTimeService.GetNow(),
+            DateTimeOffset.UtcNow,
             createdBy,
             userId,
             tenantId,

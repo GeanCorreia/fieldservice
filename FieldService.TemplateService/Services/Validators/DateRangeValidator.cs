@@ -14,11 +14,11 @@ public class DateRangeValidator : IFieldValidator
         if (value == null || string.IsNullOrWhiteSpace(value.ToString()))
             return Array.Empty<ValidationFailure>();
 
-        if (!DateTime.TryParse(value.ToString() ?? "", out var dateValue))
+        if (!DateTimeOffset.TryParse(value.ToString() ?? "", out var dateValue))
             return Array.Empty<ValidationFailure>();
 
-        if (!rule.Parameters.TryGetValue("from", out var fromObj) || !DateTime.TryParse(fromObj?.ToString(), out var from) ||
-            !rule.Parameters.TryGetValue("to", out var toObj) || !DateTime.TryParse(toObj?.ToString(), out var to))
+        if (!rule.Parameters.TryGetValue("from", out var fromObj) || !DateTimeOffset.TryParse(fromObj?.ToString(), out var from) ||
+            !rule.Parameters.TryGetValue("to", out var toObj) || !DateTimeOffset.TryParse(toObj?.ToString(), out var to))
             return Array.Empty<ValidationFailure>();
 
         if (dateValue < from || dateValue > to)
