@@ -1,10 +1,14 @@
+using FieldService.Authorization.Dtos;
 using Microsoft.AspNetCore.Authorization;
-using FieldService.Authorization.Types;
 
 namespace FieldService.Authorization.Interfaces;
 
 public interface IAuthorizationService
 {
-    Task<UserAuthorizationSnapshot?> GetSnapshotAsync(AuthorizationHandlerContext context, CancellationToken ct = default);
-    Task<UserAuthorizationSnapshot?> GetSnapshotAsync(Guid userId, Guid tenantId, CancellationToken ct = default);
+    Task<UserAuthorizationDto?> GetUserAsync(
+        AuthorizationHandlerContext context, 
+        CancellationToken ct = default);
+    Task<UserAuthorizationDto?> GetUserAsync(
+        Guid userId, 
+        CancellationToken ct = default);
 }

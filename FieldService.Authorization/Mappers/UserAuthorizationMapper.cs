@@ -1,6 +1,6 @@
+using FieldService.Authorization.Dtos;
 using FieldService.Authorization.Entities;
 using FieldService.Authorization.Interfaces;
-using FieldService.Authorization.Types;
 using FieldService.Shared.Interfaces;
 
 namespace FieldService.Authorization.Mappers;
@@ -14,15 +14,42 @@ public class UserAuthorizationMapper : IUserAuthorizationMapper
         _dateTimeService = dateTimeService ?? throw new ArgumentNullException(nameof(dateTimeService));
     }
 
-    public UserAuthorizationSnapshot Map(UserAuthorizationContext user)
+    public UserAuthorizationDto Map(IEnumerable<UserAuthorization> userAuthorizations)
     {
-        var now = _dateTimeService.Now();
-        return new UserAuthorizationSnapshot(
-            user.UserId,
-            user.TenantId,
-            user.Role,
-            user.Permissions.ToList(),
-            user.IsActive(now),
+        var now = DateTimeOffset.UtcNow;
+        
+        var authorizationsList = userAuthorizations?.ToList() ?? new List<UserAuthorization>();
+    
+        if (!authorizationsList.Any())
+        {
+            throw new InvalidOperationException("User authorization list cannot be empty.");
+        }
+        
+        if (authorizationsList.Select(u => u.UserId).Distinct().Count() > 1)
+        {
+            throw new InvalidOperationException("All authorizations must belong to the same user.");
+        }
+    
+        var userId = authorizationsList.First().UserId;
+        
+        var uniqueTenantsAuthorizations = authorizationsList.DistinctBy(u => u.TenantId);
+    
+        var tenants = new List<TenantAuthorizationDto>();
+    
+        foreach (var userAuthorization in uniqueTenantsAuthorizations)
+        {
+            var tenant = new TenantAuthorizationDto(
+                userAuthorization.TenantId,
+                userAuthorization.Role,
+                userAuthorization.Permissions.ToList(),
+                userAuthorization.IsActive(now)
+            );
+            tenants.Add(tenant);
+        }
+    
+        return new UserAuthorizationDto(
+            userId,
+            tenants,
             now
         );
     }

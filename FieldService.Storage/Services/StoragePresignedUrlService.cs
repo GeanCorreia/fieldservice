@@ -1,7 +1,9 @@
 using FieldService.Data.Interfaces;
 using FieldService.Shared.Dtos;
+using FieldService.Shared.Types;
 using FieldService.Storage.Abstracts;
 using FieldService.Storage.Channels;
+using FieldService.Storage.Data;
 using FieldService.Storage.Dtos;
 using FieldService.Storage.Entities;
 using FieldService.Storage.Factories;
@@ -14,44 +16,43 @@ namespace FieldService.Storage.Services;
 
 public class StoragePresignedUrlService : AbstractStorageService, IStoragePresignedUrlService
 {
-    
+    private readonly ILogger<StoragePresignedUrlService> _logger;
     public StoragePresignedUrlService(
         StorageProviderFactory storageProviderFactory, 
         IConfiguration configuration, 
         IStoredFileService storedFileService, 
-        IUnitOfWork unitOfWork,
-        StoredFileOutboxChannel brokerMessageChannel,
-        ILogger<StorageService> logger) : base(
+        ISqlUnitOfWork<StorageDbContext> unitOfWork,
+        StoredFileFailedUploadOutboxChannel brokerMessageChannel,
+        IServiceProvider serviceProvider,
+        ILogger<StoragePresignedUrlService> logger) : base(
         storageProviderFactory, 
         configuration, 
         storedFileService, 
-        unitOfWork, logger, brokerMessageChannel)
+        unitOfWork,
+        serviceProvider)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
     
   
     public async Task<PresignedFileUploadResponseDto> CreateUploadUrlAsync(
         PresignedFileUploadRequestDto request, 
-        Guid categoryId,
-        UserAuthentication user,
+        UserTenantDto userTenantDto,
         Guid? fileId = null,
         CancellationToken ct = default)
     {
         
         var file = await CreateStoredFileAsync(
             request, 
-            categoryId, 
-            user,
+            request.CategoryId, 
+            userTenantDto,
             fileId, 
             ct);
         
         var provider = GetStorageProvider();
-        var contentType = StoredFile.GetMediaType(request.FileName).ToString();
         
         var url = await provider.GeneratePresignedUploadUrlAsync(
-            file.StoragePath,
-            contentType,
-            file.HashMd5,
+            file,
             ExpiryPreSignedUrl,
             ct);
         
@@ -65,11 +66,11 @@ public class StoragePresignedUrlService : AbstractStorageService, IStoragePresig
     private async Task<StoredFile> CreateStoredFileAsync(
         PresignedFileUploadRequestDto request, 
         Guid categoryId,
-        UserAuthentication user,
+        UserTenantDto userTenantDto,
         Guid? fileId = null,
         CancellationToken ct = default)
     {
-        var fileCategory = await _storedFileService.GetCategoryByIdAsync(categoryId, user, ct);
+        var fileCategory = await _storedFileService.GetCategoryByIdAsync(categoryId, userTenantDto, ct);
         if (fileCategory == null)
             throw new InvalidOperationException("File category does not exist.");
 
@@ -78,18 +79,19 @@ public class StoragePresignedUrlService : AbstractStorageService, IStoragePresig
 
         var file = StoredFile.CreateUpload(
             fileCategory: fileCategory,
-            userId: user.Id,
+            userTenantDto: userTenantDto,
             hashMd5: hashMd5,
             fileName: request.FileName,
             size: size,
+            provider: _defaultStorageProvider,
             fileId: fileId);
 
         return file;
     }
 
     public async Task<PresignedBatchFileUploadResponseDto> CreateBatchUploadUrlsAsync(
-        IEnumerable<PresignedBatchFileUploadRequest> request,
-        UserAuthentication user,
+        IEnumerable<PresignedFileUploadRequest> request,
+        UserTenantDto userTenantDto,
         bool partialSuccess = false,
         CancellationToken ct = default)
     {
@@ -108,13 +110,13 @@ public class StoragePresignedUrlService : AbstractStorageService, IStoragePresig
                 var dto = new PresignedFileUploadRequestDto(
                     file.FileName,
                     file.SizeInBytes,
-                    file.HashMd5
+                    file.HashMd5,
+                    file.CategoryId
                 );
                 
                 var uploadResponse = await CreateUploadUrlAsync(
                     dto, 
-                    file.CategoryId,
-                    user,
+                    userTenantDto,
                     file.FileId, 
                     ct);
 
@@ -134,16 +136,28 @@ public class StoragePresignedUrlService : AbstractStorageService, IStoragePresig
 
     public async Task<PresignedFileDownloadResponseDto> CreateDownloadUrlAsync(
         PresignedFileDownloadRequestDto request, 
-        UserAuthentication user,
+        UserTenantDto userTenantDto,
         CancellationToken ct = default)
     {
         
-        var file = await _storedFileService.GetByIdAsync(request.Id, user, ct);
+        var file = await _storedFileService.GetByIdAsync(request.Id, userTenantDto, ct);
+        if (file == null)
+        {
+            throw new FileNotFoundException("File not found.", nameof(request.Id));
+        }
+        
+        if(file.Status == StorageStatus.Corrupted || 
+           file.Status == StorageStatus.Deleted ||
+           file.Status == StorageStatus.Canceled ||
+           file.Status == StorageStatus.Failed)
+        {
+            throw new FileNotFoundException("File not found.", nameof(file.Id));
+        }
 
         var provider = GetStorageProvider(file.Provider);
         
         var url = await provider.GeneratePresignedDownloadUrlAsync(
-            file.StoragePath,
+            file,
             ExpiryPreSignedUrl,
             ct);
         
@@ -160,7 +174,7 @@ public class StoragePresignedUrlService : AbstractStorageService, IStoragePresig
 
     public async Task<PresignedBatchFileDownloadResponseDto> CreateBatchDownloadUrlsAsync(
         PresignedBatchFileDownloadRequestDto request,
-        UserAuthentication user,
+        UserTenantDto userTenantDto,
         CancellationToken ct = default)
     {
         var downloadResponses = new List<PresignedFileDownloadResponseDto>();
@@ -171,7 +185,7 @@ public class StoragePresignedUrlService : AbstractStorageService, IStoragePresig
             {
                 var downloadResponse = await CreateDownloadUrlAsync(
                     new PresignedFileDownloadRequestDto(fileId), 
-                    user, 
+                    userTenantDto, 
                     ct);
 
                 downloadResponses.Add(downloadResponse);

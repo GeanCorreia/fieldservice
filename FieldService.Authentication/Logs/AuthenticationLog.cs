@@ -4,6 +4,14 @@ namespace FieldService.Authentication.Logs;
 
 internal static partial class Logs
 {
+    [LoggerMessage(
+        EventName = "authentication:user-authorization-cache:error",
+        Message = "Error caching user authorization for userId {UserId}. Details: {Exception}")]
+    public static partial void LogUserAuthorizationCacheError(
+        this ILogger logger,
+        LogLevel level,
+        Guid userId,
+        Exception exception);
 
 
     [LoggerMessage(

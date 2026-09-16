@@ -7,6 +7,7 @@ using FieldService.Shared.Types;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
+using User = Microsoft.Graph.Models.User;
 
 namespace FieldService.Authentication.Services;
 

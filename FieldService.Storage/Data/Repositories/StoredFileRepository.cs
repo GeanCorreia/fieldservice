@@ -7,23 +7,18 @@ namespace FieldService.Storage.Data.Repositories;
 
 internal sealed class StoredFileRepository(
     StorageDbContext dbContext,
-    ISqlUnitOfWork<StorageDbContext> unitOfWork) : IStoredFileRepository
+    ISqlUnitOfWork<StorageDbContext> unitOfWork) : IStoredFileRepository, ICleanUpStoredFileRepository
 {
-    public async Task<StoredFile?> GetByIdAsync(
-        Guid id,
-        CancellationToken ct = default)
+    public async Task<StoredFile?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        ValidateFileId(id);
+        ValidateId(id, nameof(id));
 
         return await dbContext.StoredFiles
-            .AsNoTracking()
             .Include(x => x.FileCategory)
             .FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
-    public async Task<IEnumerable<StoredFile>> GetByIdsAsync(
-        IEnumerable<Guid> ids,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<StoredFile>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
 
@@ -32,59 +27,34 @@ internal sealed class StoredFileRepository(
             return Array.Empty<StoredFile>();
 
         return await dbContext.StoredFiles
-            .AsNoTracking()
             .Include(x => x.FileCategory)
             .Where(x => distinctIds.Contains(x.Id))
             .ToListAsync(ct);
     }
 
-    public async Task SaveStoredFileAsync(
-        StoredFile storedFile,
-        CancellationToken ct = default)
+    public async Task SaveStoredFileAsync(StoredFile storedFile, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(storedFile);
-
-        var existing = await dbContext.StoredFiles
-            .Include(x => x.FileCategory)
-            .FirstOrDefaultAsync(x => x.Id == storedFile.Id, ct);
-
-        if (existing is null)
-        {
-            await AttachCategoryAsync(storedFile.FileCategory, ct);
-            await dbContext.StoredFiles.AddAsync(storedFile, ct);
-        }
-        else
-        {
-            dbContext.Entry(existing).CurrentValues.SetValues(storedFile);
-            dbContext.Entry(existing).Reference(x => x.FileCategory).CurrentValue = storedFile.FileCategory;
-            dbContext.Entry(existing).Property(x => x.FileCategoryId).CurrentValue = storedFile.FileCategoryId;
-        }
-
-        await unitOfWork.PersistChangesAsync(ct);
+        await SaveStoredFileCoreAsync(storedFile, ct, saveChanges: true);
     }
 
-    public async Task SaveStoredFilesAsync(
-        IEnumerable<StoredFile> files,
-        CancellationToken ct = default)
+    public async Task SaveStoredFilesAsync(IEnumerable<StoredFile> files, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(files);
 
-        var list = files.ToArray();
+        var list = files.Where(f => f is not null).ToArray();
         if (list.Length == 0)
             return;
 
         foreach (var storedFile in list)
         {
-            ArgumentNullException.ThrowIfNull(storedFile);
             await SaveStoredFileCoreAsync(storedFile, ct, saveChanges: false);
         }
 
         await unitOfWork.PersistChangesAsync(ct);
     }
 
-    public async Task<IEnumerable<StoredFile>> GetByCategoryAsync(
-        StoredFileCategory category,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<StoredFile>> GetByCategoryAsync(StoredFileCategory category, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(category);
 
@@ -95,20 +65,15 @@ internal sealed class StoredFileRepository(
             .ToListAsync(ct);
     }
 
-    public async Task<StoredFileCategory?> GetCategoryByIdAsync(
-        Guid id,
-        CancellationToken ct = default)
+    public async Task<StoredFileCategory?> GetCategoryByIdAsync(Guid id, CancellationToken ct = default)
     {
-        ValidateCategoryId(id);
+        ValidateId(id, nameof(id));
 
         return await dbContext.StoredFileCategories
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
-    public async Task<IEnumerable<StoredFileCategory>> GetCategoryByIdsAsync(
-        IEnumerable<Guid> ids,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<StoredFileCategory>> GetCategoryByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(ids);
 
@@ -122,9 +87,7 @@ internal sealed class StoredFileRepository(
             .ToListAsync(ct);
     }
 
-    public async Task<IEnumerable<StoredFileCategory>> GetByCategoryTenantIdAsync(
-        Guid tenantId,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<StoredFileCategory>> GetByCategoryTenantIdAsync(Guid tenantId, CancellationToken ct = default)
     {
         if (tenantId == default)
             return Array.Empty<StoredFileCategory>();
@@ -135,40 +98,31 @@ internal sealed class StoredFileRepository(
             .ToListAsync(ct);
     }
 
-    public async Task SaveStoredFileCategoryAsync(
-        StoredFileCategory storedFileCategory,
-        CancellationToken ct = default)
+    public async Task SaveStoredFileCategoryAsync(StoredFileCategory storedFileCategory, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(storedFileCategory);
 
-        var existing = await dbContext.StoredFileCategories.FirstOrDefaultAsync(x => x.Id == storedFileCategory.Id, ct);
+        var existing = await dbContext.StoredFileCategories
+            .FirstOrDefaultAsync(x => x.Id == storedFileCategory.Id, ct);
+
         if (existing is null)
-        {
             await dbContext.StoredFileCategories.AddAsync(storedFileCategory, ct);
-        }
         else
-        {
             dbContext.Entry(existing).CurrentValues.SetValues(storedFileCategory);
-        }
 
         await unitOfWork.PersistChangesAsync(ct);
     }
 
-    public async Task SaveStoredFilesCategoriesAsync(
-        IEnumerable<StoredFileCategory> categories,
-        CancellationToken ct = default)
+    public async Task SaveStoredFilesCategoriesAsync(IEnumerable<StoredFileCategory> categories, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(categories);
 
-        var list = categories.ToArray();
+        var list = categories.Where(c => c is not null).ToArray();
         if (list.Length == 0)
             return;
 
         foreach (var category in list)
         {
-            if (category is null)
-                continue;
-
             var existing = await dbContext.StoredFileCategories
                 .FirstOrDefaultAsync(x => x.Id == category.Id, ct);
 
@@ -181,54 +135,45 @@ internal sealed class StoredFileRepository(
         await unitOfWork.PersistChangesAsync(ct);
     }
 
-    public async Task UpdateUploadedStatusAsync(
-        Guid fileId,
-        CancellationToken ct = default)
+    public async Task UpdateFailedStatusAsync(Guid fileId, CancellationToken ct = default)
     {
-        ValidateFileId(fileId);
+        ValidateId(fileId, nameof(fileId));
 
         var file = await dbContext.StoredFiles
-            .Include(x => x.FileCategory)
             .FirstOrDefaultAsync(x => x.Id == fileId, ct)
-            ?? throw new KeyNotFoundException($"File '{fileId}' was not found.");
+            ?? throw new KeyNotFoundException($"StoredFile '{fileId}' clean up target not found.");
 
-        file.UpdateUploadedStatus();
+        file.UpdateFailedUploadStatus();
         await unitOfWork.PersistChangesAsync(ct);
     }
 
-    public async Task UpdateFailedStatusAsync(
-        Guid fileId,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<StoredFile>> GetByStatusAsync(StorageStatus status, DateTimeOffset createdBefore, CancellationToken ct = default)
     {
-        ValidateFileId(fileId);
-
-        var file = await dbContext.StoredFiles
+        return await dbContext.StoredFiles
             .Include(x => x.FileCategory)
-            .FirstOrDefaultAsync(x => x.Id == fileId, ct)
-            ?? throw new KeyNotFoundException($"File '{fileId}' was not found.");
-
-        file.UpdateFailedStatus();
-        await unitOfWork.PersistChangesAsync(ct);
+            .Where(x => x.Status == status && x.UploadedAt < createdBefore)
+            .ToListAsync(ct);
     }
 
     private async Task SaveStoredFileCoreAsync(
         StoredFile storedFile,
         CancellationToken ct,
-        bool saveChanges = true)
+        bool saveChanges)
     {
+        // 1. Busca sem Include para performance e evita rastrear entidades desnecessárias
         var existing = await dbContext.StoredFiles
-            .Include(x => x.FileCategory)
             .FirstOrDefaultAsync(x => x.Id == storedFile.Id, ct);
+
+        // 2. Resolve a categoria vinda de outro escopo
+        AttachOrReuseCategory(storedFile);
 
         if (existing is null)
         {
-            await AttachCategoryAsync(storedFile.FileCategory, ct);
             await dbContext.StoredFiles.AddAsync(storedFile, ct);
         }
         else
         {
             dbContext.Entry(existing).CurrentValues.SetValues(storedFile);
-            dbContext.Entry(existing).Reference(x => x.FileCategory).CurrentValue = storedFile.FileCategory;
             dbContext.Entry(existing).Property(x => x.FileCategoryId).CurrentValue = storedFile.FileCategoryId;
         }
 
@@ -236,35 +181,26 @@ internal sealed class StoredFileRepository(
             await unitOfWork.PersistChangesAsync(ct);
     }
 
-    private async Task AttachCategoryAsync(StoredFileCategory category, CancellationToken ct)
+    private void AttachOrReuseCategory(StoredFile storedFile)
     {
-        var tracked = dbContext.ChangeTracker.Entries<StoredFileCategory>()
-            .FirstOrDefault(x => x.Entity.Id == category.Id)?.Entity;
+        if (storedFile.FileCategory is null) return;
+        
+        var trackedCategory = dbContext.ChangeTracker.Entries<StoredFileCategory>()
+            .FirstOrDefault(x => x.Entity.Id == storedFile.FileCategory.Id || x.Entity.Id == storedFile.FileCategoryId)?.Entity;
 
-        if (tracked is not null)
-            return;
-
-        var existing = await dbContext.StoredFileCategories.FirstOrDefaultAsync(x => x.Id == category.Id, ct);
-        if (existing is not null)
+        if (trackedCategory is not null)
         {
-            dbContext.Attach(existing);
-            return;
+            dbContext.Entry(storedFile).Reference(x => x.FileCategory).CurrentValue = trackedCategory;
         }
-
-        dbContext.Attach(category);
+        else
+        {
+            dbContext.Attach(storedFile.FileCategory);
+        }
     }
 
-    private static void ValidateFileId(Guid fileId)
+    private static void ValidateId(Guid id, string paramName)
     {
-        if (fileId == default)
-            throw new ArgumentException("FileId is required.", nameof(fileId));
-    }
-
-    private static void ValidateCategoryId(Guid categoryId)
-    {
-        if (categoryId == default)
-            throw new ArgumentException("CategoryId is required.", nameof(categoryId));
+        if (id == default)
+            throw new ArgumentException("Id cannot be empty.", paramName);
     }
 }
-
-

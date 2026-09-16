@@ -83,6 +83,7 @@ public static class QueueModule
 
         services.AddQueueProducers(recurringProducerAssemblies);
         services.AddQueueRecurringProducers(recurringProducerAssemblies);
+        services.AddQueueConsumers(recurringProducerAssemblies);
 
         return services;
     }

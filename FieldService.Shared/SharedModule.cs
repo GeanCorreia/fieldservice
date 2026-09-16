@@ -24,7 +24,7 @@ public static class SharedModule
         {
             cfg.RegisterServicesFromAssemblies(assemblies);
         });
-        
+        services.AddScoped<EncryptionService>();
         services.AddValidatorsFromAssemblies(assemblies);
         services.AddFluentValidation(new[] { typeof(SharedModule).Assembly });
         

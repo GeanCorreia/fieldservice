@@ -14,4 +14,9 @@ public interface IBrokerOutboxRepository
     
     Task SaveAsync(BrokerOutbox brokerOutbox, CancellationToken ct = default);
     Task SaveAsync(IEnumerable<BrokerOutbox> brokerOutboxes, CancellationToken ct = default);
+    
+   
+    Task DeleteAsync(IEnumerable<Guid> messageIds, CancellationToken ct = default);
+    
+    Task DeleteProcessedBeforeAsync(DateTimeOffset threshold, CancellationToken ct = default);
 }

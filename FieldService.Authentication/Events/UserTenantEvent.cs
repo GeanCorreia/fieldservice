@@ -2,8 +2,8 @@ namespace FieldService.Authentication.Events;
 
 public enum TenantMembershipStatus
 {
-    Active =1,
-    Revoked =0,
+    Active = 1,
+    Revoked = 0,
 }
 
 public class UserTenantEvent

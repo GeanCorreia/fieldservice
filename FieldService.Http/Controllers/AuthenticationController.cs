@@ -3,6 +3,9 @@ using FieldService.Http.Cqrs;
 using FieldService.Authentication.SessionAttribute;
 using FieldService.Http.Cqrs.Commands;
 using FieldService.Http.Cqrs.Commands.Login;
+using FieldService.Http.Cqrs.Queries.GetUser;
+using FieldService.Http.Dtos;
+using FieldService.Shared.Services;
 using MediatR;
 
 namespace FieldService.Http.Controllers;
@@ -13,7 +16,7 @@ public class AuthenticationController : ControllerBase
 
     public AuthenticationController(IMediator mediator)
     {
-        _mediator = mediator;
+        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
     }
 
     [HttpPost("login/{tenantId}")]
@@ -36,7 +39,13 @@ public class AuthenticationController : ControllerBase
     [SessionAtributes.TenantSelectionAttribute]
     public async Task<IActionResult> GetTenants(CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetUserTenantsQuery(), cancellationToken);
-        return Ok(result);
+        var userId = ClaimsResolver.GetUserId(User);
+        var query = new GetUserQuery(userId);
+        var userDto = await _mediator.Send(query, cancellationToken);
+        if (userDto == null)
+        {
+            return NotFound();
+        }
+        return Ok(new UserLoginDto(userDto.Tenants));
     }
 }

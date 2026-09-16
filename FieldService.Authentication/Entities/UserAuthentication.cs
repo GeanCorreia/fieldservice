@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using FieldService.Authentication.Events;
 using FieldService.Authentication.Types;
 

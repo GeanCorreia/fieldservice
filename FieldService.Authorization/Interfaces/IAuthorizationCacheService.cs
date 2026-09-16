@@ -1,9 +1,10 @@
-using FieldService.Authorization.Types;
+using FieldService.Authorization.Dtos;
+
 
 namespace FieldService.Authorization.Interfaces;
 
 public interface IAuthorizationCacheService
 {
-    Task<UserAuthorizationSnapshot?> GetUserContext(Guid userId, Guid tenantId,  CancellationToken ct = default);
-    Task SaveUserContext(UserAuthorizationSnapshot userContext, CancellationToken ct = default);
+    Task<UserAuthorizationDto?> GetUserByIdAsync(Guid userId, CancellationToken ct = default);
+    Task SaveUserAsync(UserAuthorizationDto user, CancellationToken ct = default);
 }

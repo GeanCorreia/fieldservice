@@ -1,38 +1,35 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using FieldService.Authentication.Dtos;
 using FieldService.Authentication.Interfaces;
 using FieldService.Authentication.Types;
-using FieldService.Shared.Interfaces;
+using FieldService.Shared.Services;
 using FieldService.Shared.Types;
 using Microsoft.AspNetCore.Http;
 
 namespace FieldService.Authentication.Services;
 
-public sealed class DevelopmentEnvironmentUserIdentityResolver : IUserIdentityResolver
+internal sealed class DevelopmentEnvironmentUserIdentityResolver : IUserIdentityResolver
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IUserAuthenticationService _userAuthenticationService;
-    private readonly IUserAuthenticationMapper _userAuthenticationMapper;
+    private readonly IInternalUserAuthenticationService _internalUserAuthenticationService;
+    private const string _sub = "development-user";
+    private const AuthenticationProvider _authenticationProvider = AuthenticationProvider.AzureAdB2C;
     
     public DevelopmentEnvironmentUserIdentityResolver(
         IHttpContextAccessor httpContextAccessor,
-        IUserAuthenticationService userAuthenticationService,
-        IUserAuthenticationMapper userAuthenticationMapper)
+        IInternalUserAuthenticationService internalUserAuthenticationService)
     {
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
-        _userAuthenticationService = userAuthenticationService ?? throw new ArgumentNullException(
-            nameof(userAuthenticationService));
-
-        _userAuthenticationMapper = userAuthenticationMapper ?? throw new ArgumentNullException(
-            nameof(userAuthenticationMapper));
+        _internalUserAuthenticationService = internalUserAuthenticationService ?? throw new ArgumentNullException(
+            nameof(internalUserAuthenticationService));
     }
 
 
     public async Task ResolveUserAsync(CancellationToken cancellationToken = default)
     {
-        var userId = Guid.Parse("8961fdf5-f889-46a2-86a1-81bd35a876aa");
-
-        var userCacheModel = await GetUserAuthenticationCache(userId, cancellationToken);
+        
+        var userCacheModel = await GetUserTenantsAuthenticationType();
     
         if (userCacheModel == null)
         {
@@ -55,20 +52,24 @@ public sealed class DevelopmentEnvironmentUserIdentityResolver : IUserIdentityRe
         }
         
         ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.UserId, userCacheModel.UserId.ToString());
+        ClaimsResolver.UpsertClaim(identity,ClaimsExtensions.Provider,_authenticationProvider.ToString() );
+        ClaimsResolver.UpsertClaim(identity, JwtRegisteredClaimNames.Sub, _sub );
         ClaimsResolver.UpsertClaim(identity, JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"));
         ClaimsResolver.UpsertClaim(identity, JwtRegisteredClaimNames.Exp, DateTimeOffset.UtcNow.AddHours(12).ToUnixTimeSeconds().ToString());
         
         httpContext.User = new ClaimsPrincipal(identity);
     }
 
-    private async Task<UserAuthenticationCacheModel?> GetUserAuthenticationCache(Guid userId, CancellationToken cancellationToken = default)
+    private async Task<UserAuthenticationDto?> GetUserTenantsAuthenticationType()
     {
-
-        return await _userAuthenticationService.GetUserAsync(userId, cancellationToken);
-
         
-            
+
+        var userAuthenticationTenants = await _internalUserAuthenticationService.GetUserAsync(
+            _sub,
+            _authenticationProvider,
+            CancellationToken.None);
         
+        return userAuthenticationTenants;
     }
 
     private HttpContext GetHttpContext() =>

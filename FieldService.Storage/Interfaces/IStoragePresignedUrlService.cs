@@ -1,4 +1,5 @@
 using FieldService.Shared.Dtos;
+using FieldService.Shared.Types;
 using FieldService.Storage.Dtos;
 using FieldService.Storage.Types;
 
@@ -8,24 +9,23 @@ public interface IStoragePresignedUrlService
 {
     Task<PresignedFileUploadResponseDto> CreateUploadUrlAsync(
         PresignedFileUploadRequestDto request, 
-        Guid categoryId,
-        UserAuthentication user,
+        UserTenantDto userTenantDto,
         Guid? fileId = null,
         CancellationToken ct = default);
 
     Task<PresignedBatchFileUploadResponseDto> CreateBatchUploadUrlsAsync(
-        IEnumerable<PresignedBatchFileUploadRequest> request,
-        UserAuthentication user,
+        IEnumerable<PresignedFileUploadRequest> request,
+        UserTenantDto userTenantDto,
         bool partialSuccess = false,
         CancellationToken ct = default);
     
     Task<PresignedFileDownloadResponseDto> CreateDownloadUrlAsync(
         PresignedFileDownloadRequestDto request, 
-        UserAuthentication user,
+        UserTenantDto userTenantDto,
         CancellationToken ct = default);
 
     Task<PresignedBatchFileDownloadResponseDto> CreateBatchDownloadUrlsAsync(
         PresignedBatchFileDownloadRequestDto request, 
-        UserAuthentication user,
+        UserTenantDto userTenantDto,
         CancellationToken ct = default);
 }

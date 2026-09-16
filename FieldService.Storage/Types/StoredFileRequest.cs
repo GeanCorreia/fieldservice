@@ -1,12 +1,14 @@
 using System.Net.Http.Headers;
 using FieldService.Shared.Dtos;
+using FieldService.Shared.Types;
+using FieldService.Storage.Entities;
 
 namespace FieldService.Storage.Types;
 
 public record StoredFileUploadRequest(
     Stream Content,
-    Guid FileCategoryId,
-    UserAuthentication user,
+    StoredFileCategory FileCategory,
+    UserTenantDto UserTenantDto,
     string FileName,
     Guid? FileId = null) : IAsyncDisposable, IDisposable
 {
@@ -28,8 +30,8 @@ public record StoredFileUploadRequest(
     }
 }
 
-public record PresignedBatchFileUploadRequest(
-    UserAuthentication user,
+public record PresignedFileUploadRequest(
+    UserTenantDto UserTenantDto,
     string FileName,
     long SizeInBytes,
     string HashMd5,
@@ -38,11 +40,11 @@ public record PresignedBatchFileUploadRequest(
     
 public record StoredFileDownloadRequest(
     Guid FileId,
-    UserAuthentication user);
+    UserTenantDto UserTenantDto);
     
 public record StoredFileDownloadsRequest(
     IEnumerable<Guid> FileIds,
-    UserAuthentication user,
+    UserTenantDto UserTenantDto,
     string? FileName = null,
     bool PartialSuccess = false,
     bool IsCompressed = true);

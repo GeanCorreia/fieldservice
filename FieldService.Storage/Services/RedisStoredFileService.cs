@@ -2,22 +2,31 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
 using FieldService.Cache.Interfaces;
-using FieldService.Shared.Dtos;
 using FieldService.Shared.Types;
+using FieldService.Storage.Configuration;
 using FieldService.Storage.Entities;
 using FieldService.Storage.Interfaces;
-using StackExchange.Redis;
+using Microsoft.Extensions.Configuration;
 
 namespace FieldService.Storage.Services;
 
-internal sealed class RedisStoredFileService(IRedisContext redisContext) : IStoredFileCacheService
+internal sealed class RedisStoredFileService(
+    IRedisContext redisContext,
+    IConfiguration configuration) : IStoredFileCacheService
 {
+    private readonly TimeSpan _cacheTtl = ResolveCacheTtl(configuration);
+    private readonly TimeSpan _fallbackTtl = ResolveFallbackTtl(configuration);
+
     private const string StoragePrefix = "Storage";
     private const string FilePrefix = $"{StoragePrefix}:file:";
     private const string FileCategoryPrefix = $"{StoragePrefix}:file-category:";
     private const string CategoryPrefix = $"{StoragePrefix}:category:";
     private const string CategoryTenantPrefix = $"{StoragePrefix}:category-tenant:";
     private const string CategoryIdentityPrefix = $"{StoragePrefix}:category-identity:";
+    private const string FallbackFailedUploadPrefix = $"{StoragePrefix}:fallback-upload-failed:";
+    private const string FallbackCanceledUploadPrefix = $"{StoragePrefix}:fallback-upload-canceled:";
+    private const string FallbackSuccessUploadPrefix = $"{StoragePrefix}:fallback-upload-success:";
+    private const string FallbackCorruptedUploadPrefix = $"{StoragePrefix}:fallback-upload-corrupted:";
 
     private const string UpsertCategoryLua = @"
         local entityKey = KEYS[1]
@@ -226,9 +235,113 @@ internal sealed class RedisStoredFileService(IRedisContext redisContext) : IStor
         if (file is null)
             return;
 
-        file.UpdateFailedStatus();
+        file.UpdateFailedUploadStatus();
         await UpsertFileCacheAsync(file, ct);
     }
+
+    public async Task CreateFallbackFailedUploadCache(
+        Guid fileId, 
+        CancellationToken token)
+    {
+        ValidateFileId(fileId);
+        token.ThrowIfCancellationRequested();
+
+        await redisContext.Database.StringSetAsync(
+            GetFallbackUploadFailedKey(fileId),
+            fileId.ToString("N"),
+            _fallbackTtl);
+    }
+    
+    public async Task CreateFallbackCanceledUploadCache(
+        Guid fileId, 
+        CancellationToken token)
+    {
+        
+        ValidateFileId(fileId);
+        token.ThrowIfCancellationRequested();
+
+        await redisContext.Database.StringSetAsync(
+            GetFallbackCanceledUploadKey(fileId),
+            fileId.ToString("N"),
+            _fallbackTtl);
+    }
+
+    public async Task CreateFallbackSuccessUploadCache(
+        Guid fileId, 
+        CancellationToken token)
+    {
+        ValidateFileId(fileId);
+        token.ThrowIfCancellationRequested();
+
+        await redisContext.Database.StringSetAsync(
+            GetFallbackSuccessUploadKey(fileId),
+            fileId.ToString("N"),
+            _fallbackTtl);
+    }
+
+    public async Task CreateFallbackCorruptedUploadCache(Guid fileId, CancellationToken token)
+    {
+        ValidateFileId(fileId);
+        token.ThrowIfCancellationRequested();
+
+        await redisContext.Database.StringSetAsync(
+            GetFallbackCorruptedUploadKey(fileId),
+            fileId.ToString("N"),
+            _fallbackTtl);
+    }
+
+    public async Task RemoveFallbackCached(Guid fileId, CancellationToken token)
+    {
+        ValidateFileId(fileId);
+        token.ThrowIfCancellationRequested();
+
+        await Task.WhenAll(
+            redisContext.Database.KeyDeleteAsync(GetFallbackUploadFailedKey(fileId)),
+            redisContext.Database.KeyDeleteAsync(GetFallbackCanceledUploadKey(fileId)),
+            redisContext.Database.KeyDeleteAsync(GetFallbackSuccessUploadKey(fileId)),
+            redisContext.Database.KeyDeleteAsync(GetFallbackCorruptedUploadKey(fileId)));
+    }
+
+    public async Task<bool> HasFallbackCached(Guid fileId, CancellationToken token)
+    {
+        ValidateFileId(fileId);
+        token.ThrowIfCancellationRequested();
+
+        return await Task.FromResult(
+            redisContext.Database.KeyExists(GetFallbackUploadFailedKey(fileId)) ||
+            redisContext.Database.KeyExists(GetFallbackCanceledUploadKey(fileId)) ||
+            redisContext.Database.KeyExists(GetFallbackSuccessUploadKey(fileId)) ||
+            redisContext.Database.KeyExists(GetFallbackCorruptedUploadKey(fileId)));
+    }
+
+    public async Task<IEnumerable<StoredFile>> GetFailedUploadFallbackAsync(CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        return await GetFallbackFilesAsync(FallbackFailedUploadPrefix, ct);
+    }
+
+    public async Task<IEnumerable<StoredFile>> GetCanceledUploadFallbackAsync(CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        return await GetFallbackFilesAsync(FallbackCanceledUploadPrefix, ct);
+    }
+
+    public async Task<IEnumerable<StoredFile>> GetSuccessUploadFallbackAsync(CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        return await GetFallbackFilesAsync(FallbackSuccessUploadPrefix, ct);
+    }
+
+    public async Task<IEnumerable<StoredFile>> GetCorruptedUploadFallbackAsync(CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        return await GetFallbackFilesAsync(FallbackCorruptedUploadPrefix, ct);
+    }
+
 
     private async Task<StoredFile?> TryGetCachedFileAsync(
         Guid id, 
@@ -280,6 +393,8 @@ internal sealed class RedisStoredFileService(IRedisContext redisContext) : IStor
             UpsertCategoryLua,
             keys: [GetCategoryKey(category.Id), GetCategoryTenantKey(category.TenantId), GetCategoryIdentityKey(category.TenantId, category.Code, category.Version.ToString())],
             values: [payload, category.Id.ToString("N")]);
+
+        await ApplyCategoryCacheTtlAsync(category.Id, category.TenantId, category.Code, category.Version.ToString());
     }
 
     private async Task UpsertFileCacheAsync(
@@ -292,6 +407,35 @@ internal sealed class RedisStoredFileService(IRedisContext redisContext) : IStor
             UpsertFileLua,
             keys: [GetFileKey(storedFile.Id), GetFileCategoryKey(storedFile.FileCategoryId)],
             values: [payload, storedFile.Id.ToString("N")]);
+
+        await ApplyFileCacheTtlAsync(storedFile.Id, storedFile.FileCategoryId);
+    }
+
+    private async Task ApplyCategoryCacheTtlAsync(Guid categoryId, Guid tenantId, string code, string version)
+    {
+        await Task.WhenAll(
+            redisContext.Database.KeyExpireAsync(GetCategoryKey(categoryId), _cacheTtl),
+            redisContext.Database.KeyExpireAsync(GetCategoryTenantKey(tenantId), _cacheTtl),
+            redisContext.Database.KeyExpireAsync(GetCategoryIdentityKey(tenantId, code, version), _cacheTtl));
+    }
+
+    private async Task ApplyFileCacheTtlAsync(Guid fileId, Guid categoryId)
+    {
+        await Task.WhenAll(
+            redisContext.Database.KeyExpireAsync(GetFileKey(fileId), _cacheTtl),
+            redisContext.Database.KeyExpireAsync(GetFileCategoryKey(categoryId), _cacheTtl));
+    }
+
+    private static TimeSpan ResolveCacheTtl(IConfiguration configuration)
+    {
+        var options = configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>() ?? new StorageOptions();
+        return TimeSpan.FromMinutes(Math.Max(1, options.TtlCacheMinutes));
+    }
+
+    private static TimeSpan ResolveFallbackTtl(IConfiguration configuration)
+    {
+        var options = configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>() ?? new StorageOptions();
+        return TimeSpan.FromHours(Math.Max(1, options.TtlFallBackHours));
     }
 
     private async Task<Guid[]> GetCategoryIdsByTenantFromCacheAsync(
@@ -318,6 +462,49 @@ internal sealed class RedisStoredFileService(IRedisContext redisContext) : IStor
             .Select(Guid.Parse)
             .Distinct()
             .ToArray();
+    }
+
+    private async Task<IEnumerable<StoredFile>> GetFallbackFilesAsync(
+        string keyPrefix,
+        CancellationToken ct)
+    {
+        var fileIds = await GetFallbackFileIdsAsync(keyPrefix, ct);
+        if (fileIds.Length == 0)
+            return Array.Empty<StoredFile>();
+
+        var files = new List<StoredFile>(fileIds.Length);
+        foreach (var fileId in fileIds)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var file = await TryGetCachedFileAsync(fileId, ct);
+            if (file is not null)
+                files.Add(file);
+        }
+
+        return files;
+    }
+
+    private async Task<Guid[]> GetFallbackFileIdsAsync(
+        string keyPrefix,
+        CancellationToken ct)
+    {
+        var server = redisContext.Connection.GetServer(redisContext.Connection.GetEndPoints().First());
+        var fileIds = new HashSet<Guid>();
+
+        await foreach (var key in server.KeysAsync(pattern: $"{keyPrefix}*"))
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var keyValue = key.ToString();
+            var fileIdToken = keyValue.Replace(keyPrefix, string.Empty, StringComparison.Ordinal);
+            if (!Guid.TryParse(fileIdToken, out var fileId))
+                continue;
+
+            fileIds.Add(fileId);
+        }
+
+        return fileIds.ToArray();
     }
 
     private static StoredFileCategory ToStoredFileCategory(StoredFileCategoryCacheEntry entry)
@@ -407,6 +594,10 @@ internal sealed class RedisStoredFileService(IRedisContext redisContext) : IStor
     private static string GetCategoryKey(Guid id) => $"{CategoryPrefix}{id:N}";
     private static string GetCategoryTenantKey(Guid tenantId) => $"{CategoryTenantPrefix}{tenantId:N}";
     private static string GetCategoryIdentityKey(Guid tenantId, string code, string version) => $"{CategoryIdentityPrefix}{tenantId:N}:{code}:{version}";
+    private static string GetFallbackUploadFailedKey(Guid fileId) => $"{FallbackFailedUploadPrefix}{fileId:N}";
+    private static string GetFallbackCanceledUploadKey(Guid fileId) => $"{FallbackCanceledUploadPrefix}{fileId:N}";
+    private static string GetFallbackSuccessUploadKey(Guid fileId) => $"{FallbackSuccessUploadPrefix}{fileId:N}";
+    private static string GetFallbackCorruptedUploadKey(Guid fileId) => $"{FallbackCorruptedUploadPrefix}{fileId:N}";
 
     private sealed record StoredFileCategoryCacheEntry(
         Guid Id,
@@ -434,4 +625,3 @@ internal sealed class RedisStoredFileService(IRedisContext redisContext) : IStor
         string StoragePath,
         StoredFileCategoryCacheEntry Category);
 }
-

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FieldService.Authentication.Interfaces;
+using FieldService.Shared.Services;
 using FieldService.Shared.Types;
 
 namespace FieldService.Authentication.Services;

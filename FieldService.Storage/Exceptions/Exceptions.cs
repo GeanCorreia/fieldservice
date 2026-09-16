@@ -26,3 +26,20 @@ public class InvalidContentTypeException : Exception
         AllowedContentTypes = allowedContentTypes.ToList().AsReadOnly();
     }
 }
+
+public class StorageTransactionRequiredException : Exception
+{
+    public string OperationName { get; }
+
+    public StorageTransactionRequiredException(string operationName)
+        : base($"The storage operation '{operationName}' requires an active database transaction to guarantee consistency.")
+    {
+        OperationName = operationName;
+    }
+
+    public StorageTransactionRequiredException()
+        : base("An active database transaction is required to perform this storage operation.")
+    {
+        OperationName = "Unknown";
+    }
+}

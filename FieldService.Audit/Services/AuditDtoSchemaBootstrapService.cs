@@ -22,13 +22,13 @@ public sealed class AuditDtoSchemaBootstrapService(
             x => x,
             StringComparer.Ordinal);
 
-        var newSchemas = new List<AuditDtoSchema>();
+        var schemasToPersist = new List<AuditDtoSchema>();
         foreach (var descriptor in descriptors)
         {
             var key = BuildKey(descriptor.ResourceName, descriptor.Version.ToString());
             if (!persistedByKey.TryGetValue(key, out var persisted))
             {
-                newSchemas.Add(AuditDtoSchema.Create(
+                schemasToPersist.Add(AuditDtoSchema.Create(
                     descriptor.ResourceName,
                     descriptor.Version,
                     descriptor.Properties,
@@ -39,11 +39,14 @@ public sealed class AuditDtoSchemaBootstrapService(
             if (Canonicalize(persisted.Properties) == Canonicalize(descriptor.Properties))
                 continue;
 
-            throw new InvalidOperationException(
-                $"DTO schema mismatch for '{descriptor.Type.FullName}' ({descriptor.ResourceName} v{descriptor.Version}). Stored schema differs from current DTO properties.");
+            schemasToPersist.Add(AuditDtoSchema.Create(
+                descriptor.ResourceName,
+                descriptor.Version,
+                descriptor.Properties,
+                DateTimeOffset.UtcNow));
         }
 
-        await auditDtoSchemaRepository.Save(newSchemas, ct);
+        await auditDtoSchemaRepository.Save(schemasToPersist, ct);
     }
 
     private static IReadOnlyCollection<DtoSchemaDescriptor> DiscoverDtoSchemas()

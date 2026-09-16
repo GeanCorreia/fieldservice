@@ -14,7 +14,7 @@ public sealed class HangfireOnCreatingFilter : JobFilterAttribute, IClientFilter
         if (job is null)
             return;
         
-        filterContext.SetJobParameter("JobType", job.Type.ToString());
+        filterContext.SetJobParameter("JobType", job.Context.Type.ToString());
         filterContext.SetJobParameter("CorrelationId", job.Context.CorrelationId);
         filterContext.SetJobParameter("TenantId", job.Context.TenantId?.ToString() ?? string.Empty);
         filterContext.SetJobParameter("IsMultiTenant", (!job.Context.TenantId.HasValue).ToString());
@@ -29,19 +29,18 @@ public sealed class HangfireOnCreatingFilter : JobFilterAttribute, IClientFilter
         var job = GetJobArgument(filterContext.Job.Args);
         if (job is null)
             return;
-
+        
+        var jobTypeTag = $"Job:{job.Context.Type}";
         
         var hangfireId = filterContext.BackgroundJob.Id; 
-        var semanticId = $"{job.Type}-{hangfireId}"; 
-        
+       
         var tenantTag = job.Context.TenantId.HasValue
             ? $"Tenant:{job.Context.TenantId}"
             : "Tenant:Multi";
         
         hangfireId.AddTags(
-            $"Job:{semanticId}",
-            tenantTag,
-            $"CorrelationId:{job.Context.CorrelationId}"
+            jobTypeTag,
+            tenantTag
         );
     }
 

@@ -97,4 +97,49 @@ internal sealed class BrokerOutboxRepository(
 
         await unitOfWork.PersistChangesAsync(ct);
     }
+
+   
+
+    public async Task DeleteAsync(
+        IEnumerable<Guid> messageIds, 
+        CancellationToken ct = default)
+    {
+        if (!messageIds.Any())
+        {
+            return;
+        }
+        
+        var brokerOutboxesToDelete = await dbContext.BrokerOutboxes
+            .Where(x => messageIds.Contains(x.MessageId))
+            .ToListAsync(ct);
+
+        if (brokerOutboxesToDelete.Any())
+        {
+            dbContext.BrokerOutboxes.RemoveRange(brokerOutboxesToDelete);
+            await unitOfWork.PersistChangesAsync(ct);
+        }
+    }
+
+    public async Task DeleteProcessedBeforeAsync(
+        DateTimeOffset threshold, 
+        CancellationToken ct = default)
+    {
+        var dispatchedBrokerOutboxesToDelete = await dbContext.BrokerOutboxes
+            .Where(x => x.DispatchedAt != null && x.DispatchedAt < threshold)
+            .ToListAsync(ct);
+        
+        var expiredBrokerOutboxesToDelete = await dbContext.BrokerOutboxes
+            .Where(x => x.ExpiresAt != null && x.ExpiresAt < threshold)
+            .ToListAsync(ct);
+        
+        var brokerOutboxesToDelete = new HashSet<BrokerOutbox>();
+        brokerOutboxesToDelete.UnionWith(dispatchedBrokerOutboxesToDelete);
+        brokerOutboxesToDelete.UnionWith(expiredBrokerOutboxesToDelete);
+        
+        if (brokerOutboxesToDelete.Any())
+        {
+            dbContext.BrokerOutboxes.RemoveRange(brokerOutboxesToDelete);
+            await unitOfWork.PersistChangesAsync(ct);
+        }
+    }
 }

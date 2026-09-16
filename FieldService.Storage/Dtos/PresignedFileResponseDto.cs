@@ -11,6 +11,7 @@ public record PresignedFileUploadResponseDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedFileUploadResponseDto";
+    public override bool IsActive => true;
 }
 
 public record PresignedBatchFileUploadResponseDto(
@@ -19,6 +20,7 @@ public record PresignedBatchFileUploadResponseDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedBatchFileUploadResponseDto";
+    public override bool IsActive => true;
 }
 
 public record PresignedFileDownloadResponseDto(
@@ -33,6 +35,7 @@ public record PresignedFileDownloadResponseDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedFileDownloadResponseDto";
+    public override bool IsActive => true;
 }
 
 public record PresignedBatchFileDownloadResponseDto(
@@ -41,4 +44,5 @@ public record PresignedBatchFileDownloadResponseDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedBatchFileDownloadResponseDto";
+    public override bool IsActive => true;
 }

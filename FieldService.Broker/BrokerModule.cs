@@ -39,9 +39,18 @@ public static class BrokerModule
         if (string.IsNullOrWhiteSpace(azureServiceBusOptions.ConnectionString))
             throw new InvalidOperationException("AzureServiceBus:ConnectionString is not configured.");
         
-        services.AddSqlModule<BrokerDbContext>(configuration, environment);
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var connectionString = config["AzureServiceBus:ConnectionString"];
 
-        services.AddSingleton(_ => new ServiceBusClient(azureServiceBusOptions.ConnectionString));
+            var options = new ServiceBusClientOptions
+            {
+                TransportType = ServiceBusTransportType.AmqpTcp
+            };
+
+            return new ServiceBusClient(connectionString, options);
+        });
         services.AddSingleton(_ => new ServiceBusAdministrationClient(azureServiceBusOptions.ConnectionString));
         
         services.TryAddSingleton<IMessageProcessingLock, MessageProcessingLock>();
@@ -56,11 +65,13 @@ public static class BrokerModule
         services.AddBrokerConsumers();
         services.AddBrokerProducers();
         
+        services.AddSqlModule<BrokerDbContext>(configuration);
+        
         if (!environment.IsDevelopment())
         {
             services.AddHostedService<AzureServiceBusStartupConfigurator>();
         }
-
+       
         return services;
     }
 }

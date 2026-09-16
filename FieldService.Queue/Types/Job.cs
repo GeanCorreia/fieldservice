@@ -46,15 +46,13 @@ public record JobContext
 }
 
 public record Job(
-    JobType Type,
     JobContext Context)
 {
-    public string JobId => Type.Value;
+    public string JobId => Context.Type.Value;
 }
 
 public record Job<TPayload>(
-    JobType Type,
     TPayload Payload,
-    JobContext Context) : Job(Type, Context)
+    JobContext Context) : Job(Context)
 {
 }

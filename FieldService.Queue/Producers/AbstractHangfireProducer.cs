@@ -13,3 +13,5 @@ public abstract class AbstractHangfireProducer
 
     protected IBackgroundJobClient BackgroundJobClient => _backgroundJobClient;
 }
+
+

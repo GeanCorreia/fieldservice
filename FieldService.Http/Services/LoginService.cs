@@ -2,19 +2,16 @@ using FieldService.Authentication.Entities;
 using FieldService.Authentication.Interfaces;
 using FieldService.Authentication.Services;
 using FieldService.Authentication.Types;
-using FieldService.Authorization.Types;
 using FieldService.Data.Interfaces;
-using FieldService.Http.Dtos;
 using FieldService.Http.Interfaces;
 using FieldService.Observability.Types;
-using FieldService.Shared.Dtos;
 using FieldService.Shared.Interfaces;
 using FieldService.Shared.Services;
 using FieldService.Shared.Types;
 using Microsoft.AspNetCore.Http;
 using IAuthorizationService = FieldService.Authorization.Interfaces.IAuthorizationService;
 using ObservabilityExecutionContext = FieldService.Observability.Services.ExecutionContext;
-using UserAuthentication = FieldService.Shared.Dtos.UserAuthentication;
+using UserAuthenticationDto = FieldService.Http.Dtos.UserAuthenticationDto;
 
 namespace FieldService.Http.Services;
 
@@ -24,12 +21,12 @@ public class LoginService : ILoginService
     private readonly ISessionAuthenticationService _sessionAuthenticationService;
     private readonly ISessionCacheService _sessionCacheService;
     private readonly ISessionMapper _sessionMapper;
-    private readonly IUserAuthenticationService _userAuthenticationService;
+    private readonly IAuthenticationService _authenticationService;
     private readonly IDateTimeService _dateTimeService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuthorizationService _authorizationService;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IUserMapper _userMapper;
+    private readonly IUserAuthenticationMapper _userMapper;
 
 
     public LoginService(
@@ -37,18 +34,18 @@ public class LoginService : ILoginService
         ISessionAuthenticationService sessionAuthenticationService,
         ISessionCacheService sessionCacheService,
         ISessionMapper sessionMapper,
-        IUserAuthenticationService userAuthenticationService,
+        IAuthenticationService authenticationService,
         IDateTimeService dateTimeService,
         IAuthorizationService authorizationService,
         IHttpContextAccessor httpContextAccessor,
-        IUserMapper userMapper,
+        IUserAuthenticationMapper userMapper,
         IUnitOfWork unitOfWork)
     {
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
         _sessionAuthenticationService = sessionAuthenticationService ?? throw new ArgumentNullException(nameof(sessionAuthenticationService));
         _sessionCacheService = sessionCacheService ?? throw new ArgumentNullException(nameof(sessionCacheService));
         _sessionMapper = sessionMapper ?? throw new ArgumentNullException(nameof(sessionMapper));
-        _userAuthenticationService = userAuthenticationService ?? throw new ArgumentNullException(nameof(userAuthenticationService));
+        _authenticationService = authenticationService ?? throw new ArgumentNullException(nameof(authenticationService));
         _dateTimeService = dateTimeService ?? throw new ArgumentNullException(nameof(dateTimeService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
@@ -65,22 +62,19 @@ public class LoginService : ILoginService
         var userId = ClaimsResolver.GetUserId(principal);
         
 
-        var user = await _userAuthenticationService.GetUserAsync(
-            userId,
-            cancellationToken);
+        var user = await _authenticationService
+            .GetUserAsync(
+                userId,
+                cancellationToken);
+
 
         if (user == null)
         {
             throw new UnauthorizedAccessException("User not found.");
         }
         
-        var userTenants = user.Tenants;
-
-        if (userTenants.Count == 0)
-        {
-            throw new UnauthorizedAccessException("User has no tenants.");
-        }
-
+        var userTenants = user.Tenants.ToList();
+        
         if (userTenants.Count(t => t.TenantId == tenantId) == 0)
         {
             throw new UnauthorizedAccessException("User does not have access to the specified tenant.");
@@ -89,14 +83,16 @@ public class LoginService : ILoginService
         var expiresAt = ClaimsResolver.GetExpiresAt(principal);
         
         var jwtId = ClaimsResolver.GetJwtId(principal);
+        var sub = ClaimsResolver.GetSubjectId(principal);
+        var provider = (AuthenticationProvider)Enum.Parse(typeof(AuthenticationProvider), ClaimsResolver.GetProvider(principal));
         
         
         var session = new Session(
             id: sessionId,
             tenantId: tenantId,
             userId: userId,
-            externalId: user.ExternalId,
-            provider: user.Provider,
+            externalId: sub,
+            provider: provider,
             startedAt: _dateTimeService.Now(),
             expiresAt: expiresAt);
         
@@ -109,7 +105,7 @@ public class LoginService : ILoginService
             sessionId,
             jwtId,
             ObservabilityExecutionContext.IpAddress,
-            HashService.GenerateHash(ObservabilityExecutionContext.UserAgent),
+            HashService.CreateHashSha256(ObservabilityExecutionContext.UserAgent),
             DateTime.UtcNow,
             RequestChannel.Http,
             requestId
@@ -150,58 +146,8 @@ public class LoginService : ILoginService
             
         }
         
-    }
+    } 
     
-    public async Task<UserAuthenticationDto?> GetUserTenantsAsync(
-        CancellationToken cancellationToken = default)
-    {
-
-        var principal = GetHttpContext().User;
-        var userId = ClaimsResolver.GetUserId(principal);
-        
-        var userAuthentication = await _userAuthenticationService.GetUserAsync(
-            userId,
-            cancellationToken);
-
-        if (userAuthentication == null)
-        {
-            throw new UnauthorizedAccessException("User not found.");
-        }
-
-        var tentantsId = userAuthentication.Tenants.ToHashSet();
-        
-        var userAuthorizationSnapshots =  new List<UserAuthorizationSnapshot>();
-
-        foreach (var tenantId in tentantsId)
-        {
-            var userAuthorization = await _authorizationService.GetSnapshotAsync(
-                userId,
-                tenantId.TenantId,
-                cancellationToken);
-            if (userAuthorization != null)
-            {
-                userAuthorizationSnapshots.Add(userAuthorization);
-            }
-        }
-
-        try
-        {
-            var userAuthenticationDto = _userMapper.Map(
-                userAuthentication,
-                userAuthorizationSnapshots);
-            
-            return userAuthenticationDto;
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("User not found.");
-        }
-        
-        
-        
-
-    }
-
     public async Task LogoutAsync(
         
         RevocationReason reason,

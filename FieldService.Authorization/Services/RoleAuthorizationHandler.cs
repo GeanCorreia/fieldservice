@@ -1,5 +1,6 @@
 using FieldService.Authorization.Interfaces;
 using FieldService.Authorization.Requirements;
+using FieldService.Shared.Services;
 using FieldService.Shared.Types;
 using Microsoft.AspNetCore.Authorization;
 
@@ -13,28 +14,30 @@ internal sealed class RoleAuthorizationHandler(
         AuthorizationHandlerContext context,
         RoleRequirement requirement)
     {
-        var snapshot = await authorizationService.GetSnapshotAsync(context);
-        if (snapshot is not { IsActive: true })
-            return;
-
-        if (SatisfiesRole(snapshot.Role, requirement.Role))
-            context.Succeed(requirement);
-    }
-
-    private static bool SatisfiesRole(Role userRole, Role requiredRole)
-    {
-        if (userRole == requiredRole)
-            return true;
-
-        return requiredRole switch
+        var user = await authorizationService.GetUserAsync(context);
+        if (user is null)
         {
-            Role.Owner => false,
-            Role.Admin => userRole is Role.Owner,
-            Role.Supervisor => userRole is Role.Owner or Role.Admin,
-            Role.Technician => userRole is Role.Owner or Role.Admin or Role.Supervisor,
-            Role.Operator => userRole is Role.Owner or Role.Admin or Role.Supervisor,
-            Role.Viewer => false,
-            _ => false
-        };
+            context.Fail();
+            return;
+        }
+       
+        var tenantId = ClaimsResolver.GetTenantId(context.User);
+        
+        var tenant = user.Tenants.FirstOrDefault(x => x.TenantId == tenantId);
+        
+        if (tenant is null)
+        {
+            context.Fail();
+            return;
+        }
+        
+        if (RoleRequirementValidator.SatisfiesRole(tenant.Role, requirement.Role))
+        {
+            context.Succeed(requirement);
+            return;
+        }
+        context.Fail();
     }
+
+    
 }

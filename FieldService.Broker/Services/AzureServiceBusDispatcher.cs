@@ -46,20 +46,39 @@ public sealed class AzureServiceBusDispatcher : IBrokerDispatcher
         CancellationToken ct)
     {
         var consumerTypes = AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(a => a.GetTypes())
-            .Where(t => t is { IsClass: true, IsAbstract: false })
-            .Select(t => new
+            .SelectMany(a =>
             {
-                Type = t,
-                Interface = t.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == openGenericInterface)
+                try
+                {
+                    return a.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    return ex.Types.Where(t => t is not null)!;
+                }
             })
-            .Where(x => x.Interface != null)
+            .Where(t => t is { IsClass: true, IsAbstract: false })
+            .Select(t =>
+            {
+                try
+                {
+                    var matchingInterface = t.GetInterfaces()
+                        .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == openGenericInterface);
+
+                    return new { Type = t, Interface = matchingInterface };
+                }
+                catch
+                {
+                    return null;
+                }
+            })
+            .Where(x => x?.Interface != null)
             .ToList();
 
         var method = typeof(AzureServiceBusDispatcher)
             .GetMethod(privateMethodName, BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-        foreach (var item in consumerTypes)
+        foreach (var item in consumerTypes!)
         {
             var payloadType = item.Interface!.GetGenericArguments()[0];
             var consumerInstance = sp.GetService(item.Type);

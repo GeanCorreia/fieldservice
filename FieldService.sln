@@ -6,6 +6,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		docker-compose.yml = docker-compose.yml
 		DOCKER.md = DOCKER.md
 		docker\ServiceBusEmulator\Config.json = docker\ServiceBusEmulator\Config.json
+		superset_config.py = superset_config.py
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.TemplateService", "FieldService.TemplateService\FieldService.TemplateService.csproj", "{EE0DD127-3ABB-4ACF-93EC-11B6E6BF2523}"
@@ -41,6 +42,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Seed", "FieldService.Seed\FieldService.Seed.csproj", "{1133797E-3331-431F-B8A2-EB427A718C50}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Storage", "FieldService.Storage\FieldService.Storage.csproj", "{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.DocumentSupportManagement", "FieldService.DocumentSupportManagement\FieldService.DocumentSupportManagement.csproj", "{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Superset", "FieldService.Superset\FieldService.Superset.csproj", "{596E6113-3AEC-4335-A351-BB5FE534870D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -256,6 +261,30 @@ Global
 		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Release|x64.Build.0 = Release|Any CPU
 		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Release|x86.ActiveCfg = Release|Any CPU
 		{DE709FBD-B530-4FBA-A520-6C9CE8B4D2D5}.Release|x86.Build.0 = Release|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Debug|x64.Build.0 = Debug|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Debug|x86.Build.0 = Debug|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Release|x64.ActiveCfg = Release|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Release|x64.Build.0 = Release|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Release|x86.ActiveCfg = Release|Any CPU
+		{15BC0862-E0BB-4A09-BE8F-2FE35AF687BD}.Release|x86.Build.0 = Release|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Debug|x64.Build.0 = Debug|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Debug|x86.Build.0 = Debug|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Release|x64.ActiveCfg = Release|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Release|x64.Build.0 = Release|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Release|x86.ActiveCfg = Release|Any CPU
+		{596E6113-3AEC-4335-A351-BB5FE534870D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,4 +1,4 @@
-using FieldService.Authentication.Services;
+using FieldService.Shared.Services;
 using FieldService.Shared.Types;
 using Microsoft.AspNetCore.Http;
 using ObservabilityExecutionContext = FieldService.Observability.Services.ExecutionContext;

@@ -75,8 +75,8 @@ public sealed class HttpAuthenticationMiddleware(RequestDelegate next)
         if (existing is not null)
             return;
 
-        var identity = Authentication.Services.ClaimsResolver.GetOrCreateAuthenticationIdentity(principal);
-        Authentication.Services.ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.SessionId, sessionId.ToString());
+        var identity = Shared.Services.ClaimsResolver.GetOrCreateAuthenticationIdentity(principal);
+        Shared.Services.ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.SessionId, sessionId.ToString());
     }
     
     private static void InjectSessionFromQueryString(HttpContext httpContext)
@@ -92,8 +92,8 @@ public sealed class HttpAuthenticationMiddleware(RequestDelegate next)
         if (existing is not null)
             return;
 
-        var identity = Authentication.Services.ClaimsResolver.GetOrCreateAuthenticationIdentity(principal);
-        Authentication.Services.ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.SessionId, sessionId.ToString());
+        var identity = Shared.Services.ClaimsResolver.GetOrCreateAuthenticationIdentity(principal);
+        Shared.Services.ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.SessionId, sessionId.ToString());
     }
     
 }

@@ -4,29 +4,32 @@ using FieldService.Authentication.Types;
 using FieldService.Shared.Interfaces;
 using FieldService.Shared.Types;
 using System.Security.Claims;
+using FieldService.Authentication.Dtos;
+using FieldService.Shared.Services;
 using Microsoft.AspNetCore.Http;
 
 namespace FieldService.Authentication.Services;
 
-public class AzureUserIdentityResolver : IUserIdentityResolver
+internal class AzureUserIdentityResolver : IUserIdentityResolver
 {
-    private readonly IUserAuthenticationService _userAuthenticationService;
+    private readonly IInternalUserAuthenticationService _internalUserAuthenticationService;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private const AuthenticationProvider _authenticationProvider = AuthenticationProvider.AzureAdB2C;
 
 
     public AzureUserIdentityResolver(
-        IUserAuthenticationService userAuthenticationService,
+        IInternalUserAuthenticationService internalUserAuthenticationService,
         IHttpContextAccessor httpContextAccessor)    
     {
-        _userAuthenticationService = userAuthenticationService ?? throw new ArgumentNullException(
-            nameof(userAuthenticationService));
+        _internalUserAuthenticationService = internalUserAuthenticationService ?? throw new ArgumentNullException(
+            nameof(internalUserAuthenticationService));
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
     }
 
     public async Task ResolveUserAsync(CancellationToken cancellationToken = default)
     {
         var principal = GetHttpContext().User;
-        var userCacheModel = await GetUserAuthenticationCache(principal);
+        var userCacheModel = await GetUserTenantsAuthenticationType(principal);
         
         if (userCacheModel == null)
         {
@@ -38,19 +41,22 @@ public class AzureUserIdentityResolver : IUserIdentityResolver
         ClaimsResolver.UpsertClaim(identity, 
             ClaimsExtensions.UserId, 
             userCacheModel.UserId.ToString());
+        
+        ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.UserId, userCacheModel.UserId.ToString());
+        ClaimsResolver.UpsertClaim(identity,ClaimsExtensions.Provider,_authenticationProvider.ToString() );
     }
 
-    private async Task<UserAuthenticationCacheModel?> GetUserAuthenticationCache(ClaimsPrincipal principal)
+    private async Task<UserAuthenticationDto?> GetUserTenantsAuthenticationType(ClaimsPrincipal principal)
     {
         
         var sub = ClaimsResolver.GetSubjectId(principal);
 
-        var userCacheModel = await _userAuthenticationService.GetUserAsync(
+        var userAuthenticationTenants = await _internalUserAuthenticationService.GetUserAsync(
             sub,
             AuthenticationProvider.AzureAdB2C,
             CancellationToken.None);
         
-        return userCacheModel;
+        return userAuthenticationTenants;
     }
 
     private HttpContext GetHttpContext() =>

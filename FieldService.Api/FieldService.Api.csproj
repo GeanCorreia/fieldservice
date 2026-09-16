@@ -14,6 +14,7 @@
         <ProjectReference Include="..\FieldService.Authentication\FieldService.Authentication.csproj" />
         <ProjectReference Include="..\FieldService.Cache\FieldService.Cache.csproj" />
         <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />
+        <ProjectReference Include="..\FieldService.DocumentSupportManagement\FieldService.DocumentSupportManagement.csproj" />
         <ProjectReference Include="..\FieldService.Http\FieldService.Http.csproj" />
         <ProjectReference Include="..\FieldService.Notification\FieldService.Notification.csproj" />
         <ProjectReference Include="..\FieldService.Observability\FieldService.Observability.csproj" />

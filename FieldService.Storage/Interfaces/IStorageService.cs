@@ -1,4 +1,5 @@
 using FieldService.Shared.Dtos;
+using FieldService.Shared.Types;
 using FieldService.Storage.Entities;
 using FieldService.Storage.Types;
 
@@ -30,7 +31,7 @@ public interface IStorageService
     
     Task DeleteAsync(
         Guid fileId, 
-        UserAuthentication user, 
+        UserTenantDto userTenantDto, 
         CancellationToken ct = default);
 
     Task UpdateUploadedStatusAsync(
@@ -43,7 +44,7 @@ public interface IStorageService
     
     Task UpdateStatusAsync(
         Guid fileId, 
-        UserAuthentication user,
+        UserTenantDto userTenantDto,
         StorageStatus status, 
         CancellationToken ct = default);
 }

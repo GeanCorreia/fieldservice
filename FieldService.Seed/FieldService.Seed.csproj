@@ -4,6 +4,7 @@
     <ProjectReference Include="..\FieldService.Notification\FieldService.Notification.csproj" />
     <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />
     <ProjectReference Include="..\FieldService.SignalR\FieldService.SignalR.csproj" />
+    <ProjectReference Include="..\FieldService.Storage\FieldService.Storage.csproj" />
     <ProjectReference Include="..\FieldService.Queue\FieldService.Queue.csproj" />
     <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
   </ItemGroup>

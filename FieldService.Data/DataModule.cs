@@ -16,7 +16,6 @@ public static class DataModule
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
-        services.AddMongoModule(configuration, environment);
         services.AddSqlModule(configuration, environment);
 
         return services;

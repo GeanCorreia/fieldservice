@@ -1,10 +1,11 @@
+using FieldService.Authentication.Dtos;
 using FieldService.Authentication.Entities;
 using FieldService.Authentication.Types;
+using FieldService.Shared.Types;
 
 namespace FieldService.Authentication.Interfaces;
 
 public interface IUserAuthenticationMapper
 {
-    UserAuthentication Map(UserAuthenticationCacheModel cacheModel);
-    UserAuthenticationCacheModel Map(UserAuthentication userAuthentication);
-}
+    UserAuthenticationDto Map(UserAuthentication user);
+} 

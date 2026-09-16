@@ -6,7 +6,7 @@ namespace FieldService.Shared.Services;
 
 public sealed class HashService : IHashService
 {
-    public string Generate(string value) => GenerateHash(value);
+    public string Generate(string value) => CreateHashSha256(value);
 
     public static string CreateHashMd5(string value)
     {
@@ -14,8 +14,8 @@ public sealed class HashService : IHashService
 
         var bytes = Encoding.UTF8.GetBytes(value);
         var hash = MD5.HashData(bytes);
-
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        
+        return Convert.ToBase64String(hash);
     }
 
     public static string CreateHashMd5(Stream content)
@@ -36,11 +36,11 @@ public sealed class HashService : IHashService
         {
             content.Position = originalPosition;
         }
-
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        
+        return Convert.ToBase64String(hash);
     }
 
-    public static string GenerateHash(string value)
+    public static string CreateHashSha256(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
 

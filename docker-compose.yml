@@ -86,8 +86,8 @@ services:
     container_name: fieldservice-servicebus
     restart: unless-stopped
     ports:
-      - "5672:5672"
-      - "5300:5300"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:5300:5300"
     environment:
       ACCEPT_EULA: "Y"
       SQL_SERVER: "asb-sql"
@@ -117,6 +117,58 @@ services:
     networks:
       - fieldservice-network
 
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: fieldservice-azurite
+    hostname: azurite
+    restart: unless-stopped
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0
+    ports:
+      - "${AZURITE_BLOB_PORT:-20000}:10000"
+      - "${AZURITE_QUEUE_PORT:-20001}:10001"
+      - "${AZURITE_TABLE_PORT:-20002}:10002"
+    volumes:
+      - azurite_data:/data
+    networks:
+      - fieldservice-network
+      
+  superset:
+    image: apache/superset:latest
+    container_name: fieldservice-superset
+    restart: unless-stopped
+    user: root
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_CONFIG_PATH: "/app/pythonpath/superset_config.py"
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-SUA_CHAVE_GERADA_AQUI}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres123}"
+      POSTGRES_DB: "${POSTGRES_DB:-fieldservice}"
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_SCHEMA: "superset"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-redis123}"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      TZ: UTC
+    volumes:
+      - ./superset_config.py:/app/pythonpath/superset_config.py:ro
+    command: >
+      sh -c "
+      /usr/local/bin/uv pip install --python /app/.venv/bin/python psycopg2-binary &&
+      /app/.venv/bin/superset db upgrade &&
+      /app/.venv/bin/superset init &&
+      /usr/bin/run-server.sh
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - fieldservice-network
+
 volumes:
   postgres_data:
     driver: local
@@ -127,6 +179,8 @@ volumes:
   redis_data:
     driver: local
   rabbitmq_data:
+    driver: local
+  azurite_data:
     driver: local
 
 networks:

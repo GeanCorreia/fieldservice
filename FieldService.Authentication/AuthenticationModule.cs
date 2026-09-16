@@ -37,7 +37,8 @@ public static class AuthenticationModule
         services.AddSingleton<IUserAuthenticationMapper, UserAuthenticationMapper>();
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<IUserAuthenticationRepository, UserAuthenticationRepository>();
-        services.AddScoped<IUserAuthenticationService, UserAuthenticationService>();
+        services.AddScoped<IInternalUserAuthenticationService, InternalUserAuthenticationService>();
+        services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<ISessionPersistenceService, SessionCleanupService>();
         services.AddScoped<ISessionManager, SessionManager>();
         services.AddScoped<ISessionAuthenticationService, SessionAuthenticationService>();

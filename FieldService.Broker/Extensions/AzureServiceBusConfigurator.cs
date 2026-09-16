@@ -36,8 +36,11 @@ public class AzureServiceBusConfigurator : IBrokerConfigurator
         {
             _logger.LogInformation("Starting Azure Service Bus production topology discovery and provisioning...");
 
-            var publishContexts = BrokerTopologyDiscoverer.DiscoverPublishContexts();
-            var subscribeContexts = BrokerTopologyDiscoverer.DiscoverSubscriptionContexts();
+            var publishContexts = BrokerTopologyDiscoverer.DiscoverPublishContexts().ToList();
+            var subscribeContexts = BrokerTopologyDiscoverer.DiscoverSubscriptionContexts().ToList();
+            var managedTopicNames = publishContexts
+                .Select(p => p.EntityName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             foreach (var publishContext in publishContexts)
             {
@@ -46,7 +49,10 @@ public class AzureServiceBusConfigurator : IBrokerConfigurator
 
             foreach (var subscribeContext in subscribeContexts)
             {
-                await EnsureSubscriptionExistsAsync(subscribeContext, cancellationToken);
+                await EnsureSubscriptionExistsAsync(
+                    subscribeContext,
+                    managedTopicNames.Contains(subscribeContext.EntityName),
+                    cancellationToken);
             }
 
             _logger.LogInformation("Azure Service Bus topology provisioning completed successfully.");
@@ -94,6 +100,7 @@ public class AzureServiceBusConfigurator : IBrokerConfigurator
 
     private async Task EnsureSubscriptionExistsAsync(
         Message.BrokerSubscribeContext subscribeContext, 
+        bool isManagedTopic,
         CancellationToken cancellationToken)
     {
         var topicName = subscribeContext.EntityName;
@@ -101,6 +108,19 @@ public class AzureServiceBusConfigurator : IBrokerConfigurator
 
         try
         {
+            if (!isManagedTopic)
+            {
+                var topicExists = await _adminClient.TopicExistsAsync(topicName, cancellationToken);
+                if (!topicExists)
+                {
+                    _logger.LogWarning(
+                        "Skipping subscription provisioning for external topic '{TopicName}' because it does not exist in the namespace. Subscription: '{SubscriptionName}'.",
+                        topicName,
+                        subName);
+                    return;
+                }
+            }
+
             var subExists = await _adminClient.SubscriptionExistsAsync(topicName, subName, cancellationToken);
 
             if (!subExists)

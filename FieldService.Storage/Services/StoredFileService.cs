@@ -1,10 +1,12 @@
 using System.Net.Http.Headers;
 using FieldService.Cache.Interfaces;
 using FieldService.Shared.Dtos;
+using FieldService.Shared.Types;
 using FieldService.Storage.Data;
 using FieldService.Storage.Entities;
 using FieldService.Storage.Exceptions;
 using FieldService.Storage.Interfaces;
+using FieldService.Storage.Logs;
 using Microsoft.Extensions.Logging;
 using Role = FieldService.Shared.Types.Role;
 
@@ -29,35 +31,45 @@ internal sealed class StoredFileService : IStoredFileService
     }
     public async Task<StoredFile?> GetByIdAsync(
         Guid id, 
-        UserAuthentication user, 
+        UserTenantDto userTenantDto, 
+        CancellationToken ct = default)
+    {
+        
+        
+        var file = await _storedFileRepository.GetByIdAsync(id, ct);
+        file.FileCategory.ValidateAccess(userTenantDto);
+        
+        return file;
+
+    }
+    
+    private async Task<StoredFile> GetByIdAsync(
+        Guid id, 
         CancellationToken ct = default)
     {
         var cachedFile = await _storedFileCacheService.GetByIdAsync(id, ct);
         if (cachedFile is not null)
         {
-            cachedFile.FileCategory.ValidateAccess(user);
             return cachedFile;
         }
-          
         
         var file = await _storedFileRepository.GetByIdAsync(id, ct);
         if (file is null)
         {
-            return null;
+            throw new FileNotFoundException($"Stored file with ID {id} not found.");
         }
         
-        await CreateCache(file);
-        file.FileCategory.ValidateAccess(user);
+        await CreateCache(file, ct);
         
         return file;
-
     }
 
-    private async Task CreateCache(StoredFile file)
+    private async Task CreateCache(StoredFile file,CancellationToken ct = default)
     {
         try
         {
-            await _storedFileCacheService.SaveStoredFileAsync(file);
+            await _storedFileCacheService.SaveStoredFileAsync(file, ct);
+            
         }
         catch (Exception ex)
         {
@@ -65,20 +77,92 @@ internal sealed class StoredFileService : IStoredFileService
         }
     }
     
-    private async Task CreateCache(IEnumerable<StoredFile> files)
+    private async Task CreateCache(IEnumerable<StoredFile> files,CancellationToken ct = default)
     {
         try
         {
-            await _storedFileCacheService.SaveStoredFilesAsync(files);
+            await _storedFileCacheService.SaveStoredFilesAsync(files, ct);
         }
         catch (Exception ex)
         {
             // Ignore cache errors to avoid affecting main flow
         }
     }
+    
+    private async Task CreateFallbackFailedUploadCache(
+        Guid fileId, 
+        CancellationToken ct = default)
+    {
+        try
+        {
+            await _storedFileCacheService.CreateFallbackFailedUploadCache(fileId, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFallbackUploadError(
+                LogLevel.Error,
+                fileId.ToString(),
+                ex.Message,
+                ex);
+        }
+    }
+    
+    private async Task CreateFallbackSuccessUploadCache(
+        Guid fileId, 
+        CancellationToken ct = default)
+    {
+        try
+        {
+            await _storedFileCacheService.CreateFallbackSuccessUploadCache(fileId, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFallbackUploadError(
+                LogLevel.Error,
+                fileId.ToString(),
+                ex.Message,
+                ex);
+        }
+    }
+    
+    private async Task CreateFallbackCorruptedUploadCache(
+        Guid fileId, 
+        CancellationToken ct = default)
+    {
+        try
+        {
+            await _storedFileCacheService.CreateFallbackCorruptedUploadCache(fileId, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCorruptedUploadOutboxServiceError(
+                LogLevel.Error,
+                fileId,
+                ex);
+        }
+    }
+    
+    private async Task CreateFallbackCanceledUploadCache(
+        Guid fileId, 
+        CancellationToken ct = default)
+    {
+        try
+        {
+            await _storedFileCacheService.CreateFallbackCanceledUploadCache(fileId, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogFallbackUploadError(
+                LogLevel.Error,
+                fileId.ToString(),
+                ex.Message,
+                ex);
+        }
+    }
+    
 
     public async Task<IEnumerable<StoredFile>> GetByIdsAsync(
-        IEnumerable<(Guid id, UserAuthentication user)> ids,
+        IEnumerable<(Guid id, UserTenantDto user)> ids,
         bool partialResults = false,
         CancellationToken ct = default)
     {
@@ -95,7 +179,7 @@ internal sealed class StoredFileService : IStoredFileService
         
         var allFiles = cachedFiles.Concat(missingFiles).ToList();
         
-        await CreateCache(allFiles);
+        await CreateCache(allFiles, ct);
         
         var foundFileIds = allFiles.Select(f => f.Id).ToHashSet();
         var notFoundIds = fileIds.Except(foundFileIds).ToList();
@@ -134,16 +218,16 @@ internal sealed class StoredFileService : IStoredFileService
 
     public async Task SaveStoredFileAsync(
         StoredFile storedFile, 
-        UserAuthentication user, 
+        UserTenantDto userTenantDto, 
         CancellationToken ct = default)
     {
-        storedFile.FileCategory.ValidateAccess(user);
+        storedFile.FileCategory.ValidateAccess(userTenantDto);
         await _storedFileRepository.SaveStoredFileAsync(storedFile, ct);
-        await CreateCache(storedFile);
+        await CreateCache(storedFile, ct);
     }
 
     public async Task SaveStoredFilesAsync(
-        IEnumerable<(StoredFile storedFile, UserAuthentication user)> files,
+        IEnumerable<(StoredFile storedFile, UserTenantDto user)> files,
         bool partialResults = false,
         CancellationToken ct = default)
     {
@@ -166,35 +250,36 @@ internal sealed class StoredFileService : IStoredFileService
             .ToList();
         fileList.RemoveAll(f => unauthorizedSet.Contains(f.Id));
         await _storedFileRepository.SaveStoredFilesAsync(fileList, ct);
-        await CreateCache(fileList);
+        await CreateCache(fileList, ct);
     }
 
     public async Task<IEnumerable<StoredFile>> GetByCategoryAsync(
         StoredFileCategory category, 
-        UserAuthentication user, 
+        UserTenantDto userTenantDto, 
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(category);
-        ArgumentNullException.ThrowIfNull(user);
+        ArgumentNullException.ThrowIfNull(userTenantDto);
         
-        category.ValidateAccess(user);
+        category.ValidateAccess(userTenantDto);
         
         var repositoryFiles = await _storedFileRepository.GetByCategoryAsync(category, ct);
 
 
         if (repositoryFiles.Any())
         {
-            await CreateCache(repositoryFiles);
+            await CreateCache(repositoryFiles, ct);
         }
 
         return repositoryFiles;
     }
-    
+
+
     
 
     public async Task<StoredFileCategory?> GetCategoryByIdAsync(
         Guid id, 
-        UserAuthentication user, 
+        UserTenantDto userTenantDto, 
         CancellationToken ct = default)
     {
         var cacheCategory = await _storedFileCacheService.GetCategoryByIdAsync(id, ct);
@@ -206,16 +291,16 @@ internal sealed class StoredFileService : IStoredFileService
         var category = await _storedFileRepository.GetCategoryByIdAsync(id, ct);
         if (category != null)
         {
-            await CreateCache(category);
+            await CreateCache(category, ct);
         }
         return category;
     }
     
-    private async Task CreateCache(StoredFileCategory category)
+    private async Task CreateCache(StoredFileCategory category, CancellationToken ct = default)
     {
         try
         {
-            await _storedFileCacheService.SaveStoredFileCategoryAsync(category);
+            await _storedFileCacheService.SaveStoredFileCategoryAsync(category, ct);
         }
         catch (Exception ex)
         {
@@ -227,12 +312,12 @@ internal sealed class StoredFileService : IStoredFileService
 
     public async Task<IEnumerable<StoredFileCategory>> GetCategoryByIdsAsync(
     IEnumerable<Guid> ids, 
-    UserAuthentication user,
+    UserTenantDto userTenantDto,
     bool partialResults = false,
     CancellationToken ct = default)
 {
     ArgumentNullException.ThrowIfNull(ids);
-    ArgumentNullException.ThrowIfNull(user);
+    ArgumentNullException.ThrowIfNull(userTenantDto);
 
     var requestedIds = ids.ToHashSet();
     if (requestedIds.Count == 0)
@@ -248,7 +333,7 @@ internal sealed class StoredFileService : IStoredFileService
     var repositoryCategories = await _storedFileRepository.GetCategoryByIdsAsync(missingIds, ct);
     var repositoriesId = repositoryCategories.Select(c => c.Id).ToHashSet();
     
-    await CreateCache(repositoryCategories);
+    await CreateCache(repositoryCategories, ct);
     
     var founds = new List<StoredFileCategory>();
     founds.AddRange(cachedCategories);
@@ -264,14 +349,14 @@ internal sealed class StoredFileService : IStoredFileService
             string.Join(",", notFoundIds));;
     }
     
-    var filesToValidate = new List<(StoredFileCategory, UserAuthentication)>();
+    var filesToValidate = new List<(StoredFileCategory, UserTenantDto)>();
 
     foreach (var id in notFoundIds)
     {
         var category = founds.FirstOrDefault(c => c.Id == id);
         if (category != null)
         {
-            filesToValidate.Add((category, user));
+            filesToValidate.Add((category, userTenantDto));
         }
     }
 
@@ -294,11 +379,13 @@ internal sealed class StoredFileService : IStoredFileService
     return founds;
 }
     
-    private async Task CreateCache(IEnumerable<StoredFileCategory> categories)
+    private async Task CreateCache(
+        IEnumerable<StoredFileCategory> categories,
+        CancellationToken ct = default)
     {
         try
         {
-            await _storedFileCacheService.SaveStoredFilesCategoriesAsync(categories);
+            await _storedFileCacheService.SaveStoredFilesCategoriesAsync(categories, ct);
         }
         catch (Exception ex)
         {
@@ -308,44 +395,87 @@ internal sealed class StoredFileService : IStoredFileService
 
     public async Task<IEnumerable<StoredFileCategory>> GetByCategoryTenantIdAsync(
         Guid tenantId,
-        UserAuthentication user, 
+        UserTenantDto userTenantDto, 
         CancellationToken ct = default)
     {
-        var userTenantIds = user.TenantDetails
-            .Where(x => x.IsActive)
-            .Select(x => x.TenantId)
-            .ToHashSet();
+        var userTenantId = userTenantDto.TenantDto.TenantId;
 
-        if (!userTenantIds.Contains(tenantId))
+        if (userTenantId != tenantId)
         {
             throw new UnauthorizedAccessException($"User does not have access to tenant {tenantId}.");
         }
         
         var categories = await _storedFileRepository.GetByCategoryTenantIdAsync(tenantId, ct);
-        await CreateCache(categories);
+        await CreateCache(categories, ct);
         return categories;
     }
 
     public async Task SaveStoredFileCategoryAsync(
         StoredFileCategory storedFileCategory, 
-        UserAuthentication user,
+        UserTenantDto userTenantDto,
         CancellationToken ct = default)
     {
-        var userTenantIds = user.TenantDetails
-            .Where(x => x.IsActive)
-            .Select(x => x.TenantId)
-            .ToHashSet();
+        var userTenantId = userTenantDto.TenantDto.TenantId;
         
         var categoryTenantId = storedFileCategory.TenantId;
         
-        if (!userTenantIds.Contains(categoryTenantId))
+        if (userTenantId != categoryTenantId)
         {
             throw new UnauthorizedAccessException($"User does not have access to tenant {categoryTenantId}.");
         }
         
         await _storedFileRepository.SaveStoredFileCategoryAsync(storedFileCategory, ct);
         
-        await CreateCache(storedFileCategory);
+        await CreateCache(storedFileCategory, ct);
+    }
+    
+    public async Task UpdateCanceledUploadStatusAsync(IEnumerable<Guid> fileIds, CancellationToken ct = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task UpdateCorruptedUploadStatusAsync(Guid fileId, CancellationToken ct = default)
+    {
+        try
+        {
+            var file = await _storedFileRepository.GetByIdAsync(fileId, ct);
+            if (file is null)
+                throw new FileNotFoundException($"Stored file with ID {fileId} not found.");
+
+            file.UpdateCorruptedStatus();
+
+            await _storedFileRepository.SaveStoredFileAsync(file, ct);
+
+            await CreateCache(file, ct);
+            await _storedFileCacheService.RemoveFallbackCached(file.Id, ct);
+        }
+        catch (Exception ex)
+        {
+            await CreateFallbackCorruptedUploadCache(
+                fileId,
+                ct);
+        }
+        
+    }
+
+    public async Task<IEnumerable<StoredFile>> GetFailedUploadFallbackAsync(CancellationToken ct = default)
+    {
+        return await _storedFileCacheService.GetFailedUploadFallbackAsync(ct);
+    }
+
+    public async Task<IEnumerable<StoredFile>> GetCanceledUploadFallbackAsync(CancellationToken ct = default)
+    {
+        return await _storedFileCacheService.GetCanceledUploadFallbackAsync(ct);
+    }
+
+    public async Task<IEnumerable<StoredFile>> GetSuccessUploadFallbackAsync(CancellationToken ct = default)
+    {
+        return await _storedFileCacheService.GetSuccessUploadFallbackAsync(ct);
+    }
+
+    public async Task<IEnumerable<StoredFile>> GetCorruptedUploadFallbackAsync(CancellationToken ct = default)
+    {
+        return await _storedFileCacheService.GetCorruptedUploadFallbackAsync(ct);
     }
 
     public async Task UpdateUploadedStatusAsync(
@@ -353,37 +483,93 @@ internal sealed class StoredFileService : IStoredFileService
         CancellationToken ct = default)
     {
         
-        var file = await _storedFileRepository.GetByIdAsync(fileId, ct);
-        if (file is null)
-            throw new FileNotFoundException($"Stored file with ID {fileId} not found.");
+        try
+        {
+            var file = await _storedFileRepository.GetByIdAsync(fileId, ct);
+            if (file is null)
+                throw new FileNotFoundException($"Stored file with ID {fileId} not found.");
         
-        file.UpdateUploadedStatus();
+            file.UpdateUploadedStatus();
        
-        await _storedFileRepository.UpdateUploadedStatusAsync(fileId, ct);
+            await _storedFileRepository.SaveStoredFileAsync(file, ct);
         
-        await CreateCache(file);
+            await CreateCache(file, ct);
+            await _storedFileCacheService.RemoveFallbackCached(file.Id, ct);
+        }
+        catch (Exception ex)
+        {
+              await CreateFallbackSuccessUploadCache(
+                fileId,
+                ct);
+        }
     }
 
-    public async Task UpdateFailedStatusAsync(
+    public async Task UpdateUploadedStatusAsync(IEnumerable<Guid> fileIds, CancellationToken ct = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task UpdateFailedUploadStatusAsync(IEnumerable<Guid> fileIds, CancellationToken ct = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task UpdateCanceledUploadStatusAsync(
         Guid fileId, 
         CancellationToken ct = default)
     {
+        try
+        {
+            var file = await _storedFileRepository.GetByIdAsync(fileId, ct);
+            if (file is null)
+                throw new FileNotFoundException($"Stored file with ID {fileId} not found.");
+
+            file.UpdateFailedCanceledStatus();
+
+            await _storedFileRepository.SaveStoredFileAsync(file, ct);
+
+            await CreateCache(file, ct);
+            await _storedFileCacheService.RemoveFallbackCached(file.Id, ct);
+        }
+        catch (Exception ex)
+        {
+            await CreateFallbackCanceledUploadCache(
+                fileId,
+                ct);
+        }
         
-        var file = await _storedFileRepository.GetByIdAsync(fileId, ct);
-        if (file is null)
-            throw new FileNotFoundException($"Stored file with ID {fileId} not found.");
+    }
+
+    public async Task UpdateFailedUploadStatusAsync(
+        Guid fileId, 
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var file = await _storedFileRepository.GetByIdAsync(fileId, ct);
+            if (file is null)
+                throw new FileNotFoundException($"Stored file with ID {fileId} not found.");
         
-        file.UpdateFailedStatus();
+            file.UpdateFailedUploadStatus();
        
-        await _storedFileRepository.UpdateFailedStatusAsync(fileId, ct);
+            await _storedFileRepository.SaveStoredFileAsync(file, ct);
         
-        await _storedFileCacheService.UpdateFailedStatusAsync(fileId, ct);
+            await CreateCache(file, ct);
+            await _storedFileCacheService.RemoveFallbackCached(file.Id, ct);
+        }
+        catch (Exception ex)
+        {
+           await CreateFallbackFailedUploadCache(
+               fileId,
+               ct);
+        }
+        
         
         
     }
     
     private async Task<IEnumerable<StoredFileCategory>> GetUnauthorizedFiles(
-        IEnumerable<(StoredFileCategory category, UserAuthentication user)> categories)
+        IEnumerable<(StoredFileCategory category, UserTenantDto user)> categories)
     {
         var unauthorizedCategories = new List<StoredFileCategory>();
         
@@ -402,7 +588,7 @@ internal sealed class StoredFileService : IStoredFileService
         return unauthorizedCategories;
     }
     private IEnumerable<StoredFile> GetUnauthorizedFiles(
-        IEnumerable<(StoredFile file, UserAuthentication user)> files)
+        IEnumerable<(StoredFile file, UserTenantDto user)> files)
     {
         var unauthorizedFiles = new List<StoredFile>();
         

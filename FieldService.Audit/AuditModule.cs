@@ -1,4 +1,3 @@
-using FieldService.Data.Interfaces;
 using FieldService.Data;
 using FiledService.Audit.Data.Repositories;
 using FiledService.Audit.Data;
@@ -22,7 +21,6 @@ public static class AuditModule
         services.AddScoped<IAuditAccessService, AuditAccessService>();
         services.AddScoped<IAuditChangeService, AuditChangeService>();
         services.AddScoped<IAuditDtoSchemaBootstrapService, AuditDtoSchemaBootstrapService>();
-        services.AddHostedService<AuditDtoSchemaHostedService>();
         return services;
     }
 }

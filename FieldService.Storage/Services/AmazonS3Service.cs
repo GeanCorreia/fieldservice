@@ -1,10 +1,14 @@
+using Azure;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using FieldService.Storage.Configuration;
+using FieldService.Storage.Entities;
 using FieldService.Storage.Interfaces;
+using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Options;
+using System.Net;
 
 namespace FieldService.Storage.Services;
 
@@ -43,11 +47,12 @@ internal class AmazonS3Service : IStorageProviderService
         _client = new AmazonS3Client(credentials, clientConfig);
     }
 
-    public async Task UploadStreamAsync(string storagePath, Stream content, string contentType, CancellationToken ct = default)
+    public async Task UploadStreamAsync(StoredFile file, Stream content, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
         ArgumentNullException.ThrowIfNull(content);
-        ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.ContentType.ToString());
 
         var originalPosition = content.CanSeek ? content.Position : 0;
 
@@ -59,9 +64,9 @@ internal class AmazonS3Service : IStorageProviderService
             var request = new PutObjectRequest
             {
                 BucketName = _bucketName,
-                Key = storagePath,
+                Key = file.StoragePath,
                 InputStream = content,
-                ContentType = contentType
+                ContentType = file.ContentType.ToString()
             };
 
             await _client.PutObjectAsync(request, ct);
@@ -73,11 +78,12 @@ internal class AmazonS3Service : IStorageProviderService
         }
     }
 
-    public async Task<Stream> OpenReadStreamAsync(string storagePath, CancellationToken ct = default)
+    public async Task<Stream> OpenReadStreamAsync(StoredFile file, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
 
-        using var response = await _client.GetObjectAsync(_bucketName, storagePath, ct);
+        using var response = await _client.GetObjectAsync(_bucketName, file.StoragePath, ct);
         var memoryStream = new MemoryStream();
 
         await response.ResponseStream.CopyToAsync(memoryStream, ct);
@@ -86,43 +92,91 @@ internal class AmazonS3Service : IStorageProviderService
         return memoryStream;
     }
 
-    public async Task DeleteAsync(string storagePath, CancellationToken ct = default)
+    public async Task DeleteAsync(StoredFile file, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
 
-        await _client.DeleteObjectAsync(_bucketName, storagePath, ct);
+        await _client.DeleteObjectAsync(_bucketName, file.StoragePath, ct);
     }
 
-    public async Task<string> GeneratePresignedUploadUrlAsync(string storagePath, string contentType, string hashMd5, TimeSpan expiry,
+    public async Task<string> GeneratePresignedUploadUrlAsync(StoredFile file, TimeSpan expiry,
         CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.ContentType.ToString());
 
         var request = new GetPreSignedUrlRequest
         {
             BucketName = _bucketName,
-            Key = storagePath,
+            Key = file.StoragePath,
             Verb = HttpVerb.PUT,
             Expires = DateTime.UtcNow.Add(expiry),
-            ContentType = contentType
+            ContentType = file.ContentType.ToString()
         };
+
+        if (!string.IsNullOrWhiteSpace(file.HashMd5))
+        {
+            request.Headers["Content-MD5"] = file.HashMd5;
+        }
 
         return await Task.FromResult(_client.GetPreSignedURL(request));
     }
 
-    public async Task<string> GeneratePresignedDownloadUrlAsync(string storagePath, TimeSpan expiry, CancellationToken ct = default)
+    public async Task<string> GeneratePresignedDownloadUrlAsync(StoredFile file, TimeSpan expiry, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
 
         var request = new GetPreSignedUrlRequest
         {
             BucketName = _bucketName,
-            Key = storagePath,
+            Key = file.StoragePath,
             Verb = HttpVerb.GET,
             Expires = DateTime.UtcNow.Add(expiry)
         };
 
         return await Task.FromResult(_client.GetPreSignedURL(request));
+    }
+
+    public async Task<IEnumerable<(StoredFile File, bool Exists)>> HasFilesAsync(IEnumerable<StoredFile> files, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+
+        var fileList = files as StoredFile[] ?? files.ToArray();
+        if (fileList.Length == 0)
+            return Array.Empty<(StoredFile File, bool Exists)>();
+
+        var checks = fileList.Select(async file =>
+        {
+            ArgumentNullException.ThrowIfNull(file);
+            ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
+
+            try
+            {
+                await _client.GetObjectMetadataAsync(new GetObjectMetadataRequest
+                {
+                    BucketName = _bucketName,
+                    Key = file.StoragePath
+                }, ct);
+
+                return (file, true);
+            }
+            catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                return (file, false);
+            }
+        });
+
+        return await Task.WhenAll(checks);
+    }
+
+    public Task<Response<BlobProperties>> GetBlobPropertiesAsync(StoredFile file, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
+
+        throw new NotSupportedException("Blob properties are only supported for Azure Blob storage.");
     }
 }

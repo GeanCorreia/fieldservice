@@ -1,22 +1,23 @@
-using FieldService.Broker.Extensions;
+using System.Text.Json;
 using Azure.Messaging.ServiceBus;
+using FieldService.Broker.Configuration;
+using FieldService.Broker.Extensions;
+using FieldService.Broker.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using FieldService.Broker.Configuration;
-using Microsoft.Extensions.Configuration;
-using System.Diagnostics;
- 
+
 namespace FieldService.ConsoleTests;
 
 public static class DevelopmentBrokerConfiguratorRunner
 {
-    private const string DefaultEmulatorConnectionString = 
-        "Endpoint=sb://127.0.0.1:5672;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
+    private const string DefaultLocalConfigDirectory = "docker/ServiceBusEmulator";
+    private const string DefaultLocalConfigFileName = "Config.json";
 
     public static async Task Run(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        
+
         var services = new ServiceCollection();
         services.AddLogging(builder =>
         {
@@ -24,99 +25,155 @@ public static class DevelopmentBrokerConfiguratorRunner
             builder.SetMinimumLevel(LogLevel.Information);
         });
 
+        var repoRoot = FindRepositoryRoot();
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(repoRoot)
+            .AddJsonFile(Path.Combine("FieldService.Api", "appsettings.Development.json"), optional: false, reloadOnChange: false)
             .AddEnvironmentVariables()
             .Build();
 
         var connectionString = configuration.GetSection(AzureServiceBusOptions.SectionName)
-            .Get<AzureServiceBusOptions>()?.ConnectionString 
-            ?? Environment.GetEnvironmentVariable("AzureServiceBus__ConnectionString")
-            ?? DefaultEmulatorConnectionString;
+            .Get<AzureServiceBusOptions>()?.ConnectionString;
 
-        // USA O CLIENT DE MENSAGENS (AMQP / 5672) EM VEZ DO CLIENT DE ADMINISTRAÇÃO (HTTPS / 443)
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("AzureServiceBus:ConnectionString não configurada.");
+
         services.AddSingleton(new ServiceBusClient(connectionString));
-         
+
         await using var serviceProvider = services.BuildServiceProvider();
         var logger = serviceProvider.GetRequiredService<ILoggerFactory>()
             .CreateLogger(nameof(DevelopmentBrokerConfiguratorRunner));
-         
-        await DevelopmentBrokerConfigurator.Configure(logger);
 
-        await RestartServiceBusEmulatorAsync(logger, cancellationToken);
+        // 1. Descobre a topologia real da solução
+        var topologies = BrokerTopologyDiscoverer.DiscoverBrokerTopologies().ToList();
+
+        // 2. Monta o JSON já sanitizado com os limites do emulador local
+        await GenerateSanitizedEmulatorConfigAsync(topologies, repoRoot, logger);
+
+        logger.LogInformation("Service Bus emulator config updated.");
+
+        // 3. Valida a conexão AMQP (Porta 5672)
         await ValidateEmulatorConnectionAsync(serviceProvider, logger, cancellationToken);
 
         Console.WriteLine("Pressione ENTER para finalizar...");
         Console.ReadLine();
     }
 
-    private static async Task RestartServiceBusEmulatorAsync(ILogger logger, CancellationToken ct)
+    private static async Task GenerateSanitizedEmulatorConfigAsync(
+        IEnumerable<BrokerTopology> topologies, 
+        string repoRoot, 
+        ILogger logger, 
+        string namespaceName = "sbemulatorns")
     {
-        ct.ThrowIfCancellationRequested();
-
-        logger.LogInformation("Restarting Service Bus emulator container...");
-        
-        var process = new Process
+        var topics = topologies.Select(top =>
         {
-            StartInfo = new ProcessStartInfo
+            
+            var subsList = top.Subscriptions.Any() 
+                ? top.Subscriptions.ToList() 
+                : new List<string> { "dummy-dev.sub" };
+
+            return new
             {
-                FileName = "docker",
-                Arguments = "compose restart servicebus",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
+                Name = top.EntityName,
+                Properties = new Dictionary<string, object>
+                {
+                    // Limite máximo aceito pelo emulador: PT1H
+                    ["DefaultMessageTimeToLive"] = "PT1H" 
+                },
+                Subscriptions = subsList.Select(subName => new
+                {
+                    Name = subName,
+                    Properties = new Dictionary<string, object>
+                    {
+                        ["DeadLetteringOnMessageExpiration"] = true,
+                        // Limite máximo aceito pelo emulador: PT5M (usando PT1M como segurança)
+                        ["LockDuration"] = "PT1M",
+                        ["MaxDeliveryCount"] = 10,
+                        ["RequiresSession"] = false
+                    }
+                }).ToList()
+            };
+        }).ToList();
+
+        var config = new
+        {
+            UserConfig = new
+            {
+                Namespaces = new[]
+                {
+                    new
+                    {
+                        Name = namespaceName,
+                        Topics = topics,
+                        Queues = Array.Empty<object>()
+                    }
+                },
+                Logging = new { Type = "File" }
             }
         };
 
-        process.Start();
-        var stdOut = await process.StandardOutput.ReadToEndAsync(ct);
-        var stdErr = await process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct);
+        var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+        var targetPath = Path.Combine(repoRoot, DefaultLocalConfigDirectory, DefaultLocalConfigFileName);
 
-        if (process.ExitCode != 0)
+        var directoryPath = Path.GetDirectoryName(targetPath);
+        if (!string.IsNullOrWhiteSpace(directoryPath))
         {
-            throw new InvalidOperationException($"Failed to restart Service Bus emulator. {stdErr}");
+            Directory.CreateDirectory(directoryPath);
         }
 
-        logger.LogInformation("Service Bus emulator restarted successfully. Output: {Output}", stdOut.Trim());
+        await File.WriteAllTextAsync(targetPath, $"{json}{Environment.NewLine}");
+        logger.LogInformation("Arquivo de configuração do Service Bus Emulator gerado em: {TargetPath}", targetPath);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(Directory.GetCurrentDirectory());
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, "FieldService.Api", "appsettings.Development.json");
+            if (File.Exists(candidate))
+                return current.FullName;
+
+            current = current.Parent;
+        }
+
+        return Directory.GetCurrentDirectory();
     }
 
     private static async Task ValidateEmulatorConnectionAsync(IServiceProvider serviceProvider, ILogger logger, CancellationToken ct)
     {
         var client = serviceProvider.GetRequiredService<ServiceBusClient>();
-        var publishContexts = BrokerTopologyDiscoverer.DiscoverPublishContexts().ToList();
+        var brokerTopologies = BrokerTopologyDiscoverer.DiscoverBrokerTopologies().ToList();
 
-        logger.LogInformation("Waiting for emulator AMQP port (5672) to accept connections...");
-        await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        logger.LogInformation("Aguardando porta AMQP do emulador (5672)...");
+        await Task.Delay(TimeSpan.FromSeconds(2), ct);
 
-        // Testamos criando um sender via AMQP para o tópico (Valida a porta 5672 sem chamar HTTP 443)
-        foreach (var publishContext in publishContexts)
+        foreach (var topology in brokerTopologies)
         {
             await RetryPolicyAsync(async () =>
             {
-                await using var sender = client.CreateSender(publishContext.EntityName);
-                // Testa abrir o link AMQP com a entidade
-                return true;
+                await using var sender = client.CreateSender(topology.EntityName);
             }, maxRetries: 5, delay: TimeSpan.FromSeconds(2));
         }
 
-        logger.LogInformation("Emulator connection and topology readiness verified via AMQP.");
+        logger.LogInformation("Conexão e topologia validadas via AMQP.");
     }
 
-    private static async Task<T> RetryPolicyAsync<T>(Func<Task<T>> action, int maxRetries, TimeSpan delay)
+    private static async Task RetryPolicyAsync(Func<Task> action, int maxRetries, TimeSpan delay)
     {
         for (var i = 0; i < maxRetries; i++)
         {
             try
             {
-                return await action();
+                await action();
+                return;
             }
             catch when (i < maxRetries - 1)
             {
                 await Task.Delay(delay);
             }
         }
-        return await action();
+
+        await action();
     }
 }

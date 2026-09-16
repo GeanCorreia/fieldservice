@@ -24,6 +24,13 @@ Este arquivo configura os serviços necessários para o projeto FieldService usa
 - **Senha**: `guest`
 - **URL de Conexão**: `amqp://guest:guest@localhost:5672/`
 
+### Azurite
+- **Porta Blob**: 10000
+- **Conta padrão**: `devstoreaccount1`
+- **Endpoint local**: `http://localhost:10000/devstoreaccount1`
+- **Endpoint dentro do Docker**: `http://azurite:10000/devstoreaccount1`
+- **Connection string Docker**: usar `BlobEndpoint=http://azurite:10000/devstoreaccount1;`
+
 ## Quickstart
 
 ### Iniciar todos os serviços
@@ -84,6 +91,15 @@ docker-compose exec redis redis-cli -a redis123
 docker-compose exec rabbitmq rabbitmqctl status
 ```
 
+### Azurite
+```bash
+# Blob endpoint local
+curl http://localhost:10000/devstoreaccount1
+
+# Se a aplicação estiver em container, use o host da rede docker:
+# http://azurite:10000/devstoreaccount1
+```
+
 ## Variáveis de Ambiente
 
 Todas as configurações podem ser personalizadas através do arquivo `.env`:
@@ -120,6 +136,15 @@ RABBITMQ_VHOST=/
     "ConnectionString": "amqp://guest:guest@localhost:5672/"
   }
 }
+```
+
+### Perfil Docker da aplicação
+Se a API for executada em container, use o ambiente `Docker` para carregar `appsettings.Docker.json`.
+Esse perfil já aponta o Storage do Azure Blob para `azurite` na rede do Compose.
+
+Exemplo de variável de ambiente:
+```bash
+ASPNETCORE_ENVIRONMENT=Docker
 ```
 
 ## Limpeza e Troubleshooting

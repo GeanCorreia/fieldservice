@@ -16,11 +16,16 @@ public class StorageOptions
     public int StoredFileLockTtlSeconds { get; init; } = 30;
     public int MaxParallelism { get; init; } = 5;
     public string LocalStorageBasePath { get; init; } = "Storage";
-
+    
+    public int TtlFallBackHours { get; init; } = 24;
+    public int TtlCacheMinutes { get; init; } = 5;
+    
     public AzureBlobOptions AzureBlob { get; init; } = new();
     public LocalStorageOptions LocalStorage { get; init; } = new();
     public AmazonS3Options AmazonS3 { get; init; } = new();
     public GoogleCloudStorageOptions GoogleCloudStorage { get; init; } = new();
+    
+    
 }
 
 public sealed class AzureBlobOptions

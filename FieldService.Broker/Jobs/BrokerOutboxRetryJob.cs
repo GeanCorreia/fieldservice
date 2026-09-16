@@ -7,7 +7,7 @@ public sealed record BrokerOutboxRetryJob : Job
     public static readonly JobType JobType = "broker-outbox-retry";
 
     public BrokerOutboxRetryJob()
-        : base(JobType, new JobContext(JobType))
+        : base(new JobContext(JobType))
     {
     }
 }

@@ -2,6 +2,7 @@ using FieldService.Data.Interfaces;
 using FieldService.Shared.Services;
 using FieldService.Storage.Channels;
 using FieldService.Storage.Configuration;
+using FieldService.Storage.Data;
 using FieldService.Storage.Dtos;
 using FieldService.Storage.Entities;
 using FieldService.Storage.Factories;
@@ -15,27 +16,25 @@ namespace FieldService.Storage.Abstracts;
 
 public class AbstractStorageService
 {
-    protected readonly IUnitOfWork _unitOfWork;
+    protected readonly ISqlUnitOfWork<StorageDbContext> _unitOfWork;
     protected readonly StorageProviderFactory _storageProviderFactory;
     protected readonly int _expiryPreSignedUrlMinutes;
     protected readonly StorageProvider _defaultStorageProvider;
     protected readonly IStoredFileService _storedFileService;
     protected readonly int _maxParallelism;
-    protected readonly ILogger<StorageService> _logger;
-    protected readonly StoredFileOutboxChannel _brokerMessageChannel;
+    protected readonly StoredFileFailedUploadOutboxChannel _brokerMessageChannel;
+    protected readonly IServiceProvider _serviceProvider;
     
     public AbstractStorageService(
         StorageProviderFactory storageProviderFactory,
         IConfiguration configuration,
         IStoredFileService storedFileService,
-        IUnitOfWork unitOfWork,
-        ILogger<StorageService> logger,
-        StoredFileOutboxChannel brokerMessageChannel)
+        ISqlUnitOfWork<StorageDbContext> unitOfWork,
+        IServiceProvider serviceProvider)
     {
         _storageProviderFactory = storageProviderFactory ?? throw new ArgumentNullException(nameof(storageProviderFactory));
         _storedFileService = storedFileService ?? throw new ArgumentNullException(nameof(storedFileService));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         
         configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         var storageOptions = configuration
@@ -46,7 +45,7 @@ public class AbstractStorageService
         _expiryPreSignedUrlMinutes = storageOptions.ExpiryPreSignedUrlMinutes;
         _defaultStorageProvider = storageOptions.DefaultStorageProvider;
         _maxParallelism = storageOptions.MaxParallelism;
-        _brokerMessageChannel = brokerMessageChannel ?? throw new ArgumentNullException(nameof(brokerMessageChannel));
+        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
     protected TimeSpan ExpiryPreSignedUrl => TimeSpan.FromMinutes(_expiryPreSignedUrlMinutes);

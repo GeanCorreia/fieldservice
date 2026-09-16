@@ -1,16 +1,11 @@
 using System.Text.Json.Serialization.Metadata;
-using FieldService.Cache;
-using FieldService.Cache.Interfaces;
 using FieldService.Http.Interfaces;
-using FieldService.Http.Mappers;
 using FieldService.Http.PipeLine;
 using FieldService.Shared.Dtos;
 using FieldService.Http.Services;
-using Microsoft.AspNetCore.Authentication.JwtBearer; // Adicionar este namespace
+using Microsoft.AspNetCore.Authentication.JwtBearer; 
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -143,7 +138,6 @@ public static class HttpModule
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<ILoginService, LoginService>();
-        services.AddSingleton<IUserMapper, UserMapper>();
         return services;
     }
 }

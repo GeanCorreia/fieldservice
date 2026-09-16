@@ -1,21 +1,24 @@
 using System.Net.Http.Headers;
+using FieldService.Shared.Types;
 using Microsoft.AspNetCore.StaticFiles;
 
 namespace FieldService.Storage.Entities;
 
 public enum StorageProvider
 {
-    AzureBlob,
-    AmazonS3,
-    GoogleCloudStorage
+    AzureBlob = 1,
+    AmazonS3 = 2,
+    GoogleCloudStorage = 3
 }
 
 public enum StorageStatus
 {
-    Pending,
-    Uploaded,
-    Failed,
-    Deleted
+    Pending = 1,
+    Uploaded =2,
+    Failed = 3,
+    Canceled =4,
+    Deleted =5,
+    Corrupted=6
 }
 
 public class StoredFile
@@ -86,10 +89,11 @@ public class StoredFile
     public static StoredFile CreateUpload(
         
         StoredFileCategory fileCategory,
-        Guid userId,
+        UserTenantDto userTenantDto,
         string hashMd5,
         string fileName,
         long size,
+        StorageProvider provider,
         Guid? fileId = null)
     {
         var id = fileId?? Guid.NewGuid();
@@ -97,15 +101,15 @@ public class StoredFile
         var storagePath = CreateStoragePath(tenantId, id, fileName);
         var contentType = GetMediaType(fileName);
         
+        fileCategory.ValidateAccess(userTenantDto);
+        
         return new StoredFile(
             id: id,
             storedFileCategory: fileCategory,
-            uploadedByUserId: userId,
-            statusChangedByUserId: userId,
+            uploadedByUserId: userTenantDto.Id,
             uploadedAt: DateTimeOffset.UtcNow,
-            statusUpdatedAt: DateTimeOffset.UtcNow,
             size: size,
-            provider: StorageProvider.AzureBlob,
+            provider: provider,
             status: StorageStatus.Pending,
             hashMd5: hashMd5,
             fileName: fileName,
@@ -147,7 +151,7 @@ public class StoredFile
         StatusUpdatedAt = DateTimeOffset.UtcNow;
     }
     
-    public void UpdateFailedStatus()
+    public void UpdateFailedUploadStatus()
     {
         var now = DateTimeOffset.UtcNow;
         var minimumTime = TimeSpan.FromMinutes(5);
@@ -156,6 +160,13 @@ public class StoredFile
             return;
 
         Status = StorageStatus.Failed;
+        StatusUpdatedAt = now;
+    }
+    
+    public void UpdateFailedCanceledStatus()
+    {
+        var now = DateTimeOffset.UtcNow;
+        Status = StorageStatus.Canceled;
         StatusUpdatedAt = now;
     }
     
@@ -179,6 +190,17 @@ public class StoredFile
         
         Status = status;
         StatusChangedByUserId = userId;
+        StatusUpdatedAt = DateTimeOffset.UtcNow;
+    }
+    
+    public void UpdateCorruptedStatus()
+    {
+        if (Status == StorageStatus.Corrupted)
+        {
+            throw new InvalidOperationException($"Status is already {StorageStatus.Corrupted.ToString()}.");
+        }
+
+        Status = StorageStatus.Corrupted;
         StatusUpdatedAt = DateTimeOffset.UtcNow;
     }
     

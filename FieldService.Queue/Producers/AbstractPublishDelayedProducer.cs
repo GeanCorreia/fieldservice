@@ -15,3 +15,5 @@ public abstract class AbstractPublishDelayedProducer<TConsumer> : AbstractHangfi
     public string PublishDelayed(Job job, TimeSpan delay) =>
         BackgroundJobClient.Schedule<TConsumer>(consumer => consumer.ExecuteAsync(job, CancellationToken.None), delay);
 }
+
+

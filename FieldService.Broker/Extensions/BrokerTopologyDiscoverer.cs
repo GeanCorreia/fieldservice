@@ -52,8 +52,8 @@ public class BrokerTopologyDiscoverer : IBrokerTopologyDiscoverer
 
     public static IEnumerable<BrokerTopology> DiscoverBrokerTopologies()
     {
-        var publishContexts = DiscoverPublishContexts();
-        var subscribeContexts = DiscoverSubscriptionContexts();
+        var publishContexts = DiscoverPublishContexts().ToList();
+        var subscribeContexts = DiscoverSubscriptionContexts().ToList();
 
         var subscriptionsByEntity = subscribeContexts
             .GroupBy(s => s.EntityName, StringComparer.OrdinalIgnoreCase)
@@ -62,10 +62,14 @@ public class BrokerTopologyDiscoverer : IBrokerTopologyDiscoverer
                 g => g.Select(s => s.SubscriptionName).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                 StringComparer.OrdinalIgnoreCase);
 
+        var entityNames = publishContexts
+            .Select(p => p.EntityName)
+            .Concat(subscribeContexts.Select(s => s.EntityName))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
         var topologies = new List<BrokerTopology>();
-        foreach (var publishContext in publishContexts)
+        foreach (var entityName in entityNames)
         {
-            var entityName = publishContext.EntityName;
             var subscriptions = subscriptionsByEntity.TryGetValue(entityName, out var subs)
                 ? subs
                 : Enumerable.Empty<string>();
@@ -128,19 +132,13 @@ public class BrokerTopologyDiscoverer : IBrokerTopologyDiscoverer
     {
         var subscribeContexts = new List<BrokerSubscribeContext>();
 
-        var validPublishContexts = DiscoverPublishContexts();
-        var validEntityNames = new HashSet<string>(
-            validPublishContexts.Select(p => p.EntityName),
-            StringComparer.OrdinalIgnoreCase
-        );
-
         var registeredSubscriptions = new HashSet<(string EntityName, string SubscriptionName)>(
             EqualityComparer<(string EntityName, string SubscriptionName)>.Create(
                 (x, y) => string.Equals(x.EntityName, y.EntityName, StringComparison.OrdinalIgnoreCase) &&
                           string.Equals(x.SubscriptionName, y.SubscriptionName, StringComparison.OrdinalIgnoreCase),
                 obj => HashCode.Combine(
-                    obj.EntityName?.ToUpperInvariant(),
-                    obj.SubscriptionName?.ToUpperInvariant())
+                    obj.EntityName.ToUpperInvariant(),
+                    obj.SubscriptionName.ToUpperInvariant())
             )
         );
 
@@ -176,13 +174,6 @@ public class BrokerTopologyDiscoverer : IBrokerTopologyDiscoverer
             {
                 throw new InvalidOperationException(
                     $"Consumer '{consumerType.FullName}' defined a 'BrokerSubscribeContext' with a null or empty SubscriptionName.");
-            }
-            
-            if (!validEntityNames.Contains(subscribeContext.EntityName))
-            {
-                throw new InvalidOperationException(
-                    $"Broker topology orphan consumer detected: Consumer '{consumerType.FullName}' tried to subscribe to EntityName '{subscribeContext.EntityName}', " +
-                    $"but no registered producer exists for this topic.");
             }
             
             var subscriptionPair = (subscribeContext.EntityName, subscribeContext.SubscriptionName);

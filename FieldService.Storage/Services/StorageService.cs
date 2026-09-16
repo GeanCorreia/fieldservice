@@ -2,39 +2,48 @@ using FieldService.Shared.Services;
 using FieldService.Storage.Entities;
 using FieldService.Storage.Interfaces;
 using FieldService.Storage.Types;
-using FieldService.Storage.Configuration;
 using FieldService.Storage.Factories;
 using Microsoft.Extensions.Configuration;
 using FieldService.Data.Interfaces;
 using FieldService.Shared.Dtos;
+using FieldService.Shared.Types;
 using FieldService.Storage.Abstracts;
 using FieldService.Storage.Channels;
+using FieldService.Storage.Data;
+using FieldService.Storage.Exceptions;
+using FieldService.Storage.Logs;
 using FieldService.Storage.Utils;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace FieldService.Storage.Services;
 
 public class StorageService : AbstractStorageService, IStorageService
 {
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IStorageProviderFactory _storageProviderFactory;
-    private readonly int _expiryPreSignedUrlMinutes;
-    private readonly StorageProvider _defaultStorageProvider;
-    private readonly IStoredFileService _storedFileService;
-    private readonly int _maxParallelism;
+
     private readonly ILogger<StorageService> _logger;
-    private readonly StoredFileOutboxChannel _brokerMessageChannel;
-    
+    private readonly StoredFileFailedUploadOutboxChannel _failedUploadChannel;
+    private readonly StoredFileCanceledUploadOutboxChannel _canceledUploadChannel;
+
     public StorageService(
         StorageProviderFactory storageProviderFactory,
         IConfiguration configuration,
         IStoredFileService storedFileService,
-        IUnitOfWork unitOfWork,
+        ISqlUnitOfWork<StorageDbContext> unitOfWork,
         ILogger<StorageService> logger,
-        StoredFileOutboxChannel brokerMessageChannel)
-        : base(storageProviderFactory, configuration, storedFileService, unitOfWork, logger, brokerMessageChannel)
+        StoredFileFailedUploadOutboxChannel failedUploadChannel,
+        StoredFileCanceledUploadOutboxChannel canceledUploadOutboxChannel,
+        IServiceProvider serviceProvider)
+        : base(
+            storageProviderFactory, 
+            configuration, 
+            storedFileService, 
+            unitOfWork, 
+            serviceProvider)
     {
-        
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _failedUploadChannel = failedUploadChannel ?? throw new ArgumentNullException(nameof(failedUploadChannel));
+        _canceledUploadChannel = canceledUploadOutboxChannel ?? throw new ArgumentNullException(nameof(canceledUploadOutboxChannel));
     }
     
     
@@ -44,24 +53,69 @@ public class StorageService : AbstractStorageService, IStorageService
         StoredFileUploadRequest request,
         CancellationToken ct = default)
     {
-
-        var file = await CreateStoredFileAsync(request, ct);
-        
+        ArgumentNullException.ThrowIfNull(request);
         if (!_unitOfWork.HasActiveTransaction)
         {
-            await UploadWithLocalTransactionAsync(file, request.user, ct);
-            return CreateResponse(file);
-        }
+           throw new StorageTransactionRequiredException();
 
-        _unitOfWork.OnCommitted(async token =>
+        }
+        
+        var file = await ProviderUploadAsync(request, ct);
+        
+        _unitOfWork.OnRolledBack(async token =>
         {
-            await _brokerMessageChannel.EnqueueAsync(file, token);
+            await _canceledUploadChannel.EnqueueAsync(
+                file.Id, 
+                CancellationToken.None);
         });
         
-        await _storedFileService.SaveStoredFileAsync(file, request.user,ct);
-
         return CreateResponse(file);
     }
+
+    private async Task<StoredFile> ProviderUploadAsync(
+         StoredFileUploadRequest request,
+         CancellationToken ct = default)
+     {
+         using var scope = _serviceProvider.CreateScope();
+         var dbContext = scope.ServiceProvider.GetRequiredService<StorageDbContext>();
+         var repository = scope.ServiceProvider.GetRequiredService<IStoredFileRepository>();
+
+         var file = CreateStoredFile(request);
+         
+         if (file.FileCategory is not null)
+         {
+             dbContext.Attach(file.FileCategory);
+         }
+         
+         await repository.SaveStoredFileAsync(file, ct);
+
+         try
+         {
+             var provider = GetStorageProvider(file.Provider);
+             
+             await provider.UploadStreamAsync(
+                 file,
+                 request.Content,
+                 ct);
+
+         }
+
+         catch(Exception ex)
+         {
+             await _failedUploadChannel.EnqueueAsync(file.Id, CancellationToken.None);
+             
+             _logger.LogProviderUploadError(
+                 LogLevel.Error,
+                 file.Provider.ToString(),
+                 file.Id.ToString(),
+                 ex.Message,
+                 ex);
+             
+             
+             throw;
+         }
+         return file;
+     }
     
 
     public async Task<IEnumerable<StoredFileUploadResponse>> UploadBatchAsync(
@@ -73,7 +127,7 @@ public class StorageService : AbstractStorageService, IStorageService
 
         using var semaphore = new SemaphoreSlim(_maxParallelism);
         
-        var files = new List<(StoredFile, UserAuthentication)>();
+        var files = new List<(StoredFile, UserTenantDto)>();
         
         
         var createFileTasks = requests.Select(async request =>
@@ -81,10 +135,10 @@ public class StorageService : AbstractStorageService, IStorageService
             await semaphore.WaitAsync(ct);
             try
             {
-                var file = await CreateStoredFileAsync(request, ct);
-                files.Add((file, request.user));
+                var file = CreateStoredFile(request);
+                files.Add((file, request.UserTenantDto));
             }
-            catch (Exception ex)
+            catch 
             {
                 if (!partialSuccess)
                     throw;
@@ -113,16 +167,23 @@ public class StorageService : AbstractStorageService, IStorageService
         CancellationToken ct = default)
     {
         
-        var file = await _storedFileService.GetByIdAsync(request.FileId, request.user, ct);
+        var file = await _storedFileService.GetByIdAsync(request.FileId, request.UserTenantDto, ct);
 
         if (file == null)
         {
             throw new FileNotFoundException("File not found.", nameof(request.FileId));
         }
+        if(file.Status == StorageStatus.Corrupted || 
+           file.Status == StorageStatus.Deleted ||
+           file.Status == StorageStatus.Canceled ||
+           file.Status == StorageStatus.Failed)
+        {
+            throw new FileNotFoundException("File not found.", nameof(request.FileId));
+        }
            
         var provider = GetStorageProvider(file.Provider);
-
-        var stream = await provider.OpenReadStreamAsync(file.StoragePath, ct);
+        
+        var stream = await provider.OpenReadStreamAsync(file, ct);
         
         return CreateDownloadResponse(file, stream);
     }
@@ -149,7 +210,7 @@ public class StorageService : AbstractStorageService, IStorageService
             await semaphore.WaitAsync(ct);
             try
             {
-                var localRequest = new StoredFileDownloadRequest(id, request.user);
+                var localRequest = new StoredFileDownloadRequest(id, request.UserTenantDto);
                 var downloadResponse = await DownloadAsync(localRequest, ct);
                 files.Add(downloadResponse);
             }
@@ -196,7 +257,7 @@ public class StorageService : AbstractStorageService, IStorageService
             await semaphore.WaitAsync(ct);
             try
             {
-                var localRequest = new StoredFileDownloadRequest(id, request.user);
+                var localRequest = new StoredFileDownloadRequest(id, request.UserTenantDto);
                 var downloadResponse = await DownloadAsync(localRequest, ct);
                 files.Add(downloadResponse);
             }
@@ -219,10 +280,10 @@ public class StorageService : AbstractStorageService, IStorageService
     
     public async Task DeleteAsync(
         Guid fileId, 
-        UserAuthentication user, 
+        UserTenantDto userTenantDto, 
         CancellationToken ct = default)
     {
-       var file = await _storedFileService.GetByIdAsync(fileId, user, ct);
+       var file = await _storedFileService.GetByIdAsync(fileId, userTenantDto, ct);
 
         if (file == null)
         {
@@ -230,10 +291,10 @@ public class StorageService : AbstractStorageService, IStorageService
         }
 
         file.UpdateStatus(
-            user.Id,
+            userTenantDto.Id,
             StorageStatus.Deleted);
         
-        await _storedFileService.SaveStoredFileAsync(file, user, ct);
+        await _storedFileService.SaveStoredFileAsync(file, userTenantDto, ct);
 
     }
 
@@ -250,37 +311,34 @@ public class StorageService : AbstractStorageService, IStorageService
         CancellationToken ct = default)
     {
                 
-        await _storedFileService.UpdateFailedStatusAsync(fileId, ct);
+        await _storedFileService.UpdateFailedUploadStatusAsync(fileId, ct);
     }
 
     public async Task UpdateStatusAsync(
         Guid fileId, 
-        UserAuthentication user, 
+        UserTenantDto userTenantDto, 
         StorageStatus status, 
         CancellationToken ct = default)
     {
         
-        var file = await _storedFileService.GetByIdAsync(fileId,user, ct);
+        var file = await _storedFileService.GetByIdAsync(fileId,userTenantDto, ct);
 
         if (file == null)
         {
             throw new FileNotFoundException("File not found.", nameof(fileId));
         }
         file.UpdateStatus(
-            user.Id,
+            userTenantDto.Id,
             status);
         
-        await _storedFileService.SaveStoredFileAsync(file,user, ct);
+        await _storedFileService.SaveStoredFileAsync(file,userTenantDto, ct);
     }
     
-    private async Task<StoredFile?> CreateStoredFileAsync(
-        StoredFileUploadRequest request, 
-        CancellationToken ct)
+    private StoredFile CreateStoredFile(
+        StoredFileUploadRequest request)
     {
-        var fileCategory = await _storedFileService.GetCategoryByIdAsync(request.FileCategoryId, request.user, ct);
-        if (fileCategory == null)
-            throw new InvalidOperationException("File category does not exist.");
-        
+
+       
         var hashMd5 = HashService.CreateHashMd5(request.Content);
 
         var size = request.Content.CanSeek
@@ -288,41 +346,15 @@ public class StorageService : AbstractStorageService, IStorageService
             : throw new InvalidOperationException("Content stream must be seekable to get size.");
 
         var file = StoredFile.CreateUpload(
-            fileCategory: fileCategory,
-            userId: request.user.Id,
+            fileCategory: request.FileCategory,
+            userTenantDto: request.UserTenantDto,
             hashMd5: hashMd5,
             fileName: request.FileName,
             size: size,
+            provider: _defaultStorageProvider,
             fileId: request.FileId);
 
         return file;
-    }
-    
-    
-    
-    private async Task UploadWithLocalTransactionAsync(
-        StoredFile file,
-        UserAuthentication user,
-        CancellationToken ct)
-    {
-        await _unitOfWork.BeginAsync(ct);
-        
-        _unitOfWork.OnCommitted(async token =>
-        {
-            await _brokerMessageChannel.EnqueueAsync(file, token);
-        });
-
-        try
-        {
-            await _storedFileService.SaveStoredFileAsync(file, user, ct);
-            await _unitOfWork.CommitAsync(ct);
-            
-        }
-        catch
-        {
-            await _unitOfWork.RollbackAsync(ct);
-            throw;
-        }
     }
     
     private StoredFileUploadResponse CreateResponse(StoredFile file)
@@ -335,7 +367,7 @@ public class StorageService : AbstractStorageService, IStorageService
     }
     
     private async Task UploadWithLocalTransactionAsync(
-        IEnumerable<(StoredFile storedFile, UserAuthentication user)> files, 
+        IEnumerable<(StoredFile storedFile, UserTenantDto user)> files, 
 
         CancellationToken ct)
     {
@@ -350,7 +382,7 @@ public class StorageService : AbstractStorageService, IStorageService
         {
             foreach (var (storedFile, user) in filesList)
             {
-                await _brokerMessageChannel.EnqueueAsync(storedFile, token);
+                await _failedUploadChannel.EnqueueAsync(storedFile.Id, token);
             }
         });
 

@@ -123,13 +123,13 @@ public class SessionManager : ISessionManager
             Guid.NewGuid(),
             sessionId: sessionId,
             jwtId: jwtId,
-            ipAddressHash: HashService.GenerateHash(ipAddress),
+            ipAddressHash: HashService.CreateHashSha256(ipAddress),
             timestamp: ObservabilityExecutionContext.Timestamp,
             channel: ObservabilityExecutionContext.Channel,
             requestId: requestId,
             userAgentHash: string.IsNullOrWhiteSpace(ObservabilityExecutionContext.UserAgent)
                 ? null
-                : HashService.GenerateHash(ObservabilityExecutionContext.UserAgent)
+                : HashService.CreateHashSha256(ObservabilityExecutionContext.UserAgent)
         );
     }
 }

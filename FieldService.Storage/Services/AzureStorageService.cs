@@ -1,7 +1,9 @@
+using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
 using FieldService.Storage.Configuration;
+using FieldService.Storage.Entities;
 using FieldService.Storage.Interfaces;
 using Microsoft.Extensions.Options;
 
@@ -37,12 +39,20 @@ internal class AzureStorageService : IStorageProviderService
     {
         await ContainerClient.CreateIfNotExistsAsync(cancellationToken: ct);
     }
-
-    public async Task UploadStreamAsync(string storagePath, Stream content, string contentType, CancellationToken ct = default)
+    
+    private static byte[]? GetMd5BytesFromBase64(string? base64Hash)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        if (string.IsNullOrWhiteSpace(base64Hash))
+            return null;
+
+        return Convert.FromBase64String(base64Hash);
+    }
+
+    public virtual async Task UploadStreamAsync(StoredFile file, Stream content, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(content);
-        ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
 
         await EnsureContainerExistsAsync(ct);
 
@@ -53,14 +63,15 @@ internal class AzureStorageService : IStorageProviderService
 
         try
         {
-            var blobClient = GetBlobClient(storagePath);
+            var blobClient = GetBlobClient(file.StoragePath);
             await blobClient.UploadAsync(
                 content,
                 new BlobUploadOptions
                 {
                     HttpHeaders = new BlobHttpHeaders
                     {
-                        ContentType = contentType
+                        ContentType = file.ContentType.ToString(),
+                        ContentHash = GetMd5BytesFromBase64(file.HashMd5)
                     }
                 },
                 ct);
@@ -72,45 +83,60 @@ internal class AzureStorageService : IStorageProviderService
         }
     }
 
-    public async Task<Stream> OpenReadStreamAsync(string storagePath, CancellationToken ct = default)
+    public async Task<Stream> OpenReadStreamAsync(StoredFile file, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
 
-        var blobClient = GetBlobClient(storagePath);
+        var blobClient = GetBlobClient(file.StoragePath);
         var stream = await blobClient.OpenReadAsync(cancellationToken: ct);
         return stream;
     }
 
-    public async Task DeleteAsync(string storagePath, CancellationToken ct = default)
+    public async Task DeleteAsync(StoredFile file, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
 
-        var blobClient = GetBlobClient(storagePath);
+        var blobClient = GetBlobClient(file.StoragePath);
         await blobClient.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, cancellationToken: ct);
     }
 
-    public async Task<string> GeneratePresignedUploadUrlAsync(string storagePath, string contentType, string hashMd5, TimeSpan expiry,
+    public virtual async Task<string> GeneratePresignedUploadUrlAsync(
+        StoredFile file, 
+        TimeSpan expiry,
         CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
 
-        var blobClient = GetBlobClient(storagePath);
+        var blobClient = GetBlobClient(file.StoragePath);
 
         if (!blobClient.CanGenerateSasUri)
             throw new InvalidOperationException("Azure blob client cannot generate SAS URI with the configured credentials.");
 
-        var sasUri = blobClient.GenerateSasUri(
-            BlobSasPermissions.Create | BlobSasPermissions.Write,
-            DateTimeOffset.UtcNow.Add(expiry));
+        var sasBuilder = new BlobSasBuilder
+        {
+            BlobContainerName = _containerName,
+            BlobName = file.StoragePath,
+            Resource = "b",
+            ExpiresOn = DateTimeOffset.UtcNow.Add(expiry),
+            Protocol = SasProtocol.HttpsAndHttp
+        };
 
-        return await Task.FromResult(sasUri.ToString());
+        sasBuilder.SetPermissions(BlobSasPermissions.Create | BlobSasPermissions.Write);
+        
+        sasBuilder.ContentType = file.ContentType.ToString();
+
+        return await Task.FromResult(blobClient.GenerateSasUri(sasBuilder).ToString());
     }
 
-    public async Task<string> GeneratePresignedDownloadUrlAsync(string storagePath, TimeSpan expiry, CancellationToken ct = default)
+    public async Task<string> GeneratePresignedDownloadUrlAsync(StoredFile file, TimeSpan expiry, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
 
-        var blobClient = GetBlobClient(storagePath);
+        var blobClient = GetBlobClient(file.StoragePath);
 
         if (!blobClient.CanGenerateSasUri)
             throw new InvalidOperationException("Azure blob client cannot generate SAS URI with the configured credentials.");
@@ -120,5 +146,34 @@ internal class AzureStorageService : IStorageProviderService
             DateTimeOffset.UtcNow.Add(expiry));
 
         return await Task.FromResult(sasUri.ToString());
+    }
+
+    public async Task<IEnumerable<(StoredFile File, bool Exists)>> HasFilesAsync(IEnumerable<StoredFile> files, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+
+        var fileList = files as StoredFile[] ?? files.ToArray();
+        if (fileList.Length == 0)
+            return Array.Empty<(StoredFile File, bool Exists)>();
+
+        var checks = fileList.Select(async file =>
+        {
+            ArgumentNullException.ThrowIfNull(file);
+            ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
+
+            var exists = await GetBlobClient(file.StoragePath).ExistsAsync(ct);
+            return (file, exists.Value);
+        });
+
+        return await Task.WhenAll(checks);
+    }
+
+    public async Task<Response<BlobProperties>> GetBlobPropertiesAsync(StoredFile file, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentException.ThrowIfNullOrWhiteSpace(file.StoragePath);
+
+        var blobClient = GetBlobClient(file.StoragePath);
+        return await blobClient.GetPropertiesAsync(cancellationToken: ct);
     }
 }

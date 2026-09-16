@@ -8,6 +8,8 @@ namespace FieldService.Shared.Dtos;
 public abstract record AbstractDto
 {
     [JsonIgnore]
+    public abstract bool IsActive { get; }
+    [JsonIgnore]
     public abstract SchemaVersion Version { get; }
     [JsonIgnore]
     public abstract string ResourceName { get; }

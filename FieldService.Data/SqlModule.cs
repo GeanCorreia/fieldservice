@@ -33,7 +33,7 @@ public static class SqlModule
         services.TryAddScoped<IEntityChangeCollector, EntityChangeCollector>();
         services.AddDbContext<TDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<ISqlUnitOfWork<TDbContext>, SqlUnitOfWork<TDbContext>>();
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<ISqlUnitOfWork<TDbContext>>());
+        services.TryAddScoped<IUnitOfWork>(sp => sp.GetRequiredService<ISqlUnitOfWork<TDbContext>>());
 
         return services;
     }

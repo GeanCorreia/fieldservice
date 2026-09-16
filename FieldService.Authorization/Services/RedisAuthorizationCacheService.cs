@@ -1,6 +1,6 @@
 using System.Text.Json;
+using FieldService.Authorization.Dtos;
 using FieldService.Authorization.Interfaces;
-using FieldService.Authorization.Types;
 using FieldService.Cache.Interfaces;
 using Microsoft.Extensions.Configuration;
 
@@ -8,19 +8,18 @@ namespace FieldService.Authorization.Services;
 
 internal sealed class RedisAuthorizationCacheService(IRedisContext redisContext, IConfiguration configuration) : IAuthorizationCacheService
 {
-    private const string UserContextPrefix = "authorization:usercontext:";
+    private const string UserContextPrefix = "authorization:user:";
     private readonly TimeSpan _cacheTtl = GetCacheTtl(configuration);
 
-    public async Task<UserAuthorizationSnapshot?> GetUserContext(Guid userId, Guid tenantId, CancellationToken ct = default)
+    public async Task<UserAuthorizationDto?> GetUserByIdAsync(Guid userId, CancellationToken ct = default)
     {
         if (userId == default)
             throw new ArgumentException("UserId is required.", nameof(userId));
-        if (tenantId == default)
-            throw new ArgumentException("TenantId is required.", nameof(tenantId));
+        
 
         ct.ThrowIfCancellationRequested();
 
-        var key = GenerateKey(userId, tenantId);
+        var key = GenerateKey(userId);
         var cachedValue = await redisContext.Database.StringGetAsync(key);
 
         if (!cachedValue.HasValue)
@@ -28,31 +27,30 @@ internal sealed class RedisAuthorizationCacheService(IRedisContext redisContext,
 
         try
         {
-            var snapshot = JsonSerializer.Deserialize<UserAuthorizationSnapshot>(cachedValue!.ToString());
+            var snapshot = JsonSerializer.Deserialize<UserAuthorizationDto>(cachedValue!.ToString());
             return snapshot;
         }
         catch
         {
-            // If deserialization fails, treat as cache miss
             await redisContext.Database.KeyDeleteAsync(key);
             return null;
         }
     }
 
-    public async Task SaveUserContext(UserAuthorizationSnapshot userContext, CancellationToken ct = default)
+    public async Task SaveUserAsync(UserAuthorizationDto user, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(userContext);
+        ArgumentNullException.ThrowIfNull(user);
         ct.ThrowIfCancellationRequested();
 
-        var key = GenerateKey(userContext.UserId, userContext.TenantId);
-        var serialized = JsonSerializer.Serialize(userContext);
+        var key = GenerateKey(user.UserId);
+        var serialized = JsonSerializer.Serialize(user);
 
         await redisContext.Database.StringSetAsync(key, serialized, _cacheTtl);
     }
 
-    private static string GenerateKey(Guid userId, Guid tenantId)
+    private static string GenerateKey(Guid userId)
     {
-        return $"{UserContextPrefix}{userId:N}:{tenantId:N}";
+        return $"{UserContextPrefix}{userId:N}";
     }
 
     private static TimeSpan GetCacheTtl(IConfiguration configuration)

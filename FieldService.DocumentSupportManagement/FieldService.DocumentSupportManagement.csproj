@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\FieldService.Http\FieldService.Http.csproj" />
+      <ProjectReference Include="..\FieldService.Storage\FieldService.Storage.csproj" />
+    </ItemGroup>
+
+</Project>

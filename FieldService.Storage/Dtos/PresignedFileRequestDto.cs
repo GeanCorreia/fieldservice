@@ -6,11 +6,13 @@ namespace FieldService.Storage.Dtos;
 public record PresignedFileUploadRequestDto(
     string FileName,
     long SizeInBytes,
-    string HashMd5
+    string HashMd5,
+    Guid CategoryId
 ) : AbstractDto
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedFileUploadRequestDto";
+    public override bool IsActive => true;
 }
 
 
@@ -22,6 +24,7 @@ public record PresignedBatchFileUploadRequestDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedBatchFileUploadRequestDto";
+    public override bool IsActive => true;
 }
 
 public record PresignedFileDownloadRequestDto(
@@ -30,6 +33,7 @@ public record PresignedFileDownloadRequestDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedFileDownloadRequestDto";
+    public override bool IsActive => true;
 }
 
 public record PresignedBatchFileDownloadRequestDto(
@@ -39,4 +43,5 @@ public record PresignedBatchFileDownloadRequestDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedBatchFileDownloadRequestDto";
+    public override bool IsActive => true;
 }

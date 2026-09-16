@@ -7,11 +7,45 @@
           {
             "Name": "signalr.user-client.ws-connection-context",
             "Properties": {
-              "DefaultMessageTimeToLive": "PT5M"
+              "DefaultMessageTimeToLive": "PT1H"
             },
             "Subscriptions": [
               {
                 "Name": "notification.pending-user-connected.sub",
+                "Properties": {
+                  "DeadLetteringOnMessageExpiration": true,
+                  "LockDuration": "PT1M",
+                  "MaxDeliveryCount": 10,
+                  "RequiresSession": false
+                }
+              }
+            ]
+          },
+          {
+            "Name": "storage.stored-file.uploaded",
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H"
+            },
+            "Subscriptions": [
+              {
+                "Name": "dummy-dev.sub",
+                "Properties": {
+                  "DeadLetteringOnMessageExpiration": true,
+                  "LockDuration": "PT1M",
+                  "MaxDeliveryCount": 10,
+                  "RequiresSession": false
+                }
+              }
+            ]
+          },
+          {
+            "Name": "storage.azure.success-upload",
+            "Properties": {
+              "DefaultMessageTimeToLive": "PT1H"
+            },
+            "Subscriptions": [
+              {
+                "Name": "storage.azure-success-upload.sub",
                 "Properties": {
                   "DeadLetteringOnMessageExpiration": true,
                   "LockDuration": "PT1M",

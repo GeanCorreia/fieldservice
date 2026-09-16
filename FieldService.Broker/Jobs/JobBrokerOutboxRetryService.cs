@@ -38,8 +38,8 @@ public sealed class JobBrokerOutboxRetryService : IQueueConsumer, IBrokerOutboxR
 
     public async Task ExecuteAsync(Job job, CancellationToken ct = default)
     {
-        if (job.Type != BrokerOutboxRetryJob.JobType)
-            throw new InvalidOperationException($"Unexpected job type '{job.Type}'.");
+        if (job.Context.Type != BrokerOutboxRetryJob.JobType)
+            throw new InvalidOperationException($"Unexpected job type '{job.Context.Type}'.");
 
         var interval = TimeSpan.FromMinutes(_options.PendingRetryIntervalMinutes);
         var maxCount = _options.MaxRetryCount;

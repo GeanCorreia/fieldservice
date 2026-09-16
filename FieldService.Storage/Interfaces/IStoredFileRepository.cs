@@ -45,13 +45,11 @@ internal interface IStoredFileRepository
     Task SaveStoredFilesCategoriesAsync(
         IEnumerable<StoredFileCategory> categories, 
         CancellationToken ct = default);
-    
-    Task UpdateUploadedStatusAsync(
-        Guid fileId, 
-        CancellationToken ct = default);
-    
+
     Task UpdateFailedStatusAsync(
         Guid fileId, 
         CancellationToken ct = default);
+    
+   
     
 }

@@ -4,7 +4,9 @@ namespace FieldService.Authorization.Interfaces;
 
 public interface IUserContextRepository
 {
-    Task<UserAuthorizationContext?> GetUserContext(Guid userId, Guid tenantId, CancellationToken ct = default);
-    Task SaveUserContext(UserAuthorizationContext userContext, CancellationToken ct = default);
+    Task<IEnumerable<UserAuthorization>> GetUserAsync(
+        Guid userId,
+        CancellationToken ct = default);
+    Task SaveUserContext(UserAuthorization user, CancellationToken ct = default);
     
 }

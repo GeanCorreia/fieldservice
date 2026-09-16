@@ -5,7 +5,7 @@ namespace FieldService.Storage.Interfaces;
 
 public interface IStoredFileCategoryDefinition
 {
-
+    public static Guid CategoryId;
     public static string FileCode;
     public static long? FileMaxSizeInBytes;
     public static Guid FileTenantId;

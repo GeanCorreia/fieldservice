@@ -1,9 +1,8 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using FieldService.Shared.Dtos;
+using FieldService.Shared.Services;
 using FieldService.Shared.Types;
 using FieldService.Storage.Exceptions;
-using FieldService.Storage.Interfaces;
 
 namespace FieldService.Storage.Entities;
 
@@ -44,20 +43,25 @@ public class StoredFileCategory
         TenantId = tenantId;
         Code = code;
         MaxSizeInBytes = maxSizeInBytes;
-        _allowedContentTypes = JsonDocument.Parse(JsonSerializer.Serialize(allowedContentTypes)).RootElement;
+        var contentTypeStrings = allowedContentTypes?.Select(x => x.MediaType ?? x.ToString()) ?? [];
+        _allowedContentTypes = JsonDocument.Parse(JsonSerializer.Serialize(contentTypeStrings)).RootElement;
         Version = version;
         MinimumRequiredRole = minimumRequiredRole;
         _allowedPermissions = JsonDocument.Parse(JsonSerializer.Serialize(allowedPermissions)).RootElement;
     }
-    
-    private bool HasAccess(Role? userRole, IEnumerable<Permission>? userPermissions)
+
+    private StoredFileCategory()
     {
-        if (MinimumRequiredRole.HasValue && userRole < MinimumRequiredRole.Value)
+    }
+    
+    private bool HasAccess(Role userRole, IEnumerable<Permission> userPermissions)
+    {
+        if( MinimumRequiredRole.HasValue && !RoleRequirementValidator.SatisfiesRole(userRole, MinimumRequiredRole.Value ))
         {
             return false;
         }
 
-        if (AllowedPermissions != null && AllowedPermissions.Any())
+        if (AllowedPermissions.Any())
         {
             if(userPermissions == null || !userPermissions.Any())
             {
@@ -69,13 +73,13 @@ public class StoredFileCategory
         return true;
     }
     
-    public void ValidateAccess(UserAuthentication user)
+    public void ValidateAccess(UserTenantDto userTenantDto)
     {
-        var userRole = user.TenantDetails
-            .FirstOrDefault(t => t.TenantId == TenantId)?.Role;
-        
-        var userPermissions = user.TenantDetails
-            .FirstOrDefault(t => t.TenantId == TenantId)?.Permissions;
+        ArgumentNullException.ThrowIfNull(userTenantDto);
+
+        var tenantDetail = userTenantDto.TenantDto;
+        var userRole = userTenantDto.TenantDto.Role;
+        var userPermissions = userTenantDto.TenantDto.Permissions;
         
         if (!HasAccess(userRole, userPermissions))
         {
@@ -101,5 +105,5 @@ public class StoredFileCategory
             }
         }
     }
-
+    
 }

@@ -15,7 +15,7 @@ public sealed record InactiveSessionCleanupJob : Job
     public static readonly JobType JobType = "inactive-session-cleanup";
 
     public InactiveSessionCleanupJob()
-        : base(JobType, new JobContext(JobType))
+        : base(new JobContext(JobType))
     {
     }
 }
@@ -41,8 +41,8 @@ public sealed class InactiveSessionCleanupJobService : IQueueConsumer
 
     public async Task ExecuteAsync(Job job, CancellationToken ct = default)
     {
-        if (job.Type != InactiveSessionCleanupJob.JobType)
-            throw new InvalidOperationException($"Unexpected job type '{job.Type}'.");
+        if (job.Context.Type != InactiveSessionCleanupJob.JobType)
+            throw new InvalidOperationException($"Unexpected job type '{job.Context.Type}'.");
 
         await _sessionPersistenceService.InactiveCleanupAsync(ct);
 
