@@ -4,10 +4,8 @@ using FieldService.Shared.Interfaces;
 
 namespace FieldService.Shared.Services;
 
-public sealed class HashService : IHashService
+public static class HashService 
 {
-    public string Generate(string value) => CreateHashSha256(value);
-
     public static string CreateHashMd5(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);

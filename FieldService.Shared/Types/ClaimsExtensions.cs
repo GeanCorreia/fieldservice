@@ -8,6 +8,7 @@ public static class ClaimsExtensions
     public const string TenantId = "Authentication.TenantId";
     public const string SessionId = "Authentication.SessionId";
     public const string Provider = "Authentication.Provider";
+    public const string RequestId = "Authentication.RequestId";
 
 
     // Authorization

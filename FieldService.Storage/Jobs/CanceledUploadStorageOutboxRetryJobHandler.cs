@@ -37,12 +37,13 @@ internal class CanceledUploadStorageOutboxRetryJobHandler : AbstractStorageRetry
     private readonly IServiceScopeFactory _scopeFactory;
 
     public CanceledUploadStorageOutboxRetryJobHandler(
+        IStorageFallbackService storageFallbackService,
         IStoredFileRepository storedFileRepository,
         IStoredFileService storedFileService,
         IStorageProviderFactory storageProviderFactory,
         ILogger<CanceledUploadStorageOutboxRetryJobHandler> logger,
         IServiceScopeFactory scopeFactory)
-        : base(storedFileRepository, storedFileService, storageProviderFactory, logger)
+        : base(storageFallbackService, storedFileRepository, storedFileService, storageProviderFactory, logger)
     {
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     }
@@ -57,7 +58,7 @@ internal class CanceledUploadStorageOutboxRetryJobHandler : AbstractStorageRetry
     
     private async Task RetryCanceledUploadsAsync( CancellationToken ct)
     {
-        var canceledUploadFallbackAsync = await _storedFileService
+        var canceledUploadFallbackAsync = await _storageFallbackService
             .GetCanceledUploadFallbackAsync(ct);
         
         if (!canceledUploadFallbackAsync.Any())

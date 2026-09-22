@@ -12,9 +12,6 @@ internal enum SupersetResourceType
     Database = 4   
 }
 
-internal record SupersetClientRequest(
-    string ResourceId,
-    SupersetResourceType ResourceType);
-    
+
 public record SupersetTokenResponse(
     string Token);

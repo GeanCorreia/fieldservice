@@ -12,18 +12,21 @@ namespace FieldService.Storage.Jobs;
 
 internal abstract class AbstractStorageRetryJobService : IQueueConsumer
 {
+    protected readonly IStorageFallbackService _storageFallbackService;
     protected readonly IStoredFileRepository _storedFileRepository;
     protected readonly IStoredFileService _storedFileService;
     protected readonly IStorageProviderFactory _storageProviderFactory;
     protected readonly ILogger<AbstractStorageRetryJobService> _logger;
     
     protected AbstractStorageRetryJobService(
+        IStorageFallbackService storageFallbackService,
         IStoredFileRepository storedFileRepository,
         IStoredFileService storedFileService,
         IStorageProviderFactory storageProviderFactory,
         ILogger<AbstractStorageRetryJobService> logger
         )
     {
+        _storageFallbackService = storageFallbackService ?? throw new ArgumentNullException(nameof(storageFallbackService));
         _storedFileRepository = storedFileRepository ?? throw new ArgumentNullException(nameof(storedFileRepository));
         _storedFileService = storedFileService ?? throw new ArgumentNullException(nameof(storedFileService));
         _storageProviderFactory = storageProviderFactory ?? throw new ArgumentNullException(nameof(storageProviderFactory));

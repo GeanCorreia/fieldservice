@@ -1,8 +1,10 @@
-using FieldService.Superset.Entities;
+using FieldService.Superset.Dtos;
 
 namespace FieldService.Superset.Interfaces;
 
-internal interface ISupersetResourceService
+public interface ISupersetResourceService
 {
-    Task<SupersetResource?> GetResourceBySupersetIdAsync(string supersetId, CancellationToken ct);
+    Task<SupersetTenantResources> GetTenantResourcesAsync(
+        string fqdnUrl,
+        CancellationToken cancellationToken);
 }

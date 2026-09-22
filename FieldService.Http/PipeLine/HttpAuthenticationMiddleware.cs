@@ -13,7 +13,8 @@ public sealed class HttpAuthenticationMiddleware(RequestDelegate next)
     public async Task InvokeAsync(
         HttpContext httpContext,
         IUserIdentityResolver userIdentityResolver,
-        ISessionResolver sessionResolver)
+        ISessionResolver sessionResolver,
+        ISessionManager sessionManager)
     {
         if (httpContext.GetEndpoint() is null) 
         {
@@ -49,6 +50,7 @@ public sealed class HttpAuthenticationMiddleware(RequestDelegate next)
             default:
                 InjectSessionIdFromHeader(httpContext);
                 await sessionResolver.ResolveSessionAsync(httpContext.User, httpContext.RequestAborted);
+                await sessionManager.TouchAsync(httpContext);
                 await next(httpContext);
                 break;
         }

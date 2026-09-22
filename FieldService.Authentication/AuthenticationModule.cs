@@ -31,8 +31,6 @@ public static class AuthenticationModule
         services.AddHttpContextAccessor();
         services.AddSingleton(authenticationOptions);
         services.AddScoped<IIdentityProvider, AzureEntraIdentityProvider>();
-        services.AddSingleton<ISessionCacheService, RedisSessionCacheService>();
-        services.AddSingleton<IUserCacheService, RedisUserCacheService>();
         services.AddSingleton<ISessionMapper, SessionMapper>();
         services.AddSingleton<IUserAuthenticationMapper, UserAuthenticationMapper>();
         services.AddScoped<ISessionRepository, SessionRepository>();
@@ -41,7 +39,6 @@ public static class AuthenticationModule
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<ISessionPersistenceService, SessionCleanupService>();
         services.AddScoped<ISessionManager, SessionManager>();
-        services.AddScoped<ISessionAuthenticationService, SessionAuthenticationService>();
         if (environment?.IsDevelopment() == true)
         {
             services.AddScoped<IUserIdentityResolver, DevelopmentEnvironmentUserIdentityResolver>();

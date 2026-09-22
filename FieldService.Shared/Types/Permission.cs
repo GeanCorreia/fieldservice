@@ -30,14 +30,14 @@ public sealed record Permission
         if (string.IsNullOrWhiteSpace(policyName))
             throw new ArgumentException("Policy name is required.", nameof(policyName));
 
-        var parts = policyName.Split(new[] { '.', ':' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = policyName.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 3)
             throw new ArgumentException("Invalid policy name format.", nameof(policyName));
 
         return new Permission(parts[0], parts[1], parts[2]);
     }
 
-    public override string ToString() => $"{Module}.{Resource}:{Action}";
+    public override string ToString() => $"{Module}:{Resource}:{Action}";
     
     public string PolicyName => ToString();
 }

@@ -1,20 +1,22 @@
-using System.Reflection;
+using FieldService.Shared.Configuration;
 using FieldService.Shared.Interfaces;
 using FieldService.Shared.Services;
 using FluentValidation;
-using MediatR.Extensions.FluentValidation.AspNetCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FieldService.Shared;
 
 public static class SharedModule
 {
-    public static IServiceCollection AddSharedModule(this IServiceCollection services)
+    public static IServiceCollection AddSharedModule(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
         
+        services.Configure<AzureIdentityOptions>(configuration.GetSection(AzureIdentityOptions.SectionName));
+
         services.AddSingleton<IDateTimeService, DateTimeService>();
-        services.AddSingleton<IHashService, HashService>();
         
         var assemblies = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => a.FullName?.StartsWith("FieldService") == true)
@@ -24,9 +26,9 @@ public static class SharedModule
         {
             cfg.RegisterServicesFromAssemblies(assemblies);
         });
+
         services.AddScoped<EncryptionService>();
         services.AddValidatorsFromAssemblies(assemblies);
-        services.AddFluentValidation(new[] { typeof(SharedModule).Assembly });
         
         return services;
     }

@@ -25,7 +25,7 @@ public static class AuthorizationModule
         services.AddScoped<IUserContextRepository, UserContextRepository>();
         services.AddScoped<IUserAuthorizationMapper, UserAuthorizationMapper>();
         services.AddScoped<FieldService.Authorization.Interfaces.IAuthorizationService, AuthorizationService>();
-        services.AddSingleton<IAuthorizationCacheService, RedisAuthorizationCacheService>();
+ 
 
         services.AddAuthorization(options =>
         {

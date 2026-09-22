@@ -36,12 +36,13 @@ internal class FailedUploadStorageOutboxRetryJobHandler : AbstractStorageRetryJo
     private readonly IServiceScopeFactory _scopeFactory;
 
     public FailedUploadStorageOutboxRetryJobHandler(
+        IStorageFallbackService storageFallbackService,
         IStoredFileRepository storedFileRepository,
         IStoredFileService storedFileService,
         IStorageProviderFactory storageProviderFactory,
         ILogger<FailedUploadStorageOutboxRetryJobHandler> logger,
         IServiceScopeFactory scopeFactory)
-        : base(storedFileRepository, storedFileService, storageProviderFactory,  logger)
+        : base(storageFallbackService, storedFileRepository, storedFileService, storageProviderFactory,  logger)
     {
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     }
@@ -56,7 +57,7 @@ internal class FailedUploadStorageOutboxRetryJobHandler : AbstractStorageRetryJo
     
     private async Task RetryFailedUploadsAsync(CancellationToken ct)
     {
-        var failedUploadFallbackAsync = await _storedFileService
+        var failedUploadFallbackAsync = await _storageFallbackService
             .GetFailedUploadFallbackAsync(ct);
         
         if (!failedUploadFallbackAsync.Any())

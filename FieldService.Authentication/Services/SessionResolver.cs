@@ -6,13 +6,13 @@ using FieldService.Shared.Types;
 namespace FieldService.Authentication.Services;
 
 public sealed class SessionResolver(
-    ISessionAuthenticationService sessionAuthenticationService) : ISessionResolver
+    ISessionService sessionService) : ISessionResolver
 {
     public async Task ResolveSessionAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default)
     {
         var sessionId = ClaimsResolver.GetSessionId(principal);
 
-        var sessionCacheModel = await sessionAuthenticationService.GetSessionAsync(sessionId, cancellationToken);
+        var sessionCacheModel = await sessionService.GetSessionAsync(sessionId, cancellationToken);
         if (sessionCacheModel is null)
             throw new UnauthorizedAccessException("Session not found.");
 

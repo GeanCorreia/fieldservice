@@ -11,8 +11,11 @@
       <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
       <PackageReference Include="AWSSDK.S3" Version="3.7.407.0" />
       <PackageReference Include="Azure.Storage.Blobs" Version="12.29.2" />
+      <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.20" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.1" />
       <PackageReference Include="Google.Cloud.Storage.V1" Version="4.11.0" />
+      <PackageReference Include="ZiggyCreatures.FusionCache" Version="2.8.0" />
+      <PackageReference Include="ZiggyCreatures.FusionCache.Serialization.NewtonsoftJson" Version="2.8.0" />
       <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />
       <ProjectReference Include="..\FieldService.Cache\FieldService.Cache.csproj" />
       <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />

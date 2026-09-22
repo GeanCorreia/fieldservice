@@ -7,20 +7,26 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Azure.Identity" Version="1.21.0" />
+        <PackageReference Include="Azure.ResourceManager.AppContainers" Version="1.6.0" />
+        <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.3" />
         <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.3" />
+        <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="9.0.0" />
+        <PackageReference Include="Microsoft.Extensions.ServiceDiscovery.Yarp" Version="9.0.0" />
         <PackageReference Include="Refit" Version="9.0.2" />
         <PackageReference Include="Refit.HttpClientFactory" Version="9.0.2" />
+        <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />
       <ProjectReference Include="..\FieldService.Http\FieldService.Http.csproj" />
       <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Cqrs\Queries\GetResourcesByUser\" />
+      <Folder Include="Data\" />
       <Folder Include="Events\" />
-      <Folder Include="Services\" />
     </ItemGroup>
 
 </Project>

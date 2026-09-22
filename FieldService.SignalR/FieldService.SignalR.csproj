@@ -4,6 +4,7 @@
     <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />
     <ProjectReference Include="..\FieldService.Authentication\FieldService.Authentication.csproj" />
     <ProjectReference Include="..\FieldService.Cache\FieldService.Cache.csproj" />
+    <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />
     <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
   </ItemGroup>
 
@@ -18,7 +19,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Data\Configuration\" />
   </ItemGroup>
 
 </Project>

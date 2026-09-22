@@ -21,12 +21,12 @@ public sealed class HttpObservabilityMiddleware(
         }
 
         var principal = httpContext.User;
-        var requestId = Guid.NewGuid();
+        var requestId = ClaimsResolver.GetRequestId(principal);;
         httpContext.TraceIdentifier = requestId.ToString();
+        
         ObservabilityExecutionContext.RequestId = requestId;
         ObservabilityExecutionContext.Timestamp = DateTimeOffset.UtcNow;
-        ObservabilityExecutionContext.IpAddress = httpContext.Connection.RemoteIpAddress?.ToString()
-            ?? throw new InvalidOperationException("Remote IP address is not available.");
+        ObservabilityExecutionContext.IpAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
         ObservabilityExecutionContext.UserAgent = httpContext.Request.Headers.UserAgent.ToString();
         ObservabilityExecutionContext.UserId = ClaimsResolver.GetUserId(principal);
         ObservabilityExecutionContext.TenantId = ClaimsResolver.GetOptionalGuid(principal, ClaimsExtensions.TenantId);

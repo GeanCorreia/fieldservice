@@ -1,4 +1,5 @@
 import os
+from flask_appbuilder.security.manager import AUTH_REMOTE_USER
 
 POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres123")
@@ -48,3 +49,10 @@ TALISMAN_CONFIG = {
     "content_security_policy": None,
     "force_https": False,
 }
+
+# Habilita autenticação por cabeçalho enviado pelo Proxy (YARP)
+AUTH_TYPE = AUTH_REMOTE_USER
+
+# Cria o usuário automaticamente no banco do Superset se for o primeiro acesso
+AUTH_USER_REGISTRATION = True
+AUTH_USER_REGISTRATION_ROLE = "Gamma"  # Role padrão (Apenas Leitura/Visualização)

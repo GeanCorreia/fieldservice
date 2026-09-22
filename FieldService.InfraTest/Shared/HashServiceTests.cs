@@ -1,5 +1,6 @@
 using FieldService.Shared;
 using FieldService.Shared.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FieldService.InfraTest.Shared;
@@ -11,7 +12,8 @@ public sealed class HashServiceTests
     public HashServiceTests()
     {
         var services = new ServiceCollection();
-        services.AddSharedModule();
+        var configuration = new ConfigurationBuilder().Build();
+        services.AddSharedModule(configuration);
         
         var provider = services.BuildServiceProvider();
         _hashService = provider.GetRequiredService<IHashService>();

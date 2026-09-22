@@ -1,6 +1,10 @@
 using FieldService.Http.Cqrs.Queries.GetUserTenant;
+using FieldService.Superset.Broker;
 using FieldService.Superset.Dtos;
+using FieldService.Superset.Entities;
+using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
+using FieldService.Superset.Jobs;
 using FieldService.Superset.Utils;
 using Humanizer;
 using MediatR;
@@ -10,24 +14,28 @@ namespace FieldService.Superset.Cqrs.Queries;
 
 internal class GetGuestTokenHandler : IRequestHandler<GetGuestTokenQuery, SupersetTokenResponse>
 {
-    private readonly ISupersetAuthService _supersetAuthService;
     private readonly ILogger<GetGuestTokenHandler> _logger;
     private readonly IMediator _mediator;
     private readonly ISupersetApi _supersetApi;
-    private readonly ISupersetResourceService _supersetResourceService;
+    private readonly ISupersetService _supersetService;
+    private readonly StartSupersetTenantInstanceCreatedJobProducer _startSupersetTenantInstanceCreatedJobProducer;
     
     public GetGuestTokenHandler(
         ILogger<GetGuestTokenHandler> logger, 
         IMediator mediator, 
         ISupersetApi supersetApi, 
-        ISupersetResourceService supersetResourceService,
-        ISupersetAuthService supersetAuthService)
+        ISupersetAuthService supersetAuthService,
+        ISupersetService supersetService,
+        StartSupersetTenantInstanceCreatedJobProducer startSupersetTenantInstanceCreatedJobProducer)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _supersetApi = supersetApi ?? throw new ArgumentNullException(nameof(supersetApi));
-        _supersetResourceService = supersetResourceService ?? throw new ArgumentNullException(nameof(supersetResourceService));
-        _supersetAuthService = supersetAuthService ?? throw new ArgumentNullException(nameof(supersetAuthService));
+        _startSupersetTenantInstanceCreatedJobProducer = startSupersetTenantInstanceCreatedJobProducer ?? 
+                                                          throw new ArgumentNullException(
+                                                              nameof(startSupersetTenantInstanceCreatedJobProducer));
+        
+        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
     }
     public async Task<SupersetTokenResponse> Handle(
         GetGuestTokenQuery request,
@@ -42,31 +50,35 @@ internal class GetGuestTokenHandler : IRequestHandler<GetGuestTokenQuery, Supers
             throw new UnauthorizedAccessException("User not found");
         }
         
-        var resource = await _supersetResourceService.GetResourceBySupersetIdAsync(
-            request.SupersetClientRequest.ResourceId,
-            cancellationToken);
-
-        if (resource == null)
+        if(! await _supersetService.HasSuperset(user.TenantDto.TenantId, cancellationToken))
         {
-            throw new  KeyNotFoundException($"No resource found for Superset ID: {request.SupersetClientRequest.ResourceId}");
+            throw new SupersetTenantNotFoundException(user.TenantDto.TenantId);
         }
+        
+        var supersetInstance = await _supersetService.GetSupersetTenantInstance(
+            user.TenantDto.TenantId, 
+            SupersetInstanceStatus.Running, 
+            cancellationToken);
+        
+        
 
-        if (!resource.HasReadAccess(user))
+        if (supersetInstance == null)
         {
-            throw new UnauthorizedAccessException($"User does not have read access to resource {resource.SupersetResourceId}");
+            _startSupersetTenantInstanceCreatedJobProducer.Publish(
+                new StartSupersetTenantInstanceJob(user.TenantDto.TenantId));
+            
+            throw new SupersetTenantInstanceNotRunningException(user.TenantDto.TenantId);
         }
         
         var userName = SupersetUsernameResolver.Resolve(user);
         
         var resources = new List<SupersetResourcePayload>
         {
-            new(resource.ResourceType.ToString().ToLowerInvariant(), resource.SupersetResourceId)
+            new(request.SupersetResourceDto.ResourceType.ToString(), request.SupersetResourceDto.ResourceId)
         };
-        
-        var rls = new List<SupersetRlsPayload>
-        {
-            new SupersetRlsPayload($"tenant_id = '{user.TenantDto.TenantId}'")
-        };
+
+        var rls = new List<SupersetRlsPayload>();
+       
         
         var guestTokenRequest = new SupersetGuestTokenRequest(
             userName,
@@ -74,14 +86,17 @@ internal class GetGuestTokenHandler : IRequestHandler<GetGuestTokenQuery, Supers
             rls
         );
         
-        var adminToken = await _supersetAuthService.GetAdminToken();
+        var adminToken = await _supersetService.GetAdminToken(user.TenantDto.TenantId, cancellationToken);
+        
         if (string.IsNullOrEmpty(adminToken))
         {
             throw new UnauthorizedAccessException("Failed to retrieve admin token for Superset");
         }
+        
         var bearerToken = $"Bearer {adminToken}";
 
         SupersetGuestTokenResponse supersetApiResponse = await _supersetApi.GetGuestTokenAsync(
+            new Uri(supersetInstance.TenantConfig.FqdnUrl),
             bearerToken, 
             guestTokenRequest, 
             cancellationToken);

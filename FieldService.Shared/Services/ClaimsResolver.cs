@@ -25,19 +25,17 @@ public static class ClaimsResolver
         }
         return Guid.Parse(tenantId);
     }
-
-    public static (Guid UserId, Guid TenantId) GetUserAndTenantId(ClaimsPrincipal principal)
+    
+    public static Guid GetRequestId(ClaimsPrincipal principal)
     {
-        var userId = principal.FindFirst(ClaimsExtensions.UserId)?.Value;
-        var tenantId = principal.FindFirst(ClaimsExtensions.TenantId)?.Value;
-
-        if (userId == null || tenantId == null)
+        var requestId = principal.FindFirst(ClaimsExtensions.RequestId)?.Value;
+        if (requestId == null)
         {
-            throw new InvalidOperationException("UserId or TenantId not found in claims.");
+            throw new InvalidOperationException("RequestId not found in claims.");
         }
-
-        return (Guid.Parse(userId), Guid.Parse(tenantId));
+        return Guid.Parse(requestId);
     }
+    
     
     public static Guid GetSessionId(ClaimsPrincipal principal)
     {

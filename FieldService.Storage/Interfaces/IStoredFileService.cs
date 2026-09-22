@@ -81,14 +81,4 @@ public interface IStoredFileService
         UserTenantDto userTenantDto,
         CancellationToken ct = default);
     
-    Task<IEnumerable<StoredFile>> GetFailedUploadFallbackAsync( 
-        CancellationToken ct = default);
-    Task<IEnumerable<StoredFile>> GetCanceledUploadFallbackAsync(
-        CancellationToken ct = default);
-    Task<IEnumerable<StoredFile>> GetSuccessUploadFallbackAsync(
-        CancellationToken ct = default);
-    Task<IEnumerable<StoredFile>> GetCorruptedUploadFallbackAsync(
-        CancellationToken ct = default);
-    
-    
 }

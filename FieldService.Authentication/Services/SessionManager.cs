@@ -2,6 +2,7 @@
 using FieldService.Authentication.Entities;
 using FieldService.Authentication.Interfaces;
 using FieldService.Authentication.Logs;
+using FieldService.Observability.Types;
 using ObservabilityExecutionContext = FieldService.Observability.Services.ExecutionContext;
 using FieldService.Shared.Services;
 using Microsoft.AspNetCore.Http;
@@ -13,7 +14,7 @@ namespace FieldService.Authentication.Services;
 public class SessionManager : ISessionManager
 {
 
-    private readonly ISessionCacheService _sessionCacheService;
+    private readonly ISessionService _sessionService;
     private readonly ISessionMapper _sessionMapper;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ISessionRepository _sessionRepository;
@@ -21,14 +22,14 @@ public class SessionManager : ISessionManager
 
     public SessionManager(
         ISessionMapper sessionMapper,
-        ISessionCacheService sessionCacheService,
+        ISessionService sessionService,
         IHttpContextAccessor httpContextAccessor,
         ISessionRepository sessionRepository,
         ILogger<SessionManager> logger)
     {
 
         _sessionMapper = sessionMapper ?? throw new ArgumentNullException(nameof(sessionMapper));
-        _sessionCacheService = sessionCacheService ?? throw new ArgumentNullException(nameof(sessionCacheService));
+        _sessionService = sessionService ?? throw new ArgumentNullException(nameof(sessionService));
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
@@ -36,13 +37,14 @@ public class SessionManager : ISessionManager
     }
 
     public async Task TouchAsync(
+        HttpContext httpContext,
         CancellationToken cancellationToken = default)
     {
-        var principal = GetHttpContext().User;
+        var principal = httpContext.User ?? throw new UnauthorizedAccessException("User not found.");
         var jwtId = ClaimsResolver.GetJwtId(principal);
         var sessionId =  ClaimsResolver.GetSessionId(principal);
         
-        var jwtIdCached = await _sessionCacheService.GetSessionJwtIdAsync(
+        var jwtIdCached = await _sessionService.GetSessionJwtIdAsync(
             sessionId, 
             cancellationToken);
         
@@ -65,12 +67,12 @@ public class SessionManager : ISessionManager
 
         }
         
-        var activity = CreateSessionActivity(sessionId, jwtId);
+        var activity = CreateSessionActivity(httpContext);
         
         var activityCacheModel = _sessionMapper.Map(activity);
         
 
-        await _sessionCacheService.TouchSessionAsync(
+        await _sessionService.TouchSessionAsync(
             sessionId, 
             activityCacheModel, 
             cancellationToken);
@@ -85,19 +87,12 @@ public class SessionManager : ISessionManager
     {
         try
         {
-            await _sessionCacheService.UpdateSessionJwtIdAsync(
+            await _sessionService.UpdateSessionJwtIdAsync(
                 sessionId,
                 jwtId,
                 expiresAt,
                 cancellationToken);
-
-            var sessionCacheModel = await _sessionCacheService.GetSessionAsync(
-                sessionId,
-                cancellationToken);
-
-            var session = _sessionMapper.Map(sessionCacheModel);
-            session.UpdateExpiration(expiresAt);
-            await _sessionRepository.Save(session, cancellationToken);
+            
         }
         catch (Exception ex)
         {
@@ -110,26 +105,19 @@ public class SessionManager : ISessionManager
     
     
     public static SessionActivity CreateSessionActivity(
-        Guid sessionId,
-        string jwtId)
+        HttpContext httpContext)
     {
-        var requestId = ObservabilityExecutionContext.RequestId ?? 
-                        throw new InvalidOperationException("RequestId is inconsistent.");
-        var ipAddress = string.IsNullOrWhiteSpace(ObservabilityExecutionContext.IpAddress)
-            ? "unknown"
-            : ObservabilityExecutionContext.IpAddress;
         
         return new SessionActivity(
             Guid.NewGuid(),
-            sessionId: sessionId,
-            jwtId: jwtId,
-            ipAddressHash: HashService.CreateHashSha256(ipAddress),
+            sessionId: ClaimsResolver.GetSessionId(httpContext.User),
+            jwtId: ClaimsResolver.GetJwtId(httpContext.User),
+            ipAddressHash: httpContext.Connection.RemoteIpAddress?.ToString() ?? 
+                throw new UnauthorizedAccessException("IP Address inconsistent."),
             timestamp: ObservabilityExecutionContext.Timestamp,
-            channel: ObservabilityExecutionContext.Channel,
-            requestId: requestId,
-            userAgentHash: string.IsNullOrWhiteSpace(ObservabilityExecutionContext.UserAgent)
-                ? null
-                : HashService.CreateHashSha256(ObservabilityExecutionContext.UserAgent)
+            channel: RequestChannel.Http,
+            requestId: ClaimsResolver.GetRequestId(httpContext.User),
+            userAgentHash:  HashService.CreateHashSha256(httpContext.Request.Headers.UserAgent.ToString())
         );
     }
 }

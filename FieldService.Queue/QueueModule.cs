@@ -1,14 +1,13 @@
 using Hangfire;
-using Hangfire.Dashboard;
 using Hangfire.PostgreSql;
 using Hangfire.Tags.PostgreSql;
 using FieldService.Queue.Filters;
-using FieldService.Queue.Interfaces;
 using FieldService.Queue.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
 
 namespace FieldService.Queue;
 

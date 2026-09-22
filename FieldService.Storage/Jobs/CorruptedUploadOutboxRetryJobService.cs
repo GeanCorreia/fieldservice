@@ -39,12 +39,13 @@ internal class CorruptedUploadStorageOutboxRetryJobHandler : AbstractStorageRetr
     private readonly IServiceScopeFactory _scopeFactory;
 
     public CorruptedUploadStorageOutboxRetryJobHandler(
+        IStorageFallbackService storageFallbackService,
         IStoredFileRepository storedFileRepository,
         IStoredFileService storedFileService,
         IStorageProviderFactory storageProviderFactory,
         ILogger<CorruptedUploadStorageOutboxRetryJobHandler> logger,
         IServiceScopeFactory scopeFactory)
-        : base(storedFileRepository, storedFileService, storageProviderFactory, logger)
+        : base(storageFallbackService, storedFileRepository, storedFileService, storageProviderFactory, logger)
     {
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     }
@@ -59,7 +60,7 @@ internal class CorruptedUploadStorageOutboxRetryJobHandler : AbstractStorageRetr
     
     private async Task RetryCorruptedUploadsAsync(CancellationToken ct)
     {
-        var corruptedUploadFallbackAsync = await _storedFileService
+        var corruptedUploadFallbackAsync = await _storageFallbackService
             .GetCorruptedUploadFallbackAsync(ct);
         
         if (!corruptedUploadFallbackAsync.Any())

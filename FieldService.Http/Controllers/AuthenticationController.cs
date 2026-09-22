@@ -7,6 +7,7 @@ using FieldService.Http.Cqrs.Queries.GetUser;
 using FieldService.Http.Dtos;
 using FieldService.Shared.Services;
 using MediatR;
+using ObservabilityExecutionContext = FieldService.Observability.Services.ExecutionContext;
 
 namespace FieldService.Http.Controllers;
 
@@ -23,15 +24,25 @@ public class AuthenticationController : ControllerBase
     [SessionAtributes.SessionCreationAttribute]
     public async Task<IActionResult> Login([FromRoute] Guid tenantId, CancellationToken cancellationToken)
     {
-        var command = new LoginCommand(tenantId);
+        var requestId = Guid.NewGuid();
+        ObservabilityExecutionContext.RequestId = requestId;
+        ObservabilityExecutionContext.TenantId = tenantId;
+        var ipAddress = HttpContext.Connection.RemoteIpAddress!.ToString();
+        var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
+        var principal = HttpContext.User;
+        var command = new LoginCommand(requestId, principal, ipAddress, userAgent);
         var result = await _mediator.Send(command, cancellationToken);
+        
+        ObservabilityExecutionContext.SessionId = result;
         return Ok(result);
     }
 
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
-        await _mediator.Send(new LogoutCommand(), cancellationToken);
+        var principal = HttpContext.User;
+        var sessionId = ClaimsResolver.GetSessionId(principal);
+        await _mediator.Send(new LogoutCommand(sessionId), cancellationToken);
         return NoContent();
     }
 

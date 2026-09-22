@@ -9,6 +9,8 @@ using FieldService.Storage.Services;
 using FieldService.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+
+
 namespace FieldService.Storage;
 
 public static class StorageModule
@@ -28,8 +30,8 @@ public static class StorageModule
         services.AddScoped<IStoredFileRepository>(sp => sp.GetRequiredService<StoredFileRepository>());
         services.AddScoped<ICleanUpStoredFileRepository>(sp => sp.GetRequiredService<StoredFileRepository>());
         
-        services.AddScoped<RedisStoredFileService>();
-        services.AddScoped<IStoredFileCacheService>(sp => sp.GetRequiredService<RedisStoredFileService>());
+        services.AddScoped<StorageFallbackService>();
+        services.AddScoped<IStorageFallbackService>(sp => sp.GetRequiredService<StorageFallbackService>());
 
         services.AddScoped<StoredFileService>();
         services.AddScoped<IStoredFileService>(sp => sp.GetRequiredService<StoredFileService>());

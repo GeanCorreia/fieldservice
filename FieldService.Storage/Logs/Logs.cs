@@ -104,5 +104,24 @@ internal static partial class Logs
         Guid fileId,
         Exception? exception = null);
     
+    [LoggerMessage(
+        EventName = "storage:stored-file-service:cache-error",
+        Message = "Stored file service failed for file with id {FileId}."
+    )]
+    public static partial void LogStoredFileServiceCacheError(
+        this ILogger logger,
+        LogLevel level,
+        Guid fileId,
+        Exception? exception = null);
+    
+    [LoggerMessage(
+        EventName = "storage:stored-file-category-service:cache-error",
+        Message = "Stored file category service failed for file with id {FileId}."
+    )]
+    public static partial void LogStoredFileCategoryServiceCacheError(
+        this ILogger logger,
+        LogLevel level,
+        Guid fileId,
+        Exception? exception = null);
    
 }

@@ -7,5 +7,5 @@ namespace FieldService.Superset.Cqrs.Queries;
 internal record GetGuestTokenQuery(
     Guid UserId,
     Guid TenantId,
-    SupersetClientRequest SupersetClientRequest
+    SupersetResourceDto SupersetResourceDto
     ) : IRequest<SupersetTokenResponse>;

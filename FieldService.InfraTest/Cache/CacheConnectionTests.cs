@@ -23,7 +23,7 @@ public sealed class CacheConnectionTests
 
         using var provider = services.BuildServiceProvider();
 
-        var redisContext = provider.GetRequiredService<IRedisContext>();
+        var redisContext = provider.GetRequiredService<IRedisConnection>();
         var ping = await redisContext.Database.PingAsync();
 
         Assert.True(ping >= TimeSpan.Zero);
@@ -45,7 +45,7 @@ public sealed class CacheConnectionTests
 
         using var provider = services.BuildServiceProvider();
 
-        var redisContext = provider.GetRequiredService<IRedisContext>();
+        var redisContext = provider.GetRequiredService<IRedisConnection>();
         var key = $"test:ttl:{Guid.NewGuid():N}";
         var value = $"value:{DateTime.UtcNow:O}";
 

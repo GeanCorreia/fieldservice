@@ -1,37 +1,42 @@
 using System.Security.Claims;
 using FieldService.Authorization.Dtos;
-using FieldService.Authorization.Entities;
 using FieldService.Authorization.Interfaces;
 using FieldService.Authorization.Logs;
-using FieldService.Authorization.Types;
 using FieldService.Shared.Services;
-using FieldService.Shared.Types;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 
 namespace FieldService.Authorization.Services;
 
-internal sealed class AuthorizationService(
-    ILogger<AuthorizationService> logger,
-    IUserContextRepository userContextRepository,
-    IAuthorizationCacheService authorizationCacheService,
-    IUserAuthorizationMapper authorizationMapper) : FieldService.Authorization.Interfaces.IAuthorizationService
+internal sealed class AuthorizationService : FieldService.Authorization.Interfaces.IAuthorizationService
 {
-    private async Task CreateCacheAsync(UserAuthorizationDto user,
-        CancellationToken cancellationToken = default)
+    private readonly ILogger<AuthorizationService> _logger;
+    private readonly IUserContextRepository _userContextRepository;
+    private readonly IUserAuthorizationMapper _authorizationMapper;
+    private readonly HybridCache _hybridCache;
+    private readonly HybridCacheEntryOptions _cacheOptions;
+
+    private const string UserContextPrefix = "authorization:user:";
+
+    public AuthorizationService(
+        ILogger<AuthorizationService> logger,
+        IUserContextRepository userContextRepository,
+        IUserAuthorizationMapper authorizationMapper,
+        HybridCache hybridCache,
+        IConfiguration configuration)
     {
-        try
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _userContextRepository = userContextRepository ?? throw new ArgumentNullException(nameof(userContextRepository));
+        _authorizationMapper = authorizationMapper ?? throw new ArgumentNullException(nameof(authorizationMapper));
+        _hybridCache = hybridCache ?? throw new ArgumentNullException(nameof(hybridCache));
+
+        var expirationSeconds = configuration.GetValue<int?>("Authorization:CacheExpirationInSeconds") ?? 86400;
+        _cacheOptions = new HybridCacheEntryOptions
         {
-           
-            await authorizationCacheService.SaveUserAsync(user, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogAuthorizationCache(
-                LogLevel.Error,
-                ex, 
-                ex.Message);
-        }
+            Expiration = TimeSpan.FromSeconds(expirationSeconds)
+        };
     }
 
     public async Task<UserAuthorizationDto?> GetUserAsync(
@@ -52,19 +57,25 @@ internal sealed class AuthorizationService(
         Guid userId,
         CancellationToken ct = default)
     {
+        if (userId == default)
+            throw new ArgumentException("UserId is required.", nameof(userId));
+
         ct.ThrowIfCancellationRequested();
 
-        var cached = await authorizationCacheService.GetUserByIdAsync(userId,  ct);
-        if (cached is not null)
-            return cached;
+        return await _hybridCache.GetOrCreateAsync<UserAuthorizationDto?>(
+            UserKey(userId),
+            async token =>
+            {
+                var user = await _userContextRepository.GetUserAsync(userId, token);
+                
+                if (!user.Any())
+                    return null;
 
-        var user = await userContextRepository.GetUserAsync(userId, ct);
-        
-        if (!user.Any())
-            return null;
-        
-        var userDto = authorizationMapper.Map(user);
-        await CreateCacheAsync(userDto, ct);
-        return userDto;
+                return _authorizationMapper.Map(user);
+            },
+            _cacheOptions,
+            cancellationToken: ct);
     }
+
+    private static string UserKey(Guid userId) => $"{UserContextPrefix}{userId:N}";
 }

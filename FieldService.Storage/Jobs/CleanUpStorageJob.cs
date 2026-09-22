@@ -40,6 +40,7 @@ internal sealed class CleanUpStorageJobConsumer : AbstractStorageRetryJobService
     private readonly IServiceScopeFactory _scopeFactory;
     
     public CleanUpStorageJobConsumer(
+        IStorageFallbackService storageFallbackService,
         IOptions<StorageOptions> storageOptions,
         ICleanUpStoredFileRepository cleanUpStoredFileRepository,
         IStoredFileRepository storedFileRepository,
@@ -47,7 +48,7 @@ internal sealed class CleanUpStorageJobConsumer : AbstractStorageRetryJobService
         IStorageProviderFactory storageProviderFactory,
         ILogger<CleanUpStorageJobConsumer> logger,
         IServiceScopeFactory scopeFactory)
-        : base(storedFileRepository, storedFileService, storageProviderFactory, logger)
+        : base(storageFallbackService, storedFileRepository, storedFileService, storageProviderFactory, logger)
     {
         ArgumentNullException.ThrowIfNull(storageOptions);
 
@@ -86,16 +87,16 @@ internal sealed class CleanUpStorageJobConsumer : AbstractStorageRetryJobService
 
         var filesFallback = new List<StoredFile>();
             
-         var corruptedFiles = (await _storedFileService
+         var corruptedFiles = (await _storageFallbackService
             .GetCorruptedUploadFallbackAsync(ct)).ToList();
          
-         var successfulFiles = (await _storedFileService
+         var successfulFiles = (await _storageFallbackService
             .GetSuccessUploadFallbackAsync(ct)).ToList();
          
-         var cancelledFiles = (await _storedFileService
+         var cancelledFiles = (await _storageFallbackService
              .GetCanceledUploadFallbackAsync(ct)).ToList();
          
-         var failedFiles = (await _storedFileService
+         var failedFiles = (await _storageFallbackService
              .GetFailedUploadFallbackAsync(ct)).ToList();
          
          

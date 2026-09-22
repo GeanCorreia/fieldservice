@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization.Metadata;
-using FieldService.Http.Interfaces;
 using FieldService.Http.PipeLine;
 using FieldService.Shared.Dtos;
 using FieldService.Http.Services;
@@ -136,8 +135,6 @@ public static class HttpModule
     public static IServiceCollection AddHttpModule(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-
-        services.AddScoped<ILoginService, LoginService>();
         return services;
     }
 }

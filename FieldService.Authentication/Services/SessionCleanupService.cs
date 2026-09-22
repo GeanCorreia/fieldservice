@@ -9,20 +9,20 @@ namespace FieldService.Authentication.Services;
 
 public class SessionCleanupService : ISessionPersistenceService
 {
-    private readonly ISessionCacheService _cacheService;
+    private readonly ISessionService _service;
     private readonly ISessionRepository _sessionRepository;
     private readonly TimeSpan _inactivityThreshold;
     private readonly ISessionMapper _sessionMapper;
     private readonly ILogger<SessionCleanupService> _logger;
 
     public SessionCleanupService(
-        ISessionCacheService cacheService,
+        ISessionService service,
         ISessionRepository sessionRepository,
         ISessionMapper sessionMapper,
         AuthenticationOptions authenticationOptions,
         ILogger<SessionCleanupService> logger)
     {
-        _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
+        _service = service ?? throw new ArgumentNullException(nameof(service));
         _sessionRepository = sessionRepository ?? throw new ArgumentNullException(nameof(sessionRepository));
         _sessionMapper = sessionMapper ?? throw new ArgumentNullException(nameof(sessionMapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -36,7 +36,7 @@ public class SessionCleanupService : ISessionPersistenceService
         {
            
 
-            var sessionsCacheModel = await _cacheService.GetInactiveCandidatesAsync(
+            var sessionsCacheModel = await _service.GetInactiveCandidatesAsync(
                 _inactivityThreshold,
                 cancellationToken);
 
@@ -57,7 +57,7 @@ public class SessionCleanupService : ISessionPersistenceService
                 {
                     session.Revoke(revokedAt, RevocationReason.Inactivity);
                     sessions.Add(session);
-                    await _cacheService.RemoveSessionAsync(session.Id, cancellationToken);
+                    await _service.RemoveSessionAsync(session.Id, cancellationToken);
                 }
             }
 

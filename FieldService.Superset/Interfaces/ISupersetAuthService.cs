@@ -3,14 +3,11 @@ using FieldService.Superset.Dtos;
 
 namespace FieldService.Superset.Interfaces;
 
-
-
 internal interface ISupersetAuthService
 {
-    Task<string?> GetAdminToken(CancellationToken cancellationToken = default);
-    Task<bool> IsInWhiteList(
-        UserTenantDto user, 
-        string supersetResourceId, 
+    Task<string> GetAdminToken(
+        string fqdnUrl, 
         CancellationToken cancellationToken = default);
+    
     
 }

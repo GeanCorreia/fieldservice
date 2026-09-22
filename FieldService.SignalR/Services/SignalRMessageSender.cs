@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.SignalR;
 namespace FieldService.SignalR.Services;
 
 internal sealed class SignalRMessageSender(
-    ISignalRPresenceRegistry presenceRegistry,
+    IPresenceRegistry presenceRegistry,
     IHubContext<SignalRHub> hubContext) : ISignalRMessageSender
 {
     private const string NotificationEvent = "notification";
@@ -18,7 +18,7 @@ internal sealed class SignalRMessageSender(
             throw new ArgumentException("SessionId is required.", nameof(sessionId));
         ArgumentNullException.ThrowIfNull(message);
 
-        var sessionConnection = await presenceRegistry.GetSessionConnectionAsync(sessionId, ct);
+        var sessionConnection = await presenceRegistry.GetConnectionContextBySessionIdAsync(sessionId, ct);
         if (sessionConnection is null)
             return;
 

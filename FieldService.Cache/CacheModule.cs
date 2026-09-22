@@ -1,10 +1,17 @@
+using Azure.Identity;
+using FieldService.Cache.Configuration;
 using FieldService.Cache.Interfaces;
 using FieldService.Cache.Services;
 using Medallion.Threading;
 using Medallion.Threading.Redis;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
+using ZiggyCreatures.Caching.Fusion;
+using ZiggyCreatures.Caching.Fusion.Locking.Distributed.Redis;
+using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
 
 namespace FieldService.Cache;
 
@@ -14,80 +21,142 @@ public static class CacheModule
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
-
-        var redisOptions = configuration.GetSection(RedisOptions.SectionName).Get<RedisOptions>() ?? new RedisOptions();
-        var configurationOptions = CreateConfigurationOptions(configuration, redisOptions);
-
-        services.AddStackExchangeRedisCache(options =>
+        
+        services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
+        
+        services.AddSingleton<IRedisConnection>(sp =>
         {
-            options.ConfigurationOptions = configurationOptions;
-            options.InstanceName = redisOptions.InstanceName;
+            var options = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
+            var config = sp.GetRequiredService<IConfiguration>();
+
+            var configurationOptions = CreateConfigurationOptions(config, options);
+            return new RedisConnection(configurationOptions, options.Database);
         });
-        services.AddSingleton<IRedisContext>(_ => new RedisContext(configurationOptions, redisOptions.Database));
-        services.AddSingleton<IDistributedLockProvider>(_ =>
+        
+        services.AddSingleton<IDistributedLockProvider>(sp =>
         {
-            var multiplexer = ConnectionMultiplexer.Connect(configurationOptions);
-            return new RedisDistributedSynchronizationProvider(multiplexer.GetDatabase(redisOptions.Database));
+            var redisContext = sp.GetRequiredService<IRedisConnection>();
+
+            return new RedisDistributedSynchronizationProvider(
+                redisContext.Connection.GetDatabase());
         });
+        
+        services.AddFusionCache()
+            .WithDefaultEntryOptions(entry =>
+            {
+                entry.Duration = TimeSpan.FromHours(24);
+                entry.IsFailSafeEnabled = false;
+            })
+            .WithSerializer(new FusionCacheSystemTextJsonSerializer())
+            .WithDistributedCache(sp =>
+            {
+                var redisContext = sp.GetRequiredService<IRedisConnection>();
+                var options = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
+
+                return new RedisCache(new RedisCacheOptions
+                {
+                    InstanceName = options.InstanceName,
+                    ConnectionMultiplexerFactory = () =>
+                        Task.FromResult(redisContext.Connection)
+                });
+            })
+            .WithDistributedLocker(sp =>
+            {
+                var redisContext = sp.GetRequiredService<IRedisConnection>();
+
+                return new RedisDistributedLocker(
+                    new RedisDistributedLockerOptions
+                    {
+                        ConnectionMultiplexerFactory = () =>
+                            Task.FromResult(redisContext.Connection)
+                    });
+            })
+            .AsHybridCache();
 
         return services;
     }
 
-    private static ConfigurationOptions CreateConfigurationOptions(IConfiguration configuration, RedisOptions redisOptions)
+    private static ConfigurationOptions CreateConfigurationOptions(
+        IConfiguration configuration,
+        RedisOptions redisOptions)
     {
-        var connectionString = configuration.GetConnectionString("Redis");
-        ConfigurationOptions configurationOptions;
+        var connectionStringName = string.IsNullOrWhiteSpace(redisOptions.ConnectionStringName)
+            ? "Redis"
+            : redisOptions.ConnectionStringName;
 
+        var connectionString = configuration.GetConnectionString(connectionStringName);
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
-            configurationOptions = ConfigurationOptions.Parse(connectionString, ignoreUnknown: true);
+            return ApplyCommonSettings(ConfigurationOptions.Parse(connectionString, ignoreUnknown: true), redisOptions);
         }
-        else if (redisOptions.Endpoints is { Count: > 0 })
+
+        var options = CreateEndpointBasedConfiguration(redisOptions);
+
+        if (redisOptions.UseAzureIdentity)
         {
-            configurationOptions = new ConfigurationOptions();
-            foreach (var endpoint in redisOptions.Endpoints)
+            options.Ssl = true;
+            var credentialOptions = new DefaultAzureCredentialOptions();
+
+            if (!string.IsNullOrWhiteSpace(redisOptions.ManagedIdentityClientId))
             {
-                if (string.IsNullOrWhiteSpace(endpoint))
-                    continue;
-
-                configurationOptions.EndPoints.Add(endpoint.Trim());
+                credentialOptions.ManagedIdentityClientId = redisOptions.ManagedIdentityClientId;
             }
+
+            var credential = new DefaultAzureCredential(credentialOptions);
+            var azureConfiguredOptions = AzureCacheForRedis
+                .ConfigureForAzureWithTokenCredentialAsync(options, credential)
+                .GetAwaiter()
+                .GetResult();
+
+            return ApplyCommonSettings(azureConfiguredOptions, redisOptions);
         }
-        else
-        {
-            throw new InvalidOperationException("Configure Redis using ConnectionStrings:Redis or Redis:Endpoints.");
-        }
-
-        configurationOptions.AbortOnConnectFail = redisOptions.AbortOnConnectFail;
-        configurationOptions.Ssl = redisOptions.Ssl;
-
-        if (redisOptions.ConnectTimeoutMs > 0)
-            configurationOptions.ConnectTimeout = redisOptions.ConnectTimeoutMs;
-
-        if (redisOptions.SyncTimeoutMs > 0)
-            configurationOptions.SyncTimeout = redisOptions.SyncTimeoutMs;
 
         if (!string.IsNullOrWhiteSpace(redisOptions.Password))
-            configurationOptions.Password = redisOptions.Password;
+        {
+            options.Password = redisOptions.Password;
+        }
 
-        return configurationOptions;
+        return ApplyCommonSettings(options, redisOptions);
     }
 
-    
-}
+    private static ConfigurationOptions CreateEndpointBasedConfiguration(RedisOptions redisOptions)
+    {
+        var options = new ConfigurationOptions();
 
+        if (redisOptions.Endpoints is { Count: > 0 })
+        {
+            foreach (var endpoint in redisOptions.Endpoints.Where(static endpoint => !string.IsNullOrWhiteSpace(endpoint)))
+            {
+                options.EndPoints.Add(endpoint);
+            }
+        }
 
+        if (options.EndPoints.Count == 0 && !string.IsNullOrWhiteSpace(redisOptions.Host))
+        {
+            options.EndPoints.Add($"{redisOptions.Host}:{redisOptions.Port}");
+        }
 
-public sealed class RedisOptions
-{
-    public const string SectionName = "Redis";
+        if (options.EndPoints.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "Configuração do Redis ausente. Informe ConnectionStrings:Redis ou configure Redis:Host/Redis:Endpoints.");
+        }
 
-    public string InstanceName { get; init; } = "FieldService:";
-    public int Database { get; init; } = -1;
-    public List<string>? Endpoints { get; init; }
-    public string? Password { get; init; }
-    public bool Ssl { get; init; }
-    public bool AbortOnConnectFail { get; init; } = false;
-    public int ConnectTimeoutMs { get; init; } = 5000;
-    public int SyncTimeoutMs { get; init; } = 5000;
+        options.Ssl = redisOptions.Ssl;
+
+        return options;
+    }
+
+    private static ConfigurationOptions ApplyCommonSettings(ConfigurationOptions options, RedisOptions redisOptions)
+    {
+        options.AbortOnConnectFail = redisOptions.AbortOnConnectFail;
+
+        if (redisOptions.ConnectTimeoutMs > 0)
+            options.ConnectTimeout = redisOptions.ConnectTimeoutMs;
+
+        if (redisOptions.SyncTimeoutMs > 0)
+            options.SyncTimeout = redisOptions.SyncTimeoutMs;
+
+        return options;
+    }
 }
