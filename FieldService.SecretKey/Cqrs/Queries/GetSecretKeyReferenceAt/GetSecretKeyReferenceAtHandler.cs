@@ -1,21 +1,36 @@
+using FieldService.Http.Cqrs.Queries.GetUser;
 using FieldService.SecretKey.Dtos;
 using FieldService.SecretKey.Interfaces;
 using MediatR;
 
 namespace FieldService.SecretKey.Cqrs.Queries.GetSecretKeyReferenceAt;
 
-public class GetSecretKeyReferenceAtHandler : IRequestHandler<GetSecretKeyReferenceAtQuery, SecretKeyHistoryDto>
+internal class GetSecretKeyReferenceAtHandler : IRequestHandler<GetSecretKeyReferenceAtQuery, SecretKeyHistoryDto>
 {
-    private readonly ISecretKeyRepository _secretKeyRepository;
+    private readonly ISecretKeyService _secretKeyService;
+    private readonly IMediator _mediator;
 
-    internal GetSecretKeyReferenceAtHandler(ISecretKeyRepository secretKeyRepository)
+    public GetSecretKeyReferenceAtHandler(ISecretKeyService secretKeyService, IMediator mediator)
     {
-        _secretKeyRepository = secretKeyRepository;
+        _secretKeyService = secretKeyService ?? throw new ArgumentNullException(nameof(secretKeyService));
+        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
     }
 
     public async Task<SecretKeyHistoryDto> Handle(GetSecretKeyReferenceAtQuery request, CancellationToken cancellationToken)
     {
-        var secretKeyReference = await _secretKeyRepository.GetSecretKeyAsync(request.TenantId, request.SecretName, cancellationToken);
+        var user = await _mediator.Send(new GetUserQuery(request.UserId), cancellationToken);
+        if (user == null)
+        {
+            throw new UnauthorizedAccessException($"User not found.");
+        }
+        
+        var userTenants = user.Tenants.Select(t => t.TenantId).ToList();
+        
+        if(!userTenants.Contains(request.TenantId) )
+        {
+            throw new UnauthorizedAccessException($"User does not have access to tenant '{request.TenantId}'.");
+        }
+        var secretKeyReference = await _secretKeyService.GetSecretKeyAsync(request.TenantId, request.SecretName, cancellationToken);
         if (secretKeyReference == null)
         {
             throw new KeyNotFoundException($"Secret key reference not found for tenant {request.TenantId} and secret name {request.SecretName} at {request.ReferenceDate}");

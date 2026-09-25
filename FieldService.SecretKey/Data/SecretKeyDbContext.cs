@@ -3,8 +3,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FieldService.SecretKey.Data;
 
-internal class SecretKeyDbContext : DbContext
+public sealed class SecretKeyDbContext(DbContextOptions<SecretKeyDbContext> options) : DbContext(options)
 {
-    public DbSet<Entities.SecretKey> SecretKeys => Set<Entities.SecretKey>();
-    public DbSet<SecretKeyEvent> SecretKeyEvents => Set<SecretKeyEvent>();
+    internal DbSet<Entities.SecretKey> SecretKeys => Set<Entities.SecretKey>();
+    internal DbSet<SecretKeyEvent> SecretKeyEvents => Set<SecretKeyEvent>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(SecretKeyDbContext).Assembly);
+    }
 }

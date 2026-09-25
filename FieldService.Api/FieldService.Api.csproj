@@ -19,6 +19,7 @@
         <ProjectReference Include="..\FieldService.Notification\FieldService.Notification.csproj" />
         <ProjectReference Include="..\FieldService.Observability\FieldService.Observability.csproj" />
         <ProjectReference Include="..\FieldService.Queue\FieldService.Queue.csproj" />
+        <ProjectReference Include="..\FieldService.SecretKey\FieldService.SecretKey.csproj" />
         <ProjectReference Include="..\FieldService.Storage\FieldService.Storage.csproj" />
         <ProjectReference Include="..\FieldService.SignalR\FieldService.SignalR.csproj" />
     </ItemGroup>

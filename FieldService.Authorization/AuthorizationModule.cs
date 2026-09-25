@@ -8,6 +8,7 @@ using FieldService.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using IAuthorizationService = FieldService.Authorization.Interfaces.IAuthorizationService;
 
 namespace FieldService.Authorization;
 
@@ -24,7 +25,7 @@ public static class AuthorizationModule
         services.AddSqlModule<AuthorizationDbContext>(configuration);
         services.AddScoped<IUserContextRepository, UserContextRepository>();
         services.AddScoped<IUserAuthorizationMapper, UserAuthorizationMapper>();
-        services.AddScoped<FieldService.Authorization.Interfaces.IAuthorizationService, AuthorizationService>();
+        services.AddScoped<IAuthorizationService, AuthorizationService>();
  
 
         services.AddAuthorization(options =>
@@ -41,9 +42,9 @@ public static class AuthorizationModule
             configureAuthorization?.Invoke(options);
         });
 
-        services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, ActiveUserAuthorizationHandler>();
-        services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, RoleAuthorizationHandler>();
-        services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, PermissionAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, ActiveUserAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
         services.AddSingleton<IAuthorizationPolicyProvider, FieldServiceAuthorizationPolicyProvider>();
 
         return services;

@@ -4,4 +4,4 @@ public record ApiResponse(
     Guid RequestId,
     DateTimeOffset OccurredAt,
     object? Data,
-    PaginationResponse? Pagination);
+    Pagination? Pagination);

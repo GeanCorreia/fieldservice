@@ -2,6 +2,8 @@ using FieldService.Shared.Permissions;
 using FieldService.Authorization.Attributes;
 using FieldService.SecretKey.Cqrs.Commands.CreateSecretKey;
 using FieldService.SecretKey.Cqrs.Commands.DeleteSecretKey;
+using FieldService.SecretKey.Cqrs.Queries.GetSecretKeyHistory;
+using FieldService.SecretKey.Cqrs.Queries.GetSecretKeyReferenceAt;
 using FieldService.SecretKey.Dtos;
 using FieldService.Shared.Services;
 using FieldService.Shared.Types;
@@ -53,6 +55,35 @@ public class SecretKeyController : ControllerBase
         await _mediator.Send(new DeleteSecretKeyCommand(secretName,tenantId, userId ), cancellationToken);
         return NoContent();
     }
+    
+    [HttpGet("secret-key/history")]
+    [RequireRoleAttribute(Role.Admin)]
+    [RequirePermissionAttribute(SecretKeyPermissions.Read)]
+    public async Task<IActionResult> GetSecretKeyHistory(
+        [FromQuery] Guid tenantId,
+        [FromQuery] string secretName, 
+        CancellationToken cancellationToken)
+    {
+        var userId = ClaimsResolver.GetUserId(HttpContext.User);
+        var response = await _mediator.Send(new GetSecretKeyHistoryQuery( tenantId, secretName, userId), cancellationToken);
+        
+        return Ok(response);
+    }
+    
+    [HttpPost("secret-key/info")]
+    [RequirePermissionAttribute(SecretKeyPermissions.Read)]
+    public async Task<IActionResult> GetSecretKeyInfo(
+        [FromQuery] Guid tenantId,
+        [FromQuery] string secretName, 
+        [FromQuery] DateTimeOffset at,
+        CancellationToken cancellationToken)
+    {
+        var userId = ClaimsResolver.GetUserId(HttpContext.User);
+        var response = await _mediator.Send(new GetSecretKeyReferenceAtQuery( tenantId, secretName, userId, at), cancellationToken);
+        
+        return Ok(response);
+    }
+    
     
     
 }

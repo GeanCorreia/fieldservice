@@ -89,17 +89,7 @@ public sealed class HttpAuditAccessFilter(IAuditAccessService auditAccessService
 
     private static Guid? ExtractResourceIdFromDto(AbstractDto dto)
     {
-        var idProperty = dto.GetType().GetProperty("Id");
-        if (idProperty is null)
-            return null;
-
-        var idValue = idProperty.GetValue(dto);
-        return idValue switch
-        {
-            Guid value => value,
-            string value when Guid.TryParse(value, out var parsed) => parsed,
-            _ => null
-        };
+        return AbstractDto.ResolveResourceId(dto);
     }
 
     private static AbstractDto? ResolveAuditableData(object data)

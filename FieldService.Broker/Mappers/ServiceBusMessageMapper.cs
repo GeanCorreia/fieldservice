@@ -4,7 +4,6 @@ using FieldService.Broker.Entities;
 using FieldService.Broker.Interfaces;
 using FieldService.Broker.Message;
 using FieldService.Shared.Message;
-using FieldService.Shared.Types;
 
 namespace FieldService.Broker.Mappers;
 

@@ -3,6 +3,7 @@ using FieldService.Authentication.SessionAttribute;
 using FieldService.Shared.Types;
 using Microsoft.AspNetCore.Http;
 
+
 namespace FieldService.Http.PipeLine;
 
 public sealed class HttpAuthenticationMiddleware(RequestDelegate next)
@@ -24,36 +25,47 @@ public sealed class HttpAuthenticationMiddleware(RequestDelegate next)
 
         await userIdentityResolver.ResolveUserAsync(httpContext.RequestAborted);
         
-        if(ShouldSkipAuthentication(httpContext))
+        if (ShouldSkipAuthentication(httpContext))
         {
             await next(httpContext);
             return;
         }
 
         var sessionAttribute = httpContext.GetEndpoint()!.Metadata.GetMetadata<ISessionOperation>();
+        
         switch (sessionAttribute)
         {
             case SessionAtributes.TenantSelectionAttribute:
                 await next(httpContext);
-                break;
-            case SessionAtributes.SessionCreationAttribute:
-                await next(httpContext);
-                break;
-            
+                return;
+
             case SessionAtributes.SignalRAttribute:
                 await userIdentityResolver.ResolveUserAsync(httpContext.RequestAborted);
                 InjectSessionFromQueryString(httpContext);
                 await sessionResolver.ResolveSessionAsync(httpContext.User, httpContext.RequestAborted);
                 await next(httpContext);
-                break;
+                return; 
                 
-            default:
-                InjectSessionIdFromHeader(httpContext);
-                await sessionResolver.ResolveSessionAsync(httpContext.User, httpContext.RequestAborted);
-                await sessionManager.TouchAsync(httpContext);
+            case SessionAtributes.SessionCreationAttribute:
+                await userIdentityResolver.ResolveUserAsync(httpContext.RequestAborted);
                 await next(httpContext);
-                break;
+                return;
         }
+         
+        InjectSessionIdFromHeader(httpContext);
+        await sessionResolver.ResolveSessionAsync(httpContext.User, httpContext.RequestAborted);
+
+        Exception? caughtException = null;
+        try
+        {
+            await next(httpContext);
+        }
+        catch (Exception ex)
+        {
+            caughtException = ex;
+            throw; 
+        }
+        
     }
 
     private static bool ShouldSkipAuthentication(HttpContext httpContext)
@@ -97,5 +109,9 @@ public sealed class HttpAuthenticationMiddleware(RequestDelegate next)
         var identity = Shared.Services.ClaimsResolver.GetOrCreateAuthenticationIdentity(principal);
         Shared.Services.ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.SessionId, sessionId.ToString());
     }
+    
+    
+
+    
     
 }

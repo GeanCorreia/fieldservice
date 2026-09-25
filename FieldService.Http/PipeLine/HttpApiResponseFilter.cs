@@ -51,7 +51,7 @@ public sealed class HttpApiResponseFilter : IAsyncActionFilter
         return dtoType.IsGenericType && dtoType.GetGenericTypeDefinition() == typeof(PagedDto<>);
     }
 
-    private static PaginationResponse? TryGetPagination(object data)
+    private static Pagination? TryGetPagination(object data)
     {
         var dtoType = data.GetType();
         if (!dtoType.IsGenericType || dtoType.GetGenericTypeDefinition() != typeof(PagedDto<>))
@@ -59,6 +59,6 @@ public sealed class HttpApiResponseFilter : IAsyncActionFilter
 
         return dtoType
             .GetProperty(nameof(PagedDto<AbstractDto>.Pagination))?
-            .GetValue(data) as PaginationResponse;
+            .GetValue(data) as Pagination;
     }
 }

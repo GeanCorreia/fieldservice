@@ -12,6 +12,7 @@ public record PresignedFileUploadRequestDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedFileUploadRequestDto";
+    public override Guid? ResourceId => null;
     public override bool IsActive => true;
 }
 
@@ -24,6 +25,7 @@ public record PresignedBatchFileUploadRequestDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedBatchFileUploadRequestDto";
+    public override Guid? ResourceId => null;
     public override bool IsActive => true;
 }
 
@@ -33,6 +35,7 @@ public record PresignedFileDownloadRequestDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedFileDownloadRequestDto";
+    public override Guid? ResourceId => Id;
     public override bool IsActive => true;
 }
 
@@ -43,5 +46,6 @@ public record PresignedBatchFileDownloadRequestDto(
 {
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => "PresignedBatchFileDownloadRequestDto";
+    public override Guid? ResourceId => null;
     public override bool IsActive => true;
 }

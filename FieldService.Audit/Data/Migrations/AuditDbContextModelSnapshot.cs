@@ -23,6 +23,68 @@ namespace FiledService.Audit.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("FieldService.Audit.Entities.AuditRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("Id");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer")
+                        .HasColumnName("Channel");
+
+                    b.Property<string>("IpAddressHash")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("IpAddressHash");
+
+                    b.Property<string>("JwtId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("JwtId");
+
+                    b.Property<string>("Resource")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("Resource");
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("SessionId");
+
+                    b.Property<int>("StatusCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("StatusCode");
+
+                    b.Property<bool>("Successful")
+                        .HasColumnType("boolean")
+                        .HasColumnName("Successful");
+
+                    b.Property<DateTimeOffset>("Timestamp")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("Timestamp");
+
+                    b.Property<string>("UserAgentHash")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("UserAgentHash");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Timestamp")
+                        .HasDatabaseName("idx_SessionActivity_Timestamp");
+
+                    b.ToTable("AuditRequest", (string)null);
+                });
+
             modelBuilder.Entity("FiledService.Audit.Entities.AuditAccess", b =>
                 {
                     b.Property<Guid>("Id")

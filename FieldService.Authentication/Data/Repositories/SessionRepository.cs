@@ -1,6 +1,7 @@
 using FieldService.Authentication.Entities;
 using FieldService.Authentication.Interfaces;
 using FieldService.Data.Interfaces;
+using FieldService.Shared.Responses;
 using Microsoft.EntityFrameworkCore;
 
 namespace FieldService.Authentication.Data.Repositories;
@@ -71,5 +72,42 @@ internal sealed class SessionRepository(
             .FirstOrDefaultAsync(x => x.Id == sessionId, ct);
     }
 
-    
+ 
+
+    public async Task<PaginatedResult<Session>> GetInactivitySessions(
+        DateTimeOffset? atTime,
+        int page = 1,
+        int pageSize = 100,
+        bool isDescending = false,
+        CancellationToken ct = default)
+    {
+        page = page > 0 ? page : 1;
+        pageSize = pageSize > 0 ? pageSize : 100;
+
+        atTime ??= DateTimeOffset.UtcNow;
+
+        var query = dbContext.Sessions
+            .Where(sa => sa.RevokedAt == null && sa.ExpiresAt <= atTime.Value);
+
+        var totalCount = await query.LongCountAsync(ct);
+        var totalPages = totalCount == 0
+            ? 0
+            : (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        if (totalPages > 0 && page > totalPages)
+            page = totalPages;
+
+        var orderedQuery = isDescending
+            ? query.OrderByDescending(sa => sa.ExpiresAt)
+            : query.OrderBy(sa => sa.ExpiresAt);
+
+        var sessions = await orderedQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return new PaginatedResult<Session>(
+            new Pagination(page, pageSize, totalCount, totalPages),
+            sessions);
+    }
 }

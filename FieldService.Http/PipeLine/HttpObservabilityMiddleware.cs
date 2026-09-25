@@ -21,10 +21,6 @@ public sealed class HttpObservabilityMiddleware(
         }
 
         var principal = httpContext.User;
-        var requestId = ClaimsResolver.GetRequestId(principal);;
-        httpContext.TraceIdentifier = requestId.ToString();
-        
-        ObservabilityExecutionContext.RequestId = requestId;
         ObservabilityExecutionContext.Timestamp = DateTimeOffset.UtcNow;
         ObservabilityExecutionContext.IpAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
         ObservabilityExecutionContext.UserAgent = httpContext.Request.Headers.UserAgent.ToString();
@@ -34,4 +30,5 @@ public sealed class HttpObservabilityMiddleware(
 
         await next(httpContext);
     }
+    
 }

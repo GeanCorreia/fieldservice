@@ -9,6 +9,7 @@ using FieldService.Notification;
 using FieldService.Observability;
 using FieldService.Storage;
 using FieldService.Queue;
+using FieldService.SecretKey;
 using FieldService.SignalR;
 using FieldService.SignalR.Hubs;
 using FieldService.Shared;
@@ -47,6 +48,7 @@ builder.Services.AddDsmModule();
 builder.Services.AddSignalRModule(builder.Configuration);
 builder.Services.AddQueueModule(builder.Configuration);
 builder.Services.AddSignalR();
+builder.Services.AddSecretKeyModule(builder.Configuration);
 
 builder.Services.AddHttpModule();
 builder.UseHttpPipeline();

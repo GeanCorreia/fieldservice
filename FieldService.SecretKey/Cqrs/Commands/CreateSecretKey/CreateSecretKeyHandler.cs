@@ -7,13 +7,13 @@ namespace FieldService.SecretKey.Cqrs.Commands.CreateSecretKey;
 internal class CreateSecretKeyHandler : IRequestHandler<CreateSecretKeyCommand>
 {
     private readonly ILogger<CreateSecretKeyHandler> _logger;
-    private readonly ISecretKeyRepository _secretKeyRepository;
+    private readonly ISecretKeyService _secretKeyService;
     private readonly ISecretKeyVaultService _secretKeyVaultService;
     
-    public CreateSecretKeyHandler(ILogger<CreateSecretKeyHandler> logger, ISecretKeyRepository secretKeyRepository, ISecretKeyVaultService secretKeyVaultService)
+    public CreateSecretKeyHandler(ILogger<CreateSecretKeyHandler> logger, ISecretKeyService secretKeyService, ISecretKeyVaultService secretKeyVaultService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _secretKeyRepository = secretKeyRepository ?? throw new ArgumentNullException(nameof(secretKeyRepository));
+        _secretKeyService = secretKeyService ?? throw new ArgumentNullException(nameof(secretKeyService));
         _secretKeyVaultService = secretKeyVaultService ?? throw new ArgumentNullException(nameof(secretKeyVaultService));
     }
 
@@ -29,7 +29,7 @@ internal class CreateSecretKeyHandler : IRequestHandler<CreateSecretKeyCommand>
             request.UserId
             );
         
-        await _secretKeyRepository.SaveSecretKeyAsync(secretKey, cancellationToken);
+        await _secretKeyService.SaveSecretKeyAsync(secretKey, cancellationToken);
 
         try
         {

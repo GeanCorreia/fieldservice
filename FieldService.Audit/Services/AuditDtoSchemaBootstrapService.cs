@@ -5,6 +5,7 @@ using System.Text.Json;
 using FieldService.Shared.Dtos;
 using FiledService.Audit.Entities;
 using FiledService.Audit.Interfaces;
+using Microsoft.Extensions.DependencyModel;
 
 namespace FiledService.Audit.Services;
 
@@ -51,9 +52,7 @@ public sealed class AuditDtoSchemaBootstrapService(
 
     private static IReadOnlyCollection<DtoSchemaDescriptor> DiscoverDtoSchemas()
     {
-        var dtoTypes = AppDomain.CurrentDomain
-            .GetAssemblies()
-            .Where(IsFieldServiceAssembly)
+        var dtoTypes = GetFieldServiceAssemblies()
             .SelectMany(GetLoadableTypes)
             .Where(type =>
                 !type.IsAbstract &&
@@ -73,6 +72,40 @@ public sealed class AuditDtoSchemaBootstrapService(
         }
 
         return descriptors;
+    }
+
+    private static IReadOnlyCollection<Assembly> GetFieldServiceAssemblies()
+    {
+        var loadedAssemblies = AppDomain.CurrentDomain
+            .GetAssemblies()
+            .Where(IsFieldServiceAssembly)
+            .ToDictionary(assembly => assembly.GetName().Name!, StringComparer.Ordinal);
+
+        var runtimeLibraries = DependencyContext.Default?.RuntimeLibraries
+            .Where(library => library.Name.StartsWith("FieldService.", StringComparison.Ordinal))
+            .ToArray();
+
+        if (runtimeLibraries is null || runtimeLibraries.Length == 0)
+            return loadedAssemblies.Values.ToArray();
+
+        foreach (var runtimeLibrary in runtimeLibraries)
+        {
+            if (loadedAssemblies.ContainsKey(runtimeLibrary.Name))
+                continue;
+
+            try
+            {
+                var assembly = Assembly.Load(new AssemblyName(runtimeLibrary.Name));
+                if (IsFieldServiceAssembly(assembly))
+                    loadedAssemblies[assembly.GetName().Name!] = assembly;
+            }
+            catch
+            {
+                // Best-effort assembly loading for schema discovery.
+            }
+        }
+
+        return loadedAssemblies.Values.ToArray();
     }
 
     private static bool IsFieldServiceAssembly(Assembly assembly)

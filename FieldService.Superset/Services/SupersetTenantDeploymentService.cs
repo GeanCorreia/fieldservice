@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Azure;
 using Azure.Core;
 using Azure.Identity;
@@ -9,7 +8,6 @@ using Azure.ResourceManager.Resources;
 using Dapper;
 using FieldService.Superset.Interfaces;
 using FieldService.Shared.Configuration;
-using FieldService.Shared.Services;
 using FieldService.Superset.Configuration;
 using FieldService.Superset.Dtos;
 using FieldService.Superset.Entities;
@@ -20,19 +18,19 @@ using Refit;
 
 namespace FieldService.Superset.Services;
 
+internal sealed record SupersetDatabaseParams(
+    string DatabaseName,
+    string Username,
+    string Password
+);
+
+internal sealed record SupersetContainerCreationResult(
+    string ResourceId,
+    string FqdnUrl
+);
+
 internal class SupersetTenantDeploymentService : ISupersetTenantDeploymentService
 {
-    private sealed record SupersetDatabaseParams(
-        string DatabaseName,
-        string Username,
-        string Password
-    );
-
-    private sealed record SupersetContainerCreationResult(
-        string ResourceId,
-        string FqdnUrl
-    );
-    
     private readonly string _connectionString;
     private readonly ISupersetApi _supersetApi;
     private readonly ISupersetAuthService _supersetAuthService;
@@ -45,10 +43,8 @@ internal class SupersetTenantDeploymentService : ISupersetTenantDeploymentServic
     private readonly string _masterPassword;
     private readonly string _host;
     private readonly int _port;
-    private readonly EncryptionService _encryptionService;
 
     public SupersetTenantDeploymentService(
-        EncryptionService encryptionService,
         ISupersetApi supersetApi,
         ISupersetAuthService supersetAuthService,
         ISupersetService supersetService,
@@ -70,7 +66,6 @@ internal class SupersetTenantDeploymentService : ISupersetTenantDeploymentServic
         _port = _supersetOptions.DataBaseHost.Port;
         _azureIdentityOptions = (azureIdentityOptions ?? throw new ArgumentNullException(nameof(azureIdentityOptions))).Value;
         _supersetInstanceLock = supersetInstanceLock ?? throw new ArgumentNullException(nameof(supersetInstanceLock));
-        _encryptionService = encryptionService ?? throw new ArgumentNullException(nameof(encryptionService));
     }
 
     public async Task<SupersetTenantConfigParams> CreateInstanceAsync(
@@ -102,35 +97,37 @@ internal class SupersetTenantDeploymentService : ISupersetTenantDeploymentServic
                     (existingConfig == null ? " No tenant configuration was found in the application database for this existing container." : string.Empty));
             }
 
-            var databaseName = SupersetTenantConfig.Database(tenantId);
-            var user = $"user_{tenantId.ToString().Replace("-", string.Empty)[..8]}";
-            var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-
-            var databaseParams = new SupersetDatabaseParams(databaseName, user, password);
-            await CreateDatabaseAsync(databaseParams, cancellationToken);
-
-            var metadataConnectionString = BuildSupersetMetadataConnectionString(databaseParams);
-            var secretKey = CreateSecretKeyService.CreateSecretKey();
+            var userId = supersetTenantCreateParams.UserId;
+            var connectionString = await _supersetAuthService.
+                CreateDatabaseConnectionString(userId, tenantId, cancellationToken);
+            
+            await CreateDatabaseAsync(
+                connectionString.databaseParams, 
+                connectionString.ConnectionString,
+                cancellationToken);
+            
+            var secretKey = await _supersetAuthService.
+                CreateSupersetSecretApiKey(userId, tenantId, cancellationToken);
 
             var container = await CreateSupersetContainer(
                 tenantId,
-                secretKey,
-                metadataConnectionString,
+                secretKey.Key,
+                connectionString.ConnectionString,
                 cancellationToken);
 
             await WaitForSupersetReadinessAsync(container.FqdnUrl, cancellationToken);
 
-            
             if (_supersetOptions.Provisioning.ScaleDownAfterProvisioning)
             {
                 await ScaleContainerAsync(container.ResourceId, minReplicas: 0, maxReplicas: 1, cancellationToken);
                 await EnsureScaleAsync(container.ResourceId, expectedMinReplicas: 0, expectedMaxReplicas: 1, cancellationToken);
             }
+
             return new SupersetTenantConfigParams(
                 tenantId,
                 supersetTenantCreateParams.InstanceTier,
-                Encrypt(secretKey),
-                Encrypt(metadataConnectionString),
+                secretKey.KeyId,
+                connectionString.ConnectionStringId,
                 container.ResourceId, 
                 container.FqdnUrl);
         }
@@ -138,11 +135,6 @@ internal class SupersetTenantDeploymentService : ISupersetTenantDeploymentServic
         {
             await _supersetInstanceLock.ReleaseLock(tenantId, cancellationToken);
         }
-    }
-
-    private string Encrypt(string value)
-    {
-        return _encryptionService.Encrypt(value);
     }
 
     private async Task<SupersetContainerCreationResult> CreateSupersetContainer(
@@ -250,78 +242,83 @@ internal class SupersetTenantDeploymentService : ISupersetTenantDeploymentServic
    
     private async Task CreateDatabaseAsync(
         SupersetDatabaseParams supersetDatabaseParams,
+        string tenantDbConnectionString,
         CancellationToken cancellationToken = default)
     {
         var databaseName = supersetDatabaseParams.DatabaseName;
         var user = supersetDatabaseParams.Username;
-        var password = supersetDatabaseParams.Password.Replace("'", "''");
-
+        var password = supersetDatabaseParams.Password;
+        
         await using (var adminConnection = new NpgsqlConnection(_connectionString))
         {
             await adminConnection.OpenAsync(cancellationToken);
 
             try
             {
-                var createDbSql = $"CREATE DATABASE \"{databaseName}\";";
+                var sanitizedDbName = databaseName.Replace("\"", "\"\"");
+                var createDbSql = $"CREATE DATABASE \"{sanitizedDbName}\";";
+                
                 await adminConnection.ExecuteAsync(new CommandDefinition(createDbSql, cancellationToken: cancellationToken));
             }
             catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.DuplicateDatabase)
             {
+                // Database já existe, segue o fluxo
             }
         }
+
         
-        var tenantDbConnectionString = new NpgsqlConnectionStringBuilder(_connectionString)
-        {
-            Database = databaseName,
-            Host = _host,
-            Port = _port
-        }.ConnectionString;
-
+        string Lit(string val) => $"'{val.Replace("'", "''")}'"; 
+        string Id(string val) => val.Replace("\"", "\"\"");     
+        
         var setupTenantDbSql = $@"
-            CREATE SCHEMA IF NOT EXISTS ""{SupersetTenantConfig.DataSchemaPrefix}"";
-            CREATE SCHEMA IF NOT EXISTS ""{SupersetTenantConfig.MetadataSchemaPrefix}"";
-            CREATE SCHEMA IF NOT EXISTS ""{SupersetTenantConfig.MockedDataSchemaPrefix}"";
+            -- Criação dos Schemas
+            CREATE SCHEMA IF NOT EXISTS ""{Id(SupersetTenantConfig.DataSchemaPrefix)}"";
+            CREATE SCHEMA IF NOT EXISTS ""{Id(SupersetTenantConfig.MetadataSchemaPrefix)}"";
+            CREATE SCHEMA IF NOT EXISTS ""{Id(SupersetTenantConfig.MockedDataSchemaPrefix)}"";
 
+            -- Gestão de Usuário e Senha com segurança via PL/pgSQL
             DO $$
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '{user}') THEN
-                    CREATE USER ""{user}"" WITH PASSWORD '{password}';
+                IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = {Lit(user)}) THEN
+                    EXECUTE format('CREATE USER %I WITH PASSWORD %L', {Lit(user)}, {Lit(password)});
                 ELSE
-                    ALTER USER ""{user}"" WITH PASSWORD '{password}';
+                    EXECUTE format('ALTER USER %I WITH PASSWORD %L', {Lit(user)}, {Lit(password)});
                 END IF;
             END
             $$;
 
-            GRANT CONNECT ON DATABASE CURRENT_DATABASE() TO ""{user}"";
+            -- Permissão de Conexão no Banco
+            EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I', CURRENT_DATABASE(), {Lit(user)});
 
-            GRANT USAGE, CREATE ON SCHEMA ""{SupersetTenantConfig.MetadataSchemaPrefix}"" TO ""{user}"";
-            ALTER SCHEMA ""{SupersetTenantConfig.MetadataSchemaPrefix}"" OWNER TO ""{user}"";
-            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA ""{SupersetTenantConfig.MetadataSchemaPrefix}"" TO ""{user}"";
-            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA ""{SupersetTenantConfig.MetadataSchemaPrefix}"" TO ""{user}"";
-            ALTER DEFAULT PRIVILEGES IN SCHEMA ""{SupersetTenantConfig.MetadataSchemaPrefix}"" GRANT ALL ON TABLES TO ""{user}"";
-            ALTER DEFAULT PRIVILEGES IN SCHEMA ""{SupersetTenantConfig.MetadataSchemaPrefix}"" GRANT ALL ON SEQUENCES TO ""{user}"";
+            -----------------------------------------------------------------------------
+            -- 1. SCHEMA METADATA (Escrita / Ownership Total para o Superset)
+            -----------------------------------------------------------------------------
+            EXECUTE format('ALTER SCHEMA %I OWNER TO %I', {Lit(SupersetTenantConfig.MetadataSchemaPrefix)}, {Lit(user)});
+            EXECUTE format('GRANT ALL ON SCHEMA %I TO %I', {Lit(SupersetTenantConfig.MetadataSchemaPrefix)}, {Lit(user)});
 
-            GRANT USAGE ON SCHEMA ""{SupersetTenantConfig.DataSchemaPrefix}"" TO ""{user}"";
-            GRANT USAGE ON SCHEMA ""{SupersetTenantConfig.MockedDataSchemaPrefix}"" TO ""{user}"";
-            GRANT SELECT ON ALL TABLES IN SCHEMA ""{SupersetTenantConfig.DataSchemaPrefix}"" TO ""{user}"";
-            GRANT SELECT ON ALL TABLES IN SCHEMA ""{SupersetTenantConfig.MockedDataSchemaPrefix}"" TO ""{user}"";
-            ALTER DEFAULT PRIVILEGES IN SCHEMA ""{SupersetTenantConfig.DataSchemaPrefix}"" GRANT SELECT ON TABLES TO ""{user}"";
-            ALTER DEFAULT PRIVILEGES IN SCHEMA ""{SupersetTenantConfig.MockedDataSchemaPrefix}"" GRANT SELECT ON TABLES TO ""{user}"";
+            -----------------------------------------------------------------------------
+            -- 2. SCHEMAS DATA e MOCKED DATA (Apenas Leitura / Read-Only para o Superset)
+            -----------------------------------------------------------------------------
+            -- Permissão de navegação no Schema
+            EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', {Lit(SupersetTenantConfig.DataSchemaPrefix)}, {Lit(user)});
+            EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', {Lit(SupersetTenantConfig.MockedDataSchemaPrefix)}, {Lit(user)});
+
+            -- Permissão SELECT em tabelas existentes (se houver)
+            EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', {Lit(SupersetTenantConfig.DataSchemaPrefix)}, {Lit(user)});
+            EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', {Lit(SupersetTenantConfig.MockedDataSchemaPrefix)}, {Lit(user)});
+
+            -- Permissão SELECT em tabelas FUTURAS criadas pelo seu módulo de Injeção de Dados (Admin)
+            EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA %I GRANT SELECT ON TABLES TO %I', {Lit(SupersetTenantConfig.DataSchemaPrefix)}, {Lit(user)});
+            EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA %I GRANT SELECT ON TABLES TO %I', {Lit(SupersetTenantConfig.MockedDataSchemaPrefix)}, {Lit(user)});
+
+            -- Permissão SELECT em SEQUENCES FUTURAS (Auto-Increment)
+            EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA %I GRANT SELECT ON SEQUENCES TO %I', {Lit(SupersetTenantConfig.DataSchemaPrefix)}, {Lit(user)});
+            EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA %I GRANT SELECT ON SEQUENCES TO %I', {Lit(SupersetTenantConfig.MockedDataSchemaPrefix)}, {Lit(user)});
         ";
-        
+
         await using var connection = new NpgsqlConnection(tenantDbConnectionString);
         await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(setupTenantDbSql, cancellationToken: cancellationToken));
-    }
-
-    private string BuildSupersetMetadataConnectionString(SupersetDatabaseParams supersetDatabaseParams)
-    {
-        var username = Uri.EscapeDataString(supersetDatabaseParams.Username);
-        var password = Uri.EscapeDataString(supersetDatabaseParams.Password);
-        var databaseName = Uri.EscapeDataString(supersetDatabaseParams.DatabaseName);
-        var searchPath = Uri.EscapeDataString($"-csearch_path={SupersetTenantConfig.MetadataSchemaPrefix}");
-
-        return $"postgresql+psycopg2://{username}:{password}@{_host}:{_port}/{databaseName}?options={searchPath}";
     }
 
     private string BuildBootstrapCommand()
@@ -334,19 +331,31 @@ internal class SupersetTenantDeploymentService : ISupersetTenantDeploymentServic
 
         SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
         SQLALCHEMY_DATABASE_URI = os.environ["SUPERSET_METADATA_DATABASE_URL"]
+        METADATA_SCHEMA = os.environ.get("SUPERSET_METADATA_SCHEMA", "Metadata")
+
+        # Força o SQLAlchemy a utilizar o Schema de Metadados isolado por padrão
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            "connect_args": {
+                "options": f"-c search_path={METADATA_SCHEMA},public"
+            }
+        }
+
         FEATURE_FLAGS = {"EMBEDDED_SUPERSET": True}
         EOF
 
         superset db upgrade
+        
+        # Garante a criação ou atualização do usuário Admin sem silenciar erros críticos
         superset fab create-admin \
           --username "$SUPERSET_ADMIN_USERNAME" \
           --firstname "$SUPERSET_ADMIN_FIRST_NAME" \
           --lastname "$SUPERSET_ADMIN_LAST_NAME" \
           --email "$SUPERSET_ADMIN_EMAIL" \
           --password "$SUPERSET_ADMIN_PASSWORD" || true
+
         superset init
 
-        gunicorn \
+        exec gunicorn \
           --bind "0.0.0.0:{{_supersetOptions.Provisioning.ContainerPort}}" \
           --workers "{{_supersetOptions.Provisioning.GunicornWorkers}}" \
           --timeout "{{_supersetOptions.Provisioning.GunicornTimeoutSeconds}}" \
@@ -385,7 +394,7 @@ internal class SupersetTenantDeploymentService : ISupersetTenantDeploymentServic
             try
             {
                 await _supersetApi.GetHealthAsync(new Uri(fqdnUrl), cancellationToken);
-                _ = await _supersetAuthService.GetAdminToken(fqdnUrl, cancellationToken);
+                _ = await _supersetAuthService.GetAdminTokenApi(fqdnUrl, cancellationToken);
                 return;
             }
             catch (ApiException ex)
@@ -452,4 +461,3 @@ internal class SupersetTenantDeploymentService : ISupersetTenantDeploymentServic
         return $"https://{fqdn}";
     }
 }
-

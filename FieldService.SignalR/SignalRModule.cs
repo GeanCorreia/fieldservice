@@ -6,10 +6,12 @@ using FieldService.SignalR.Data.Repositories;
 using FieldService.SignalR.Hubs;
 using FieldService.SignalR.Interfaces;
 using FieldService.SignalR.Services;
+using Microsoft.AspNetCore.SignalR.StackExchangeRedis;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 
@@ -22,11 +24,26 @@ public static class SignalRModule
         IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services.AddSignalR()
             .AddStackExchangeRedis(options =>
             {
-                options.Configuration.ChannelPrefix = RedisChannel.Literal("FieldService.SignalR");
+                options.ConnectionFactory = _ =>
+                {
+                    throw new InvalidOperationException(
+                        "A fábrica de conexão Redis do SignalR deve ser configurada pelo contêiner de DI.");
+                };
             });
+
+        services.AddSingleton<IConfigureOptions<RedisOptions>>(sp =>
+            new ConfigureOptions<RedisOptions>(options =>
+            {
+                options.ConnectionFactory = _ =>
+                    Task.FromResult(sp.GetRequiredService<IRedisConnection>().Connection);
+
+                options.Configuration.ChannelPrefix = RedisChannel.Literal("FieldService.SignalR");
+            }));
 
         services.AddSqlModule<SignalRDbContext>(configuration);
         

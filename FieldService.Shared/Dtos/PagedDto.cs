@@ -7,6 +7,6 @@ public record PagedDto<TData>
     where TData : AbstractDto
 {
     public required IReadOnlyCollection<TData> Items { get; init; }
-    public required PaginationResponse Pagination { get; init; }
+    public required Pagination Pagination { get; init; }
 
 }

@@ -30,7 +30,7 @@ public class AuthenticationController : ControllerBase
         var ipAddress = HttpContext.Connection.RemoteIpAddress!.ToString();
         var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
         var principal = HttpContext.User;
-        var command = new LoginCommand(requestId, principal, ipAddress, userAgent);
+        var command = new LoginCommand(requestId, tenantId, principal, ipAddress, userAgent);
         var result = await _mediator.Send(command, cancellationToken);
         
         ObservabilityExecutionContext.SessionId = result;

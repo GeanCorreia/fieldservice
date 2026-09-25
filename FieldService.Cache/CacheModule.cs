@@ -1,6 +1,9 @@
 using Azure.Identity;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using FieldService.Cache.Configuration;
 using FieldService.Cache.Interfaces;
+using FieldService.Cache.Serialization;
 using FieldService.Cache.Services;
 using Medallion.Threading;
 using Medallion.Threading.Redis;
@@ -17,6 +20,18 @@ namespace FieldService.Cache;
 
 public static class CacheModule
 {
+    private static readonly JsonSerializerOptions FusionCacheJsonSerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        IncludeFields = true
+    };
+
+    static CacheModule()
+    {
+        FusionCacheJsonSerializerOptions.Converters.Add(new MediaTypeHeaderValueJsonConverter());
+    }
+
     public static IServiceCollection AddCacheModule(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -47,7 +62,7 @@ public static class CacheModule
                 entry.Duration = TimeSpan.FromHours(24);
                 entry.IsFailSafeEnabled = false;
             })
-            .WithSerializer(new FusionCacheSystemTextJsonSerializer())
+            .WithSerializer(new FusionCacheSystemTextJsonSerializer(FusionCacheJsonSerializerOptions))
             .WithDistributedCache(sp =>
             {
                 var redisContext = sp.GetRequiredService<IRedisConnection>();

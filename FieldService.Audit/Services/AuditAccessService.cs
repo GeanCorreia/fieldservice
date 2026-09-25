@@ -1,4 +1,5 @@
 using FieldService.Shared.Types;
+using FieldService.Audit.Channels;
 using FiledService.Audit.Entities;
 using FiledService.Audit.Interfaces;
 using FiledService.Audit.Logs;
@@ -8,7 +9,7 @@ using ObservabilityExecutionContext = FieldService.Observability.Services.Execut
 namespace FiledService.Audit.Services;
 
 public sealed class AuditAccessService(
-    IAuditChangeRepository auditChangeRepository,
+    AuditAccessChannel channel,
     ILogger<AuditAccessService> logger) : IAuditAccessService
 {
     public async Task AuditAccess(
@@ -42,10 +43,11 @@ public sealed class AuditAccessService(
                 resourceId: resourceId,
                 parameters: parameters);
 
-            await auditChangeRepository.Save(access);
+            await channel.EnqueueAsync(access, ct);
         }
         catch (Exception ex)
         {
+
             logger.LogTrackAccess(
                 LogLevel.Error,
                 resourceName,

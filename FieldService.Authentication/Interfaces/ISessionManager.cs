@@ -9,7 +9,7 @@ namespace FieldService.Authentication.Interfaces;
 public interface ISessionManager
 {
     Task TouchAsync(
-        HttpContext httpContext,
+        ClaimsPrincipal principal,
         CancellationToken cancellationToken = default);
     
 }

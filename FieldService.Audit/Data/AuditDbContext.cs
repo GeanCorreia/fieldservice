@@ -1,3 +1,4 @@
+using FieldService.Audit.Entities;
 using FiledService.Audit.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +9,7 @@ public sealed class AuditDbContext(DbContextOptions<AuditDbContext> options) : D
     public DbSet<AuditAccess> Accesses => Set<AuditAccess>();
     public DbSet<AuditChange> Changes => Set<AuditChange>();
     public DbSet<AuditDtoSchema> DtoSchemas => Set<AuditDtoSchema>();
+    public DbSet<AuditRequest> SessionActivities => Set<AuditRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

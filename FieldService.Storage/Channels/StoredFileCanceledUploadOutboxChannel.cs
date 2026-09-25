@@ -11,7 +11,10 @@ public class StoredFileCanceledUploadOutboxChannel
     {
         var options = new BoundedChannelOptions(capacity: 1000)
         {
-            FullMode = BoundedChannelFullMode.Wait 
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = true,
+            SingleWriter = false
+            
         };
         _channel = Channel.CreateBounded<Guid>(options);
         

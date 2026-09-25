@@ -72,56 +72,6 @@ namespace FieldService.Authentication.Data.Migrations
                     b.ToTable("Session", (string)null);
                 });
 
-            modelBuilder.Entity("FieldService.Authentication.Entities.SessionActivity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("Id");
-
-                    b.Property<int>("Channel")
-                        .HasColumnType("integer")
-                        .HasColumnName("Channel");
-
-                    b.Property<string>("IpAddressHash")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("IpAddressHash");
-
-                    b.Property<string>("JwtId")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("JwtId");
-
-                    b.Property<Guid>("RequestId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("RequestId");
-
-                    b.Property<Guid>("SessionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("SessionId");
-
-                    b.Property<DateTimeOffset>("Timestamp")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("Timestamp");
-
-                    b.Property<string>("UserAgentHash")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("UserAgentHash");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SessionId")
-                        .HasDatabaseName("idx_SessionActivity_SessionId");
-
-                    b.HasIndex("Timestamp")
-                        .HasDatabaseName("idx_SessionActivity_Timestamp");
-
-                    b.ToTable("SessionActivity", (string)null);
-                });
-
             modelBuilder.Entity("FieldService.Authentication.Entities.UserAuthentication", b =>
                 {
                     b.Property<Guid>("UserId")

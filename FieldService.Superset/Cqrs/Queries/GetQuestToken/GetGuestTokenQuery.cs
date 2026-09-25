@@ -1,4 +1,3 @@
-using FieldService.Shared.Types;
 using FieldService.Superset.Dtos;
 using MediatR;
 

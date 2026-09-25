@@ -7,7 +7,7 @@ namespace FieldService.SecretKey.Data.Repositories;
 
 internal class SecretKeyRepository(
     SecretKeyDbContext dbContext,
-    ISqlUnitOfWork sqlUnitOfWork
+    ISqlUnitOfWork<SecretKeyDbContext> sqlUnitOfWork
     ) : ISecretKeyRepository
 {
     

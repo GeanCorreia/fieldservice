@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
-using FieldService.Shared.Types;
 using FieldService.Superset.Dtos;
 using FieldService.Superset.Enums;
 using System.Text.RegularExpressions;
@@ -32,12 +31,10 @@ internal record ScheduledExecutionWindow(
 internal class SupersetTenantInstance
 {
     public Guid TenantId { get; init; } 
-    
     public SupersetInstanceStatus Status { get; private set; } 
     public SupersetTenantConfig TenantConfig { get; private set; }
     
     private ICollection<SupersetHealthCheck> _healthCheck = new List<SupersetHealthCheck>();
-    
     
     protected SupersetTenantInstance() { }
     
@@ -70,10 +67,12 @@ internal class SupersetTenantConfig
     public static string DataSchemaPrefix = "superset_data";
     public static string MetadataSchemaPrefix = "superset";
     public static string MockedDataSchemaPrefix = "superset_mocked_data";
+    public static string SupersetSecretKeyPrefix = "superset_secret_key";
+    public static string ConnectionStringPrefix = "superset_connection_string";
     public Guid Id { get; init; }
     public string FqdnUrl { get; private set; } 
-    public string EncryptedSupersetSecretKey { get; set; }
-    public string EncryptedConnectionString { get; set; }
+    public Guid SupersetSecretKeyId { get; set; }
+    public Guid ConnectionStringId { get; set; }
     public InstanceTier InstanceTier { get; init; }
     public Guid TenantId { get; init; }
     public string ResourceId { get; init; }
@@ -104,8 +103,13 @@ internal class SupersetTenantConfig
     [NotMapped] public string DataSchemaName => $"{DataSchemaPrefix}_{TenantId.ToString().ToLower()}";
     [NotMapped] public string MetadataSchemaName => $"{MetadataSchemaPrefix}_{TenantId.ToString().ToLower()}";
     [NotMapped] public string MockedDataSchemaName => $"{MockedDataSchemaPrefix}_{TenantId.ToString().ToLower()}";
+    [NotMapped] public string SupersetSecretKeyName => $"{SupersetSecretKeyPrefix}_{TenantId.ToString().ToLower()}";
+    [NotMapped] public string SupersetConnectionStringName => $"{ConnectionStringPrefix}_{TenantId.ToString().ToLower()}";
+    
     public static string Database(Guid tenantId) => $"{DatabasePrefix}_{tenantId.ToString().ToLower()}";
     public static string Container(Guid tenantId) => $"{ContainerPrefix}_{tenantId.ToString().ToLower()}";
+    public static string SecretKeyName(Guid tenantId) => $"{SupersetSecretKeyPrefix}_{tenantId.ToString().ToLower()}";
+    public static string ConnectionStringName(Guid tenantId) => $"{ConnectionStringPrefix}_{tenantId.ToString().ToLower()}";
 
     protected SupersetTenantConfig()
     {
@@ -115,8 +119,8 @@ internal class SupersetTenantConfig
         Guid id, 
         Guid tenantId, 
         InstanceTier instanceTier, 
-        string encryptedSupersetSecretKey, 
-        string encryptedConnectionString,
+        Guid supersetSecretKeyId, 
+        Guid connectionStringId,
         string resourceId,
         string fqdnUrl,
         ScheduledExecutionWindow? executionWindow = null
@@ -124,10 +128,8 @@ internal class SupersetTenantConfig
     {
         Id = id;
         FqdnUrl = fqdnUrl ?? string.Empty;
-        EncryptedSupersetSecretKey = encryptedSupersetSecretKey ??
-                                     throw new ArgumentNullException(nameof(encryptedSupersetSecretKey));
-        EncryptedConnectionString = encryptedConnectionString ??
-                                    throw new ArgumentNullException(nameof(encryptedConnectionString));
+        SupersetSecretKeyId = supersetSecretKeyId;
+        ConnectionStringId = connectionStringId;
         InstanceTier = instanceTier;
         TenantId = tenantId;
         ResourceId = resourceId ?? throw new ArgumentNullException(nameof(resourceId));
@@ -150,17 +152,13 @@ internal class SupersetTenantConfig
             Guid.NewGuid(),
             configParams.TenantId,
             configParams.InstanceTier,
-            configParams.EncryptedSupersetSecretKey,
-            configParams.EncryptedConnectionString,
+            configParams.SupersetSecretKeyId,
+            configParams.ConnectionStringId,
             configParams.ResourceId,
             configParams.FqdnUrl,
             configParams.ScheduledExecutionWindow
         );
     }
-    
-    
-    
-
 }
 
 internal class SupersetHealthCheck

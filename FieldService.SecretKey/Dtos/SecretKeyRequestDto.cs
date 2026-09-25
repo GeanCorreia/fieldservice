@@ -9,6 +9,7 @@ public record SecretKeyRequestDto(
 {
     public override SchemaVersion Version => new(1, 1, 0);
     public override string ResourceName => "SecretKeyRequestDto";
+    public override Guid? ResourceId => null;
     public override bool IsActive => false;
 }
 
@@ -18,6 +19,7 @@ public record SecretKeyDeleteRequestDto(
 {
     public override SchemaVersion Version => new(1, 1, 0);
     public override string ResourceName => "SecretKeyDeleteRequestDto";
+    public override Guid? ResourceId => SecretName;
     public override bool IsActive => false;
 }
 
@@ -28,5 +30,6 @@ public record SecretKeyUpdateRequestDto(
 {
     public override SchemaVersion Version => new(1, 1, 0);
     public override string ResourceName => "SecretKeyUpdateRequestDto";
+    public override Guid? ResourceId => null;
     public override bool IsActive => false;
 }

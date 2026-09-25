@@ -14,6 +14,7 @@ public static class HttpModule
 {
     private const int AuditChangeFilterOrder = -100;
     private const int AuditAccessFilterOrder = 0;
+    private const int AuditRequestFilterOrder = 1;
     private const int ApiResponseFilterOrder = 100;
 
     public static WebApplicationBuilder UseHttpPipeline(this WebApplicationBuilder builder)
@@ -29,6 +30,7 @@ public static class HttpModule
         services.AddScoped<HttpApiResponseFilter>();
         services.AddScoped<HttpAuditAccessFilter>();
         services.AddScoped<HttpAuditChangeFilter>();
+        services.AddScoped<HttpAuditRequestFilter>();
         services.Configure<MvcOptions>(ConfigureFilterOrder);
         services.Configure<JsonOptions>(ConfigureJsonSerialization);
         SwaggerModuleDiscovery.AddSwagger(services);
@@ -62,7 +64,7 @@ public static class HttpModule
                 policy.SetIsOriginAllowed(_ => true) 
                     .AllowAnyHeader()
                     .AllowAnyMethod()
-                    .AllowCredentials(); // OBRIGATÓRIO para o SignalR
+                    .AllowCredentials(); 
             });
         });
     }
@@ -88,7 +90,8 @@ public static class HttpModule
 
         app.UseRouting();
         app.UseCors("SignalRCorsPolicy");
-
+        app.UseMiddleware<RequestIdMiddleware>();
+        
         if (!environment.IsDevelopment())
             app.UseAuthentication();
         
@@ -104,6 +107,7 @@ public static class HttpModule
     {
         options.Filters.AddService<HttpAuditChangeFilter>(AuditChangeFilterOrder);
         options.Filters.AddService<HttpAuditAccessFilter>(AuditAccessFilterOrder);
+        options.Filters.AddService<HttpAuditRequestFilter>(AuditRequestFilterOrder);
         options.Filters.AddService<HttpApiResponseFilter>(ApiResponseFilterOrder);
     }
 

@@ -3,23 +3,23 @@ using MediatR;
 
 namespace FieldService.SecretKey.Cqrs.Queries.GetSecretKey;
 
-public class GetSecretKeyHandler<T> : IRequestHandler<GetSecretKeyQuery<T>, T> where T : ISecretKeyType
+internal class GetSecretKeyHandler<T> : IRequestHandler<GetSecretKeyQuery<T>, T> where T : class, ISecretKeyType
 {
     private readonly ISecretKeyVaultService _secretKeyVaultService;
-    private readonly ISecretKeyRepository _secretKeyRepository;
     
-    internal GetSecretKeyHandler(ISecretKeyVaultService secretKeyVaultService)
+    public GetSecretKeyHandler(ISecretKeyVaultService secretKeyVaultService)
     {
         _secretKeyVaultService = secretKeyVaultService ?? throw new ArgumentNullException(nameof(secretKeyVaultService));
     }
 
-    public async Task<T?> Handle(GetSecretKeyQuery<T> request, CancellationToken cancellationToken)
+    public async Task<T> Handle(GetSecretKeyQuery<T> request, CancellationToken cancellationToken)
     {
-        return  await _secretKeyVaultService.GetSecretKeyAsync<T>(
+        var secret = await _secretKeyVaultService.GetSecretKeyAsync<T>(
             request.TenantId, 
             request.SecretName, 
             cancellationToken);
-        
-        
+
+        return secret ?? throw new KeyNotFoundException(
+            $"Secret key '{request.SecretName}' was not found for tenant '{request.TenantId}'.");
     }
 }

@@ -1,4 +1,5 @@
 using FieldService.Data.Interfaces;
+using FieldService.Audit.Channels;
 using FiledService.Audit.Entities;
 using FiledService.Audit.Interfaces;
 using FiledService.Audit.Logs;
@@ -9,19 +10,22 @@ namespace FiledService.Audit.Services;
 
 public sealed class AuditChangeService(
     IEntityChangeCollector changeCollector,
-    IAuditChangeRepository auditChangeRepository,
+    AuditChangeChannel channel,
     ILogger<AuditChangeService> logger) : IAuditChangeService
 {
     public async Task AuditChanges(CancellationToken ct = default)
     {
-        var auditChanges = TrackChanges();
+        var auditChanges = TrackChanges().ToList();
 
-        if (!auditChanges.Any())
+        if (auditChanges.Count == 0)
             return;
-
+        
         try
         {
-            await auditChangeRepository.Save(auditChanges);
+            foreach (var auditChange in auditChanges)
+            {
+                await channel.EnqueueAsync(auditChange, ct);
+            }
         }
         catch (Exception ex)
         {
@@ -31,22 +35,32 @@ public sealed class AuditChangeService(
 
     private IEnumerable<AuditChange> TrackChanges()
     {
+
+        if (!ObservabilityExecutionContext.UserId.HasValue || !ObservabilityExecutionContext.TenantId.HasValue)
+            return Enumerable.Empty<AuditChange>();
+
         var collectedChanges = changeCollector.Consume();
         if (collectedChanges.Count == 0)
             return Enumerable.Empty<AuditChange>();
 
-        var auditChanges = new List<AuditChange>();
+        var userId = ObservabilityExecutionContext.UserId.Value;
+        var tenantId = ObservabilityExecutionContext.TenantId.Value;
+        var requestId = ObservabilityExecutionContext.RequestId ?? throw new InvalidOperationException("RequestId is not available in the execution context.");
+        var occurredAt = ObservabilityExecutionContext.Timestamp;
+
+        var auditChanges = new List<AuditChange>(collectedChanges.Count);
+
         foreach (var collected in collectedChanges)
         {
             try
             {
                 var auditChange = AuditChange.Create(
-                    requestId: GetRequestId(),
-                    userId: GetUserId(),
-                    tenantId: GetTenantId(),
-                    occurredAt: GetOccurredAt(),
+                    requestId: requestId,
+                    userId: userId,
+                    tenantId: tenantId,
+                    occurredAt: occurredAt,
                     resource: collected.Resource,
-                    resourceId: collected.ResourceId ?? string.Empty,
+                    resourceId: collected.ResourceId,
                     changedProperties: collected.Changes);
 
                 auditChanges.Add(auditChange);
@@ -56,34 +70,11 @@ public sealed class AuditChangeService(
                 logger.LogTrackChange(
                     LogLevel.Error,
                     collected.Resource,
-                    collected.ResourceId?.ToString(),
+                    collected.ResourceId,
                     ex.Message);
             }
         }
 
         return auditChanges;
-    }
-
-    private static Guid GetUserId()
-    {
-        return ObservabilityExecutionContext.UserId
-               ?? throw new InvalidOperationException("UserId not found in execution context.");
-    }
-
-    private static Guid GetTenantId()
-    {
-        return ObservabilityExecutionContext.TenantId
-               ?? throw new InvalidOperationException("TenantId not found in execution context.");
-    }
-
-    private static Guid GetRequestId()
-    {
-        return ObservabilityExecutionContext.RequestId
-               ?? throw new InvalidOperationException("RequestId not found in execution context.");
-    }
-
-    private static DateTimeOffset GetOccurredAt()
-    {
-        return ObservabilityExecutionContext.Timestamp;
     }
 }

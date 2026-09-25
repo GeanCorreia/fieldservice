@@ -1,24 +1,20 @@
-using FieldService.Authentication.Entities;
+using FieldService.Audit.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace FieldService.Authentication.Data.Configurations;
+namespace FieldService.Audit.Data.Configurations;
 
-internal sealed class SessionActivityConfiguration : IEntityTypeConfiguration<SessionActivity>
+internal sealed class SessionActivityConfiguration : IEntityTypeConfiguration<AuditRequest>
 {
-    public void Configure(EntityTypeBuilder<SessionActivity> builder)
+    public void Configure(EntityTypeBuilder<AuditRequest> builder)
     {
-        builder.ToTable("SessionActivity");
+        builder.ToTable("AuditRequest");
 
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Id)
             .HasColumnName("Id")
             .ValueGeneratedNever();
-
-        builder.Property(x => x.SessionId)
-            .HasColumnName("SessionId")
-            .IsRequired();
 
         builder.Property(x => x.JwtId)
             .HasColumnName("JwtId")
@@ -42,13 +38,27 @@ internal sealed class SessionActivityConfiguration : IEntityTypeConfiguration<Se
             .HasColumnName("Channel")
             .HasConversion<int>()
             .IsRequired();
-
-        builder.Property(x => x.RequestId)
-            .HasColumnName("RequestId")
+        
+        
+        builder.Property(x => x.Resource)
+            .HasColumnName("Resource")
+            .HasMaxLength(512)
+            .IsRequired();
+        
+        builder.Property(x => x.Successful)
+            .HasColumnName("Successful")
+            .IsRequired();
+        
+        builder.Property(x => x.StatusCode)
+            .HasColumnName("StatusCode")
+            .IsRequired();
+        
+        builder.Property(x => x.UserId)
+            .HasColumnName("UserId")
             .IsRequired();
 
-        builder.HasIndex(x => x.SessionId)
-            .HasDatabaseName("idx_SessionActivity_SessionId");
+        builder.Property(x => x.SessionId)
+            .HasColumnName("SessionId");
 
         builder.HasIndex(x => x.Timestamp)
             .HasDatabaseName("idx_SessionActivity_Timestamp");

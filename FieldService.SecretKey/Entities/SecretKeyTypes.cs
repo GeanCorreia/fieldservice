@@ -43,8 +43,8 @@ public record UserPasswordSecret(
 
 public record ApiKeySecret(
     string ApiKey, 
-    string HeaderName, 
-    ApiKeyLocation Location
+    ApiKeyLocation Location,
+    string HeaderName
 ) : ISecretKeyType{
     public static SecretKeyType Type => SecretKeyType.ApiKey;
 };

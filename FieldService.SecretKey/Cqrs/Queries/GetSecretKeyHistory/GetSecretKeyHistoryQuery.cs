@@ -5,4 +5,5 @@ namespace FieldService.SecretKey.Cqrs.Queries.GetSecretKeyHistory;
 
 public record GetSecretKeyHistoryQuery(
     Guid TenantId, 
-    string SecretName) : IRequest<IEnumerable<SecretKeyHistoryDto>>;
+    string SecretName,
+    Guid UserId) : IRequest<IEnumerable<SecretKeyHistoryDto>>;

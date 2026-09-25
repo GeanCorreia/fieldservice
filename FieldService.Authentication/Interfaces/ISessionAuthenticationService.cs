@@ -5,7 +5,7 @@ namespace FieldService.Authentication.Interfaces;
 
 public interface ISessionAuthenticationService
 {
-     Task<SessionCacheModel?> GetSessionAsync(
+     Task<Session?> GetSessionAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default);
 }

@@ -1,3 +1,4 @@
+using FieldService.Authentication.Entities;
 using FieldService.Authentication.Types;
 
 namespace FieldService.Authentication.Interfaces;
@@ -5,11 +6,10 @@ namespace FieldService.Authentication.Interfaces;
 public interface ISessionService
 {
     Task SaveSessionAsync(
-        SessionCacheModel session, 
+        Session session, 
         CancellationToken ct = default);
-    Task TouchSessionAsync(
-        Guid sessionId,
-        SessionActivityCacheModel activity,
+    Task SaveSessionsAsync(
+        IEnumerable<Session> sessions, 
         CancellationToken ct = default);
     Task<string?> GetSessionJwtIdAsync(
         Guid sessionId, 
@@ -18,16 +18,10 @@ public interface ISessionService
         string jwtId, 
         DateTimeOffset expiresAt,
         CancellationToken ct = default);
-    Task<SessionCacheModel?> GetSessionAsync(
+    Task<Session?> GetSessionAsync(
         Guid sessionId, 
         CancellationToken ct = default);
     Task RemoveSessionAsync(
         Guid sessionId, 
-        CancellationToken ct = default);
-    Task<bool> ExistsAsync(
-        Guid sessionId, 
-        CancellationToken ct = default);
-    Task<IEnumerable<SessionCacheModel>> GetInactiveCandidatesAsync(
-        TimeSpan inactivityThreshold, 
         CancellationToken ct = default);
 }

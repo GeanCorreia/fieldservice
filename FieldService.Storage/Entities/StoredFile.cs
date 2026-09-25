@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Text.Json.Serialization;
 using FieldService.Shared.Types;
 using Microsoft.AspNetCore.StaticFiles;
 
@@ -42,9 +43,11 @@ public class StoredFile
     
     protected StoredFile() { }
 
-    private StoredFile(
-        Guid id , 
-        StoredFileCategory storedFileCategory , 
+    [JsonConstructor]
+    public StoredFile(
+        Guid id,
+        Guid fileCategoryId,
+        StoredFileCategory fileCategory,
         Guid uploadedByUserId ,
         DateTimeOffset uploadedAt,
         long size, 
@@ -58,8 +61,8 @@ public class StoredFile
         DateTimeOffset? statusUpdatedAt = null)
     {
         Id = id;
-        FileCategory = storedFileCategory ?? throw new ArgumentException(nameof(storedFileCategory));
-        FileCategoryId = storedFileCategory.Id;
+        FileCategory = fileCategory ?? throw new ArgumentNullException(nameof(fileCategory));
+        FileCategoryId = fileCategoryId;
         UploadedByUserId = uploadedByUserId;
         StatusChangedByUserId = statusChangedByUserId;
         UploadedAt = uploadedAt;
@@ -105,7 +108,8 @@ public class StoredFile
         
         return new StoredFile(
             id: id,
-            storedFileCategory: fileCategory,
+            fileCategoryId: fileCategory.Id,
+            fileCategory: fileCategory,
             uploadedByUserId: userTenantDto.Id,
             uploadedAt: DateTimeOffset.UtcNow,
             size: size,

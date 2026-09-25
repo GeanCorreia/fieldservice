@@ -26,18 +26,17 @@ public static class AuthenticationModule
         var authenticationOptions = configuration.GetSection(AuthenticationOptions.SectionName).Get<AuthenticationOptions>()
             ?? throw new InvalidOperationException("Authentication configuration is missing. " +
                                                    "Configure 'Authentication' section in appsettings.");
-
+        
         services.AddSqlModule<AuthenticationDbContext>(configuration);
         services.AddHttpContextAccessor();
         services.AddSingleton(authenticationOptions);
         services.AddScoped<IIdentityProvider, AzureEntraIdentityProvider>();
-        services.AddSingleton<ISessionMapper, SessionMapper>();
         services.AddSingleton<IUserAuthenticationMapper, UserAuthenticationMapper>();
         services.AddScoped<ISessionRepository, SessionRepository>();
+        services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IUserAuthenticationRepository, UserAuthenticationRepository>();
         services.AddScoped<IInternalUserAuthenticationService, InternalUserAuthenticationService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
-        services.AddScoped<ISessionPersistenceService, SessionCleanupService>();
         services.AddScoped<ISessionManager, SessionManager>();
         if (environment?.IsDevelopment() == true)
         {
@@ -49,8 +48,12 @@ public static class AuthenticationModule
         }
         services.AddScoped<ISessionResolver, SessionResolver>();
         services.AddMicrosoftIdentityWebApiAuthentication(configuration, configSectionName: "AzureAdB2C");
+        
         services.AddMicrosoftGraph();
         services.AddInMemoryTokenCaches();
+        
+        
+        
         services.AddControllers();
 
         return services;

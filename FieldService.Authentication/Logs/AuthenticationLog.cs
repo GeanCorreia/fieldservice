@@ -30,4 +30,6 @@ internal static partial class Logs
         LogLevel level,
         Guid sessionId,
         string errorMessage);
+    
+    
 }

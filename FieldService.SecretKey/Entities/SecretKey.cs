@@ -62,7 +62,6 @@ internal class SecretKey
             Type: Type,
             TenantId: TenantId,
             Name: lastEventName,
-            TypeName: lastEventTypeName,
             IsDeleted: isDeleted
         );
     }

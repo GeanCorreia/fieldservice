@@ -26,17 +26,6 @@ public static class ClaimsResolver
         return Guid.Parse(tenantId);
     }
     
-    public static Guid GetRequestId(ClaimsPrincipal principal)
-    {
-        var requestId = principal.FindFirst(ClaimsExtensions.RequestId)?.Value;
-        if (requestId == null)
-        {
-            throw new InvalidOperationException("RequestId not found in claims.");
-        }
-        return Guid.Parse(requestId);
-    }
-    
-    
     public static Guid GetSessionId(ClaimsPrincipal principal)
     {
         var sessionId = principal.FindFirst(ClaimsExtensions.SessionId)?.Value;

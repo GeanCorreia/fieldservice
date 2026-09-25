@@ -15,7 +15,6 @@ public record SecretKeyReferenceDto(
     SecretKeyType Type,
     Guid TenantId,
     string Name,
-    string TypeName,
     bool IsDeleted 
     );
 

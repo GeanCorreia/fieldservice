@@ -1,3 +1,4 @@
+using FieldService.Authentication.Entities;
 using FieldService.Authentication.Interfaces;
 using FieldService.Authentication.Types;
 using FieldService.Shared.Services;
@@ -12,13 +13,14 @@ public class SessionService : ISessionService
     private const string AuthenticationPrefix = "authentication:";
     private const string SessionPrefix = $"{AuthenticationPrefix}session:";
     private const string SessionsIndexKey = $"{AuthenticationPrefix}sessions:index";
-    private const string LastActivitySuffix = ":lastActivity";
     private const string SessionJwtIdSuffix = ":jwtId";
-    private const string ActivitiesSuffix = ":activities";
+
+    private const int FallbackBatchSize = 100;
     private readonly TimeSpan _cacheTtlExtra;
    
     private readonly HybridCache _cache;
     private readonly ISessionRepository _sessionRepository;
+    
 
     public SessionService(
         IOptions<AuthenticationOptions> options,
@@ -31,13 +33,13 @@ public class SessionService : ISessionService
     }
 
     public async Task SaveSessionAsync(
-        SessionCacheModel session,
+        Session session,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(session);
         ct.ThrowIfCancellationRequested();
         
-        await _sessionRepository.Save(Map(session), ct);
+        await _sessionRepository.Save(session, ct);
         await AddSessionToIndexAsync(session.Id, ct);
 
         var ttl = GetSessionTtl(session.ExpiresAt);
@@ -54,40 +56,41 @@ public class SessionService : ISessionService
             cancellationToken: ct);
     }
 
-    public async Task TouchSessionAsync(
-        Guid sessionId, 
-        SessionActivityCacheModel activity, 
+    public async Task SaveSessionsAsync(
+        IEnumerable<Session> sessions, 
         CancellationToken ct = default)
     {
-        if (sessionId == default)
-            throw new ArgumentException("SessionId is required.", nameof(sessionId));
-
-        ArgumentNullException.ThrowIfNull(activity);
+        ArgumentNullException.ThrowIfNull(sessions);
         ct.ThrowIfCancellationRequested();
 
-        var session = await GetSessionAsync(sessionId, ct);
-        if (session is null)
-            throw new KeyNotFoundException($"Session '{sessionId}' was not found in cache.");
+        var sessionsList = sessions
+            .GroupBy(static session => session.Id)
+            .Select(static group => group.Last())
+            .ToList();
 
-        var ttl = GetSessionTtl(session.ExpiresAt);
-        if (ttl <= TimeSpan.Zero)
-            throw new KeyNotFoundException($"Session '{sessionId}' was not found in cache.");
+        if (sessionsList.Count == 0)
+            return;
 
-        var activities = await GetActivitiesAsync(sessionId, ct);
-        var updatedActivities = new List<SessionActivityCacheModel>(activities) { activity };
+        await _sessionRepository.Save(sessionsList, ct);
 
-        await AddSessionToIndexAsync(sessionId, ct);
-        await _cache.SetAsync(
-            GetActivitiesKey(sessionId),
-            updatedActivities,
-            options: CreateCacheOptions(ttl),
-            cancellationToken: ct);
-        await _cache.SetAsync(
-            GetLastActivityKey(sessionId),
-            activity.Timestamp,
-            options: CreateCacheOptions(ttl),
-            cancellationToken: ct);
+        var sessionIds = sessionsList.Select(static session => session.Id).ToArray();
+
+        foreach (var chunk in sessionIds.Chunk(FallbackBatchSize))
+        {
+            var removeTasks = new List<Task>(chunk.Length * 2);
+
+            foreach (var sessionId in chunk)
+            {
+                removeTasks.Add(_cache.RemoveAsync(GetSessionKey(sessionId), ct).AsTask());
+                removeTasks.Add(_cache.RemoveAsync(GetSessionJwtIdKey(sessionId), ct).AsTask());
+            }
+
+            await Task.WhenAll(removeTasks);
+        }
+
+        await RemoveSessionsFromIndexAsync(sessionIds, ct);
     }
+
 
     public async Task<string?> GetSessionJwtIdAsync(Guid sessionId, CancellationToken ct = default)
     {
@@ -115,8 +118,8 @@ public class SessionService : ISessionService
         if (session is null)
             throw new KeyNotFoundException($"Session '{sessionId}' was not found in cache.");
 
-        var updatedSession = session with { ExpiresAt = expiresAt };
-        await _sessionRepository.Save(Map(updatedSession), ct);
+        session.UpdateExpiration(expiresAt);
+        await _sessionRepository.Save(session, ct);
         await AddSessionToIndexAsync(sessionId, ct);
 
         var ttl = GetSessionTtl(expiresAt);
@@ -135,44 +138,24 @@ public class SessionService : ISessionService
             cancellationToken: ct);
         await _cache.SetAsync(
             GetSessionKey(sessionId),
-            updatedSession,
+            session,
             options: cacheOptions,
             cancellationToken: ct);
-
-        var lastActivity = await GetLastActivityAsync(sessionId, ct);
-        if (lastActivity.HasValue)
-        {
-            await _cache.SetAsync(
-                GetLastActivityKey(sessionId),
-                lastActivity.Value,
-                options: cacheOptions,
-                cancellationToken: ct);
-        }
-
-        var activities = await GetActivitiesAsync(sessionId, ct);
-        if (activities.Count > 0)
-        {
-            await _cache.SetAsync(
-                GetActivitiesKey(sessionId),
-                activities,
-                options: cacheOptions,
-                cancellationToken: ct);
-        }
     }
 
-    public async Task<SessionCacheModel?> GetSessionAsync(Guid sessionId, CancellationToken ct = default)
+    public async Task<Session?> GetSessionAsync(Guid sessionId, CancellationToken ct = default)
     {
         if (sessionId == default)
             throw new ArgumentException("SessionId is required.", nameof(sessionId));
 
         ct.ThrowIfCancellationRequested();
 
-        var session = await _cache.GetOrCreateAsync<SessionCacheModel?>(
+        var session = await _cache.GetOrCreateAsync<Session?>(
             GetSessionKey(sessionId),
             async cancel =>
             {
                 var entity = await _sessionRepository.GetById(sessionId, cancel);
-                return entity is null ? null : Map(entity);
+                return entity is null ? null : entity;
             },
             cancellationToken: ct);
 
@@ -196,44 +179,10 @@ public class SessionService : ISessionService
         await RemoveSessionCacheEntriesAsync(sessionId, ct);
     }
 
-    public async Task<bool> ExistsAsync(Guid sessionId, CancellationToken ct = default)
-    {
-        if (sessionId == default)
-            throw new ArgumentException("SessionId is required.", nameof(sessionId));
-
-        ct.ThrowIfCancellationRequested();
-
-        return await GetSessionAsync(sessionId, ct) is not null;
-    }
-
-    public async Task<IEnumerable<SessionCacheModel>> GetInactiveCandidatesAsync(TimeSpan inactivityThreshold, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        var cutoffTime = DateTimeService.GetNow() - inactivityThreshold;
-        var sessions = new List<SessionCacheModel>();
-        var indexedSessions = await GetSessionIndexAsync(ct);
-
-        foreach (var sessionId in indexedSessions)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var lastActivityAt = await GetLastActivityAsync(sessionId, ct);
-            if (lastActivityAt is null || lastActivityAt >= cutoffTime)
-                continue;
-
-            var session = await GetSessionAsync(sessionId, ct);
-            if (session is not null)
-                sessions.Add(session);
-        }
-
-        return sessions;
-    }
-
+        
     private static string GetSessionKey(Guid sessionId) => $"{SessionPrefix}{sessionId:N}";
-    private static string GetLastActivityKey(Guid sessionId) => $"{SessionPrefix}{sessionId:N}{LastActivitySuffix}";
     private static string GetSessionJwtIdKey(Guid sessionId) => $"{SessionPrefix}{sessionId:N}{SessionJwtIdSuffix}";
-    private static string GetActivitiesKey(Guid sessionId) => $"{SessionPrefix}{sessionId:N}{ActivitiesSuffix}";
+    
 
     private static HybridCacheEntryOptions CreateCacheOptions(
         TimeSpan ttl,
@@ -293,63 +242,39 @@ public class SessionService : ISessionService
             cancellationToken: ct);
     }
 
-    private async Task<DateTimeOffset?> GetLastActivityAsync(Guid sessionId, CancellationToken ct)
+    private async Task RemoveSessionsFromIndexAsync(IEnumerable<Guid> sessionIdsToRemove, CancellationToken ct)
     {
-        return await _cache.GetOrCreateAsync(
-            GetLastActivityKey(sessionId),
-            _ => ValueTask.FromResult<DateTimeOffset?>(default),
+        ArgumentNullException.ThrowIfNull(sessionIdsToRemove);
+
+        var idsToRemoveSet = sessionIdsToRemove.ToHashSet();
+        if (idsToRemoveSet.Count == 0)
+            return;
+
+        var sessionIds = await GetSessionIndexAsync(ct);
+        if (sessionIds.RemoveAll(idsToRemoveSet.Contains) == 0)
+            return;
+
+        await _cache.SetAsync(
+            SessionsIndexKey,
+            sessionIds,
+            options: SessionsIndexCacheOptions,
             cancellationToken: ct);
     }
 
-    private async Task<List<SessionActivityCacheModel>> GetActivitiesAsync(Guid sessionId, CancellationToken ct)
-    {
-        var activities = await _cache.GetOrCreateAsync(
-            GetActivitiesKey(sessionId),
-            _ => ValueTask.FromResult(new List<SessionActivityCacheModel>()),
-            cancellationToken: ct);
+    
 
-        return activities;
-    }
+    
 
     private async Task RemoveSessionCacheEntriesAsync(Guid sessionId, CancellationToken ct, bool removeFromIndex = true)
     {
         await _cache.RemoveAsync(GetSessionKey(sessionId), ct);
-        await _cache.RemoveAsync(GetLastActivityKey(sessionId), ct);
         await _cache.RemoveAsync(GetSessionJwtIdKey(sessionId), ct);
-        await _cache.RemoveAsync(GetActivitiesKey(sessionId), ct);
 
         if (removeFromIndex)
             await RemoveSessionFromIndexAsync(sessionId, ct);
     }
 
-    private static Entities.Session Map(SessionCacheModel session)
-    {
-        return new Entities.Session(
-            session.Id,
-            session.UserId,
-            session.TenantId,
-            session.ExternalId,
-            session.Provider,
-            session.StartedAt,
-            session.ExpiresAt,
-            session.RevokedAt,
-            session.RevocationReason);
-    }
-
-    private static SessionCacheModel Map(Entities.Session session)
-    {
-        return new SessionCacheModel(
-            session.Id,
-            session.UserId,
-            session.TenantId,
-            session.ExternalId,
-            session.Provider,
-            session.StartedAt,
-            session.ExpiresAt,
-            session.RevokedAt,
-            session.RevocationReason);
-    }
-
+    
     private TimeSpan GetSessionTtl(DateTimeOffset expiresAt)
     {
         var ttl = expiresAt - DateTimeService.GetNow() + _cacheTtlExtra;

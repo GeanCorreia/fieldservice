@@ -1,17 +1,21 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using FieldService.Shared.Services;
 using FieldService.Shared.Types;
 using FieldService.Storage.Exceptions;
+using FiledService.Shared.Attributes;
 
 namespace FieldService.Storage.Entities;
 
+[Auditable(resource: nameof(StoredFileCategory), resourceIdPropertyName: nameof(StoredFileCategory.Id))]
 public class StoredFileCategory 
 {
     public Guid Id { get; init; }
     public Guid TenantId { get; init; }
     public string Code { get; init; }
     public long? MaxSizeInBytes { get; init; }
+    [JsonInclude]
     private JsonElement _allowedContentTypes { get; init; } = JsonDocument.Parse("[]").RootElement;
     public IReadOnlyList<MediaTypeHeaderValue> AllowedContentTypes =>
         _allowedContentTypes
@@ -22,12 +26,14 @@ public class StoredFileCategory
     public SchemaVersion Version { get; init; }
     
     public Role? MinimumRequiredRole { get; init; }
+    [JsonInclude]
     private JsonElement _allowedPermissions { get; init; } = JsonDocument.Parse("[]").RootElement;
     public IReadOnlyList<Permission>? AllowedPermissions =>
         _allowedPermissions
             .EnumerateArray()
             .Select(x => JsonSerializer.Deserialize<Permission>(x.GetRawText())!)
             .ToList();
+    
     
     public StoredFileCategory(
         Guid id,
@@ -50,7 +56,28 @@ public class StoredFileCategory
         _allowedPermissions = JsonDocument.Parse(JsonSerializer.Serialize(allowedPermissions)).RootElement;
     }
 
-    private StoredFileCategory()
+    [JsonConstructor]
+    public StoredFileCategory(
+        Guid id,
+        Guid tenantId,
+        string code,
+        long? maxSizeInBytes,
+        SchemaVersion version,
+        Role? minimumRequiredRole,
+        JsonElement _allowedContentTypes,
+        JsonElement _allowedPermissions)
+    {
+        Id = id;
+        TenantId = tenantId;
+        Code = code;
+        MaxSizeInBytes = maxSizeInBytes;
+        Version = version;
+        MinimumRequiredRole = minimumRequiredRole;
+        this._allowedContentTypes = _allowedContentTypes;
+        this._allowedPermissions = _allowedPermissions;
+    }
+
+    protected StoredFileCategory()
     {
     }
     

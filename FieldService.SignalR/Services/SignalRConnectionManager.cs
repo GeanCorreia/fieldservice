@@ -2,7 +2,6 @@ using FieldService.Shared.Services;
 using FieldService.SignalR.Hubs;
 using FieldService.SignalR.Interfaces;
 using FieldService.SignalR.Types;
-using FieldService.Shared.Types;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 

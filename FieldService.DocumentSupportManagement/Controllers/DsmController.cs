@@ -2,6 +2,7 @@ using FieldService.DocumentSupportManagement.Cqrs.Commands.Download;
 using FieldService.DocumentSupportManagement.Cqrs.Commands.PresignedDownload;
 using FieldService.DocumentSupportManagement.Cqrs.Commands.PresignedUpload;
 using FieldService.DocumentSupportManagement.Cqrs.Commands.Upload;
+using FieldService.Shared.Dtos;
 using FieldService.Shared.Services;
 using FieldService.Storage.Dtos;
 using MediatR;
@@ -46,13 +47,20 @@ public class DsmController : ControllerBase
         var command = new DownloadCommand(id, userId, tenantId);
         
         var result = await _mediator.Send(command, cancellationToken);
+
+        await using var content = result.Content;
+        using var memoryStream = new MemoryStream();
+        await content.CopyToAsync(memoryStream, cancellationToken);
+
+        var response = new DownloadResponseDto(
+            FileId: result.File.Id,
+            FileName: result.File.FileName,
+            ContentType: result.File.ContentType.ToString(),
+            SizeInBytes: result.File.Size,
+            HashMd5: result.File.HashMd5,
+            ContentBase64: Convert.ToBase64String(memoryStream.ToArray()));
         
-        return File(
-            fileStream: result.Content,
-            contentType: result.File.ContentType.ToString() ?? "application/octet-stream",
-            fileDownloadName: result.File.FileName,
-            enableRangeProcessing: true 
-        );
+        return Ok(response);
     }
     
     [HttpPost("presigned-upload")]

@@ -21,7 +21,6 @@
     <ItemGroup>
         <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />
         <ProjectReference Include="..\FieldService.Queue\FieldService.Queue.csproj" />
-        <ProjectReference Include="..\FieldService.TemplateService\FieldService.TemplateService.csproj" />
         <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
     </ItemGroup>
 

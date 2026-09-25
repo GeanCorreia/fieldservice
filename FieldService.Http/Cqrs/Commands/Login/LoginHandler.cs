@@ -1,9 +1,11 @@
+using System.Security.Claims;
 using FieldService.Authentication.Entities;
 using FieldService.Authentication.Interfaces;
 using FieldService.Authentication.Types;
 using FieldService.Data.Interfaces;
 using FieldService.Observability.Types;
 using FieldService.Shared.Services;
+using FieldService.Shared.Types;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -14,21 +16,18 @@ public class LoginHandler : IRequestHandler<LoginCommand, Guid>
     private readonly ISessionService _sessionService;
     private readonly ILogger<LoginHandler> _logger;
     private readonly IAuthenticationService _authenticationService;
-    private readonly ISessionMapper _sessionMapper;
     private readonly IUnitOfWork _unitOfWork;
     
     public LoginHandler(
         ILogger<LoginHandler> logger, 
         ISessionService sessionService,
         IAuthenticationService authenticationService,
-        ISessionMapper sessionMapper,
         IUnitOfWork unitOfWork
     )
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sessionService = sessionService ?? throw new ArgumentNullException(nameof(sessionService));
         _authenticationService = authenticationService ?? throw new ArgumentNullException(nameof(authenticationService));
-        _sessionMapper = sessionMapper ?? throw new ArgumentNullException(nameof(sessionMapper));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
@@ -41,7 +40,7 @@ public class LoginHandler : IRequestHandler<LoginCommand, Guid>
         {
             var sessionId = Guid.NewGuid();
             var userId = ClaimsResolver.GetUserId(request.User);
-            var tenantId = ClaimsResolver.GetTenantId(request.User);
+            var tenantId = request.TenantId;
             var expiresAt = ClaimsResolver.GetExpiresAt(request.User);
             var jwtId = ClaimsResolver.GetJwtId(request.User);
             var sub = ClaimsResolver.GetSubjectId(request.User);
@@ -66,6 +65,9 @@ public class LoginHandler : IRequestHandler<LoginCommand, Guid>
             {
                 throw new UnauthorizedAccessException("User does not have access to the specified tenant.");
             }
+            
+            ClaimsResolver.UpsertClaim(request.User.Identity as ClaimsIdentity, ClaimsExtensions.TenantId, tenantId.ToString());
+            ClaimsResolver.UpsertClaim(request.User.Identity as ClaimsIdentity, ClaimsExtensions.SessionId, sessionId.ToString());
 
             var session = new Session(
                 id: sessionId,
@@ -76,31 +78,15 @@ public class LoginHandler : IRequestHandler<LoginCommand, Guid>
                 startedAt: DateTimeOffset.UtcNow,
                 expiresAt: expiresAt);
 
-            var sessionCacheModel = _sessionMapper.Map(session);
 
-            var sessionActivityCacheModel = new SessionActivityCacheModel(
-                Guid.NewGuid(),
-                sessionId,
-                jwtId,
-                request.IpAddress,
-                HashService.CreateHashSha256(request.UserAgent),
-                DateTimeOffset.UtcNow,
-                RequestChannel.Http,
-                request.RequestId
-            );
 
             await _sessionService.SaveSessionAsync(
-                sessionCacheModel,
-                cancellationToken);
-
-            await _sessionService.TouchSessionAsync(
-                sessionCacheModel.Id,
-                sessionActivityCacheModel,
+                session,
                 cancellationToken);
 
             await _unitOfWork.CommitAsync(cancellationToken);
 
-            return session.Id;
+            return sessionId;
         }
 
         catch

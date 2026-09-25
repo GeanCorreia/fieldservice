@@ -1,7 +1,9 @@
 using System.Reflection;
 using FieldService.Queue.Producers;
+using Hangfire;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace FieldService.Queue.Extensions;
 
@@ -14,12 +16,13 @@ public static class QueueRecurringProducerExtensions
         var producerTypes = assembliesToScan
             .SelectMany(a => a.GetTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false })
-            .Where(t => IsRecurringProducer(t));
+            .Where(t => IsRecurringProducer(t))
+            .ToArray();
 
         foreach (var producerType in producerTypes)
             services.AddScoped(producerType);
 
-        services.AddSingleton(new QueueRecurringProducerRegistry(producerTypes.ToArray()));
+        services.AddSingleton(new QueueRecurringProducerRegistry(producerTypes));
         services.AddHostedService<QueueRecurringHostedService>();
         return services;
     }
@@ -39,25 +42,37 @@ public static class QueueRecurringProducerExtensions
     }
 }
 
-internal sealed class QueueRecurringHostedService(IServiceScopeFactory scopeFactory) : IHostedService
+internal sealed class QueueRecurringHostedService(
+    IServiceScopeFactory scopeFactory,
+    QueueRecurringProducerRegistry registry) : IHostedService
 {
-    private readonly QueueRecurringProducerRegistry _registry = scopeFactory.CreateScope().ServiceProvider
-        .GetRequiredService<QueueRecurringProducerRegistry>();
+    private readonly QueueRecurringProducerRegistry _registry = registry;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<QueueRecurringHostedService>>();
+
         foreach (var producerType in _registry.ProducerTypes)
         {
-            var producer = scope.ServiceProvider.GetRequiredService(producerType);
-            var scheduleMethod = producerType.GetMethod("ScheduleRecurring", BindingFlags.Instance | BindingFlags.Public);
-            scheduleMethod?.Invoke(producer, Array.Empty<object>());
+            try
+            {
+                var producer = scope.ServiceProvider.GetRequiredService(producerType);
+                var scheduleMethod = producerType.GetMethod("ScheduleRecurring", BindingFlags.Instance | BindingFlags.Public);
+                scheduleMethod?.Invoke(producer, Array.Empty<object>());
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error scheduling recurring job for producer {ProducerType}", producerType.Name);
+            }
         }
 
         return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    
 }
 
 internal sealed class QueueRecurringProducerRegistry(Type[] producerTypes)

@@ -13,9 +13,17 @@ public abstract record AbstractDto
     public abstract SchemaVersion Version { get; }
     [JsonIgnore]
     public abstract string ResourceName { get; }
+    [JsonIgnore]
+    public abstract Guid? ResourceId { get; }
 
     [JsonIgnore]
     public JsonElement Properties => BuildPropertiesJson(GetType());
+
+    public static Guid? ResolveResourceId(AbstractDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        return dto.ResourceId;
+    }
 
     private static JsonElement BuildPropertiesJson(Type rootType)
     {
@@ -39,7 +47,7 @@ public abstract record AbstractDto
         {
             if (!property.CanRead || property.GetIndexParameters().Length != 0)
                 continue;
-            if (property.Name is nameof(Version) or nameof(ResourceName) or nameof(Properties))
+            if (property.Name is nameof(Version) or nameof(ResourceName) or nameof(ResourceId) or nameof(Properties))
                 continue;
 
             var propertyType = property.PropertyType;

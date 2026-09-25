@@ -8,7 +8,7 @@ public sealed class AuthenticationDbContext(DbContextOptions<AuthenticationDbCon
 {
     public DbSet<UserAuthentication> UserAuthentications => Set<UserAuthentication>();
     public DbSet<Session> Sessions => Set<Session>();
-    public DbSet<SessionActivity> SessionActivities => Set<SessionActivity>();
+  
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

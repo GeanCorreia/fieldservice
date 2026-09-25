@@ -1,7 +1,5 @@
-using FiledService.Audit.Data;
 using FiledService.Audit.Entities;
 using FiledService.Audit.Interfaces;
-using Microsoft.EntityFrameworkCore;
 
 namespace FiledService.Audit.Data.Repositories;
 

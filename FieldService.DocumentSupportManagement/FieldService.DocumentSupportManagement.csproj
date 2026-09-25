@@ -11,4 +11,8 @@
       <ProjectReference Include="..\FieldService.Storage\FieldService.Storage.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Dtos\" />
+    </ItemGroup>
+
 </Project>

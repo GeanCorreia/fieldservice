@@ -1,22 +1,21 @@
 using FieldService.SecretKey.Interfaces;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace FieldService.SecretKey.Cqrs.Commands.UpdateSecretKey;
 
 internal class UpdateSecretKeyHandler : IRequestHandler<UpdateSecretKeyCommand>
 {
-    private readonly ISecretKeyRepository _secretKeyRepository;
+    private readonly ISecretKeyService _secretKeyService;
     private readonly ILogger<UpdateSecretKeyHandler> _logger;
     private readonly ISecretKeyVaultService _secretKeyVaultService;
     
     public UpdateSecretKeyHandler(
-        ISecretKeyRepository secretKeyRepository, 
+        ISecretKeyService secretKeyService, 
         ILogger<UpdateSecretKeyHandler> logger,
         ISecretKeyVaultService secretKeyVaultService)
     {
-        _secretKeyRepository = secretKeyRepository ?? throw new ArgumentNullException(nameof(secretKeyRepository));
+        _secretKeyService = secretKeyService ?? throw new ArgumentNullException(nameof(secretKeyService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _secretKeyVaultService = secretKeyVaultService ?? throw new ArgumentNullException(nameof(secretKeyVaultService));
     }
@@ -25,7 +24,7 @@ internal class UpdateSecretKeyHandler : IRequestHandler<UpdateSecretKeyCommand>
         UpdateSecretKeyCommand request, 
         CancellationToken cancellationToken)
     {
-        var secretKey = await _secretKeyRepository.GetSecretKeyAsync(
+        var secretKey = await _secretKeyService.GetSecretKeyAsync(
             request.TenantId, 
             request.SecretName, 
             cancellationToken);
@@ -50,11 +49,12 @@ internal class UpdateSecretKeyHandler : IRequestHandler<UpdateSecretKeyCommand>
             secretKey.UpdateType(request.UserId, request.NewSecretKeyType.Value);
         }
         
-        await _secretKeyRepository.SaveSecretKeyAsync(secretKey, cancellationToken);
+        await _secretKeyService.SaveSecretKeyAsync(secretKey, cancellationToken);
 
         try
         {
             await _secretKeyVaultService.RemoveSecretKeyAsync(request.TenantId, request.SecretName);
+            await _secretKeyService.RemoveSecretKeyAsync(secretKey.Id, cancellationToken);
 
         }
         catch (Exception ex)
