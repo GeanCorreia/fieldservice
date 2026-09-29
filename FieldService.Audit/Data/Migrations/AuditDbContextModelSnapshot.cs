@@ -99,8 +99,8 @@ namespace FiledService.Audit.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("RequestId");
 
-                    b.Property<Guid?>("ResourceId")
-                        .HasColumnType("uuid")
+                    b.Property<string>("ResourceId")
+                        .HasColumnType("text")
                         .HasColumnName("ResourceId");
 
                     b.Property<string>("ResourceName")
@@ -215,6 +215,16 @@ namespace FiledService.Audit.Data.Migrations
                     b.HasKey("ResourceName", "Version");
 
                     b.ToTable("AuditDtoSchemas", (string)null);
+                });
+
+            modelBuilder.Entity("FiledService.Audit.Entities.AuditAccess", b =>
+                {
+                    b.HasOne("FiledService.Audit.Entities.AuditDtoSchema", null)
+                        .WithMany()
+                        .HasForeignKey("ResourceName", "SchemaVersion")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_AuditAccesses_AuditDtoSchemas_ResourceName_SchemaVersion");
                 });
 #pragma warning restore 612, 618
         }

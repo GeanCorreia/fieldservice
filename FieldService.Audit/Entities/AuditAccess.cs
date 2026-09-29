@@ -18,7 +18,7 @@ public sealed class AuditAccess
     public DateTimeOffset OccurredAt { get; init; }
     public string ResourceName { get; init; } = default!;
     public SchemaVersion SchemaVersion { get; init; }
-    public Guid? ResourceId { get; init; }
+    public string? ResourceId { get; init; }
 
     private JsonDocument? _parameters;
 
@@ -36,7 +36,7 @@ public sealed class AuditAccess
         DateTimeOffset occurredAt,
         string resourceName,
         SchemaVersion schemaVersion,
-        Guid? resourceId = null,
+        string? resourceId = null,
         IEnumerable<AuditAccessParameter>? parameters = null)
     {
         return new AuditAccess

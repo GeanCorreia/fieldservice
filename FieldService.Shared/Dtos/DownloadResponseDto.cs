@@ -15,6 +15,6 @@ public sealed record DownloadResponseDto(
     public override bool IsActive => true;
     public override SchemaVersion Version => new(1, 0, 0);
     public override string ResourceName => nameof(DownloadResponseDto);
-    public override Guid? ResourceId => FileId;
+    public override string? ResourceId => FileId.ToString();
 }
 

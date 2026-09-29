@@ -16,7 +16,7 @@ public static class QueueProducerRegistrationExtensions
             .Where(t => IsDerivedFrom(t, typeof(AbstractPublishProducer<>))
                         || IsDerivedFrom(t, typeof(AbstractPublishProducer<,>))
                         || IsDerivedFrom(t, typeof(AbstractPublishDelayedProducer<>))
-                        || IsDerivedFrom(t, typeof(AbstractPublishDelayedProducer<,>)));
+                        || IsDerivedFrom(t, typeof(AbstractPublishDelayedProducerWithRequest<,>)));
 
         foreach (var producerType in producerTypes)
             services.AddScoped(producerType);

@@ -80,10 +80,10 @@ internal class DevelopmentAzureEventGridJobHandler : IQueueConsumer<EmulatorEven
 }
 
 
-internal class DevelopmentAzureEventGridJobProducer 
-    : AbstractPublishDelayedProducer<DevelopmentAzureEventGridJobHandler, EmulatorEventGridPresignedUrlJobPayload>
+internal class DevelopmentAzureEventGridJobProducerWithRequest 
+    : AbstractPublishDelayedProducerWithRequest<DevelopmentAzureEventGridJobHandler, EmulatorEventGridPresignedUrlJobPayload>
 {
-    public DevelopmentAzureEventGridJobProducer(IBackgroundJobClient backgroundJobClient)
+    public DevelopmentAzureEventGridJobProducerWithRequest(IBackgroundJobClient backgroundJobClient)
         : base(backgroundJobClient)
     {
     }

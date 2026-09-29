@@ -28,7 +28,7 @@ public class SecretKeyController : ControllerBase
     {
         var userId = ClaimsResolver.GetUserId(HttpContext.User);
         
-        await _mediator.Send(new CreateSecretKeyCommand(userId, request.SecretKeyDto), cancellationToken);
+        await _mediator.Send(new CreateSecretKeyCommand(request.SecretKeyDto, userId), cancellationToken);
 
         return NoContent();
     }

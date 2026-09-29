@@ -98,7 +98,7 @@ public static class HttpModule
         app.UseMiddleware<HttpAuthenticationMiddleware>();
         app.UseMiddleware<HttpObservabilityMiddleware>();
         app.UseAuthorization();
-
+        
         app.MapControllers();
         return app;
     }

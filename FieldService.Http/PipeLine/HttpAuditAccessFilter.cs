@@ -50,29 +50,29 @@ public sealed class HttpAuditAccessFilter(IAuditAccessService auditAccessService
     private static bool ShouldTrackAccess(HttpContext httpContext)
         => !httpContext.Request.Path.StartsWithSegments("/hangfire");
 
-    private static Guid? ExtractResourceId(HttpContext httpContext)
+    private static string? ExtractResourceId(HttpContext httpContext)
     {
         if (httpContext.Request.RouteValues.TryGetValue("id", out var routeIdRaw) &&
             Guid.TryParse(routeIdRaw?.ToString(), out var routeId))
         {
-            return routeId;
+            return routeId.ToString();
         }
 
         if (httpContext.Request.Query.TryGetValue("id", out var queryIdRaw) &&
             Guid.TryParse(queryIdRaw.ToString(), out var queryId))
         {
-            return queryId;
+            return queryId.ToString();
         }
 
         var path = httpContext.Request.Path.ToString();
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length > 0 && Guid.TryParse(segments[^1], out var pathId))
-            return pathId;
+            return pathId.ToString();
 
         return null;
     }
 
-    private static Guid? ExtractResourceIdFromData(object data)
+    private static string? ExtractResourceIdFromData(object data)
     {
         if (data is AbstractDto dto)
             return ExtractResourceIdFromDto(dto);
@@ -87,7 +87,7 @@ public sealed class HttpAuditAccessFilter(IAuditAccessService auditAccessService
         return null;
     }
 
-    private static Guid? ExtractResourceIdFromDto(AbstractDto dto)
+    private static string? ExtractResourceIdFromDto(AbstractDto dto)
     {
         return AbstractDto.ResolveResourceId(dto);
     }

@@ -16,7 +16,7 @@ internal class SecretKeyEvent
     public Guid Id { get; init; }
     public DateTimeOffset OccurredAt { get; init; }
     public Guid SecretKeyId { get; init; }
-    public Guid UserId { get; init; }
+    public Guid? UserId { get; init; }
     public SecretKeyEventType EventType { get; init; }
     public string? Name { get; init; }
     public string? TypeName { get; init; }
@@ -26,8 +26,8 @@ internal class SecretKeyEvent
         Guid id, 
         DateTimeOffset occurredAt,
         Guid secretKeyId,
-        Guid userId, 
         SecretKeyEventType eventType,
+        Guid? userId, 
         string? name = null,
         string? typeName = null)
     {
@@ -64,7 +64,7 @@ internal class SecretKeyEvent
     }
     
     public static SecretKeyEvent Create(
-        Guid userId, 
+        Guid? userId, 
         Guid secretKeyId,
         SecretKeyEventType eventType,
         string? name = null,

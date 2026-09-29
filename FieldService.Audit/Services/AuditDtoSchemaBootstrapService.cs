@@ -19,7 +19,7 @@ public sealed class AuditDtoSchemaBootstrapService(
 
         var persistedSchemas = await auditDtoSchemaRepository.GetAll(ct);
         var persistedByKey = persistedSchemas.ToDictionary(
-            x => BuildKey(x.ResourceName, x.Version),
+            x => BuildKey(x.ResourceName, x.Version.ToString()),
             x => x,
             StringComparer.Ordinal);
 

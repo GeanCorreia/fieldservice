@@ -22,6 +22,7 @@
         <ProjectReference Include="..\FieldService.SecretKey\FieldService.SecretKey.csproj" />
         <ProjectReference Include="..\FieldService.Storage\FieldService.Storage.csproj" />
         <ProjectReference Include="..\FieldService.SignalR\FieldService.SignalR.csproj" />
+        <ProjectReference Include="..\FieldService.Superset\FieldService.Superset.csproj" />
     </ItemGroup>
 
     <ItemGroup>

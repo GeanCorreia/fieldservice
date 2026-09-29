@@ -2,7 +2,7 @@ using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
 using FieldService.Shared.Message;
-using FieldService.Superset.Dtos;
+using FieldService.Superset.Broker;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Interfaces;
 using FieldService.Superset.Logs;
@@ -12,13 +12,13 @@ using Microsoft.Extensions.Logging;
 namespace FieldService.Superset.Jobs;
 
 internal record CreateSupersetTenantConfigPayload(
-    SupersetTenantConfigParams ConfigParams) : AbstractMessagePayload<CreateSupersetTenantConfigPayload>;
+    SupersetTenantConfig supersetTenantConfig) : AbstractMessagePayload<CreateSupersetTenantConfigPayload>;
 internal record CreateSupersetTenantConfigJob : Job<CreateSupersetTenantConfigPayload>
 {
-    public static readonly JobType JobType = "superset-tenant-config-create-job";
+    public static readonly JobType JobType = "superset-tenant-config-persisting-job";
 
     internal CreateSupersetTenantConfigJob(CreateSupersetTenantConfigPayload payload)
-        : base(payload, new JobContext(JobType, tenantId: payload.ConfigParams.TenantId))
+        : base(payload, new JobContext(JobType, tenantId: payload.supersetTenantConfig.TenantId))
     {
     }
 }
@@ -37,13 +37,18 @@ internal class CreateSupersetTenantConfigJobConsumer : IQueueConsumer<CreateSupe
     
     private readonly ISupersetService _supersetService;
     private readonly ILogger<CreateSupersetTenantConfigJobConsumer> _logger;
+    private readonly SupersetTenantDeploymentBrokerProducer _supersetTenantDeploymentBrokerProducer;
     
     public CreateSupersetTenantConfigJobConsumer(
         ISupersetService supersetService, 
-        ILogger<CreateSupersetTenantConfigJobConsumer> logger)
+        ILogger<CreateSupersetTenantConfigJobConsumer> logger,
+        SupersetTenantDeploymentBrokerProducer supersetTenantDeploymentBrokerProducer)
     {
         _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _supersetTenantDeploymentBrokerProducer = supersetTenantDeploymentBrokerProducer 
+                                                  ?? throw new ArgumentNullException(nameof(
+                                                      supersetTenantDeploymentBrokerProducer));
     }
 
 
@@ -54,24 +59,36 @@ internal class CreateSupersetTenantConfigJobConsumer : IQueueConsumer<CreateSupe
             throw new InvalidOperationException($"Unexpected job type '{job.Context.Type}'.");
         var payload = job.Payload;
         
-        var supersetTenantConfig = SupersetTenantConfig.Create(
-            payload.ConfigParams);
+        
 
         try
         {
-            await _supersetService.SaveAsync(supersetTenantConfig, ct);
+            await _supersetService.SaveAsync(payload.supersetTenantConfig, ct);
         }
         catch (Exception ex)
         {
             _logger.LogSupersetTenantConfigCreateError(
                 LogLevel.Error,
-                payload.ConfigParams.TenantId,
-                payload.ConfigParams.ResourceId,
-                payload.ConfigParams,
+                payload.supersetTenantConfig.TenantId,
+                payload.supersetTenantConfig.ResourceId,
                 ex.Message,
                 ex);
             
             throw;
+        }
+        
+        var message = new SupersetTenantDeploymentPayload(
+            payload.supersetTenantConfig.TenantId,
+            payload.supersetTenantConfig.FqdnUrl,
+            payload.supersetTenantConfig.ResourceId);
+
+        try
+        {
+            await _supersetTenantDeploymentBrokerProducer.PublishAsync(message, ct);
+        }
+        catch (Exception ex)
+        {
+            //no exception should be thrown here, as the deployment notice is not critical for the tenant creation
         }
     }
 }

@@ -97,10 +97,14 @@ internal class SecretKey
 
     private void Update(
         SecretKeyEventType eventType, 
-        Guid userId,
+        Guid? userId = null,
         string? name = null,
         string? typeName = null)
     {
+        if (eventType != SecretKeyEventType.Created && !userId.HasValue)
+        {
+            throw new InvalidOperationException($"EventType '{eventType}' must have a userId associated with it.");
+        }
        
         var newEvent = SecretKeyEvent.Create(
             userId: userId,
@@ -116,7 +120,7 @@ internal class SecretKey
         ISecretKeyType secretKeyType,
         string name, 
         Guid tenantId, 
-        Guid userId)
+        Guid? userId)
     {
         var typeName = secretKeyType.GetType().Name;
         

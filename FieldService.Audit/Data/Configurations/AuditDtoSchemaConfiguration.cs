@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FieldService.Shared.Types;
 using FiledService.Audit.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -19,6 +20,10 @@ public sealed class AuditDtoSchemaConfiguration : IEntityTypeConfiguration<Audit
 
         builder.Property(e => e.Version)
             .HasColumnName("Version")
+            .HasColumnType("text")
+            .HasConversion(
+                value => value.ToString(),
+                value => SchemaVersion.FromString(value))
             .IsRequired();
 
         builder.Property(e => e.CreatedAt)

@@ -37,7 +37,6 @@ internal static partial class Logs
         LogLevel level,
         Guid tenantId,
         string resourceId,
-        SupersetTenantConfigParams configParams,
         string errorMessage,
         Exception? exception = null);
 }

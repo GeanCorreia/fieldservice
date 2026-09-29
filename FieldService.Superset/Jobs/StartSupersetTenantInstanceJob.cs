@@ -62,8 +62,7 @@ internal sealed class StartSupersetTenantInstanceJobHandler : IQueueConsumer<Gui
         }
         catch 
         {
-            //No exception should be thrown if the broker message fails to send, as the main
-            //job of starting the tenant instance has already been completed. Log the error if necessary.
+            //No exception should be thrown if the broker message fails to send.
         }
         
     }

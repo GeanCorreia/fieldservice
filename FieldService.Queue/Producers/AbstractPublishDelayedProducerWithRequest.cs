@@ -4,10 +4,10 @@ using Hangfire;
 
 namespace FieldService.Queue.Producers;
 
-public abstract class AbstractPublishDelayedProducer<TConsumer, TRequest> : AbstractHangfireProducer
+public abstract class AbstractPublishDelayedProducerWithRequest<TConsumer, TRequest> : AbstractHangfireProducer
     where TConsumer : IQueueConsumer<TRequest>
 {
-    protected AbstractPublishDelayedProducer(IBackgroundJobClient backgroundJobClient)
+    protected AbstractPublishDelayedProducerWithRequest(IBackgroundJobClient backgroundJobClient)
         : base(backgroundJobClient)
     {
     }

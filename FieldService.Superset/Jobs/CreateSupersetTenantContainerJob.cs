@@ -1,13 +1,17 @@
 using FieldService.Queue.Interfaces;
+using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
 using FieldService.Shared.Message;
 using FieldService.Superset.Dtos;
 using FieldService.Superset.Interfaces;
+using Hangfire;
 
 namespace FieldService.Superset.Jobs;
 
 internal record CreateSupersetTenantContainerJobPayload(
-    SupersetTenantCreateParams SupersetTenantCreateParams) : 
+    SupersetTenantCreateParams supersetTenantCreateParams,
+    Guid connectionStringId,
+    Guid? userId = null) : 
     AbstractMessagePayload<CreateSupersetTenantContainerJobPayload>;
 
 internal record CreateSupersetTenantContainerJob : Job<CreateSupersetTenantContainerJobPayload>
@@ -15,7 +19,7 @@ internal record CreateSupersetTenantContainerJob : Job<CreateSupersetTenantConta
     public static readonly JobType JobType = "superset-tenant-container-create-job";
 
     internal CreateSupersetTenantContainerJob(CreateSupersetTenantContainerJobPayload payload)
-        : base(payload, new JobContext(JobType, tenantId: payload.SupersetTenantCreateParams.TenantId))
+        : base(payload, new JobContext(JobType, tenantId: payload.supersetTenantCreateParams.TenantId))
     {
     }
 }
@@ -40,13 +44,18 @@ internal class CreateSupersetTenantContainerJobConsumer : IQueueConsumer<CreateS
 
         var payload = job.Payload;
     
-        var result = await _supersetTenantDeploymentService.CreateInstanceAsync(
-            payload.SupersetTenantCreateParams, 
+        await _supersetTenantDeploymentService.CreateInstanceAsync(
+            payload.supersetTenantCreateParams, 
+            payload.connectionStringId,
+            payload.userId,
             ct);
 
-        var jobPayload = new CreateSupersetTenantConfigPayload(result);
-        var newJob = new CreateSupersetTenantConfigJob(jobPayload);
-        _createSupersetTenantConfigJobProducer.Publish(newJob);
-        
+    }
+    
+    internal class CreateSupersetTenantContainerJobProducer : AbstractPublishProducer<CreateSupersetTenantContainerJobConsumer,CreateSupersetTenantContainerJobPayload>
+    {
+        public CreateSupersetTenantContainerJobProducer(IBackgroundJobClient backgroundJobClient) : base(backgroundJobClient)
+        {
+        }
     }
 }

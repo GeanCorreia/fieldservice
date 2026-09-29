@@ -1,31 +1,23 @@
-using FieldService.SecretKey.Entities;
+using FieldService.Shared.Types;
 using FieldService.Superset.Dtos;
-using FieldService.Superset.Services;
-using MongoDB.Driver.Core.Configuration;
 
 namespace FieldService.Superset.Interfaces;
 
-internal interface ISupersetAuthService
+public interface ISupersetAuthService
 {
-    Task<string> GetAdminTokenApi(
-        string fqdnUrl, 
+    Task<string> GetAdminToken(
+        Guid tenantId, 
         CancellationToken cancellationToken = default);
     
-    Task<string> GetDatabaseConnectionString(
-        Guid connectionStringId, 
+    Task<string> SupersetLogin(
+        UserTenantDto user, 
         CancellationToken cancellationToken = default);
     
-    Task<string> GetSupersetSecretApiKey(
-        Guid apiKeyId, 
+    Task<SupersetRoleDto?> GetTenantScopeRole(
+        Guid tenantId, 
         CancellationToken cancellationToken = default);
     
-    Task<(Guid KeyId, string Key)> CreateSupersetSecretApiKey(
-        Guid userId,
-        Guid tenantId,
-        CancellationToken cancellationToken = default);
-    
-    Task<(Guid ConnectionStringId, SupersetDatabaseParams databaseParams, string ConnectionString)> CreateDatabaseConnectionString(
-        Guid userId,
-        Guid tenantId,
+    Task CreateTenantScopeRole(
+        Guid tenantId, 
         CancellationToken cancellationToken = default);
 }

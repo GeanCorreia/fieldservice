@@ -25,7 +25,7 @@ internal sealed class AuditDtoSchemaRepository(AuditDbContext dbContext) : IAudi
         var versions = items.Select(x => x.Version).Distinct().ToArray();
 
         var existing = await dbContext.Set<AuditDtoSchema>()
-            .Where(x => resourceNames.Contains(x.ResourceName) || versions.Contains(x.Version))
+            .Where(x => resourceNames.Contains(x.ResourceName) && versions.Contains(x.Version))
             .ToListAsync(ct);
 
         existing = existing

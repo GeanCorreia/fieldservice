@@ -9,6 +9,6 @@ public record UserAuthenticationDto(
 {
     public override SchemaVersion Version => new(2, 2, 0);
     public override string ResourceName => "UserAuthenticationDto";
-    public override Guid? ResourceId => null;
+    public override string? ResourceId => null;
     public override bool IsActive => false;
 }

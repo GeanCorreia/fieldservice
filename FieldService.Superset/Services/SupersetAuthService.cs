@@ -1,167 +1,319 @@
-using System.Security.Cryptography;
-using FieldService.SecretKey.Cqrs.Commands.CreateSecretKey;
-using FieldService.SecretKey.Cqrs.Queries.GetSecretKeyById;
-using FieldService.SecretKey.Dtos;
-using FieldService.SecretKey.Entities;
-using FieldService.Shared.Services;
-using FieldService.Superset.Configuration;
+using System.IdentityModel.Tokens.Jwt;
+using System.Net;
+using FieldService.Shared.Types;
+using FieldService.Superset.Attributes;
 using FieldService.Superset.Dtos;
+using FieldService.Superset.Dtos.SupersetApiRequestDto;
+using FieldService.Superset.Dtos.SupersetApiResponseDto;
 using FieldService.Superset.Entities;
+using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
-using MediatR;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
-using Npgsql;
+using FieldService.Superset.Mappers;
+using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.Logging;
+using Refit;
 
 namespace FieldService.Superset.Services;
 
 internal class SupersetAuthService : ISupersetAuthService
 {
-    private readonly string _connectionString;
-    private readonly IMediator _mediator;
     private readonly ISupersetApi _supersetApi;
-    private readonly SupersetLoginRequest _supersetLoginRequest;
-    private readonly SupersetOptions _supersetOptions;
-    private readonly string _host;
-    private readonly int _port;
+    private readonly ISupersetService _supersetService;
+    private readonly ILogger<SupersetAuthService> _logger;
+    private readonly SupersetLoginApiRequest _supersetLoginRequest;
+    private readonly HybridCache _cache;
+    private readonly JwtSecurityTokenHandler _jwtHandler = new();
     
-    
+    private static readonly TimeSpan TokenExpirationBuffer = TimeSpan.FromSeconds(30);
+
+    public static string AuthPrefix => "superset:auth:";
+
+    public static string AdminAccessTokenCacheKey(Guid tenantId) => 
+        $"{AuthPrefix}admin:tenant:{tenantId}:access";
+    public static string AdminRefreshTokenCacheKey(Guid tenantId) => 
+        $"{AuthPrefix}admin:tenant:{tenantId}:refresh";
+
+    public static string UserAccessTokenCacheKey(Guid userId, Guid tenantId) => 
+        $"{AuthPrefix}user:{userId}:{tenantId}:access";
+    public static string UserRefreshTokenCacheKey(Guid userId, Guid tenantId) => 
+        $"{AuthPrefix}user:{userId}:{tenantId}:refresh";
+
     public SupersetAuthService(
-        IMediator mediator,
-        ISupersetApi supersetApi, 
-        IConfiguration configuration,
-        IOptions<SupersetOptions> supersetOptions)
+        ISupersetApi supersetApi,
+        ISupersetService supersetService,
+        ILogger<SupersetAuthService> logger,
+        HybridCache cache)
     {
         _supersetApi = supersetApi ?? throw new ArgumentNullException(nameof(supersetApi));
-        if (supersetOptions == null)
-        {
-            throw new ArgumentNullException(nameof(supersetOptions));
-        }
-        _connectionString = configuration.GetConnectionString("SupersetHostDatabase")
-                            ?? throw new NullReferenceException("Connection string 'SupersetHostDatabase' not found in configuration.");
-        
-        _supersetLoginRequest = new SupersetLoginRequest(supersetOptions.Value.Username, supersetOptions.Value.Password);
-        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
-        _supersetOptions = (supersetOptions ?? throw new ArgumentNullException(nameof(supersetOptions))).Value;
-        _host = _supersetOptions.DataBaseHost.Host;
-        _port = _supersetOptions.DataBaseHost.Port;
+        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
     }
-    public async Task<string> GetAdminTokenApi(
-        string fqdnUrl, 
+
+    public async Task<string> GetAdminToken(
+        Guid tenantId, 
         CancellationToken cancellationToken = default)
     {
-        SupersetLoginResponse response = await _supersetApi.LoginAsync(
-            new Uri(fqdnUrl), 
-            _supersetLoginRequest, 
+        var supersetTenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(tenantId, cancellationToken);
+        if (supersetTenantConfig == null)
+        {
+            throw new KeyNotFoundException($"Superset instance for tenant '{tenantId}' not found or not running.");
+        }
+
+        var accessCacheKey = AdminAccessTokenCacheKey(tenantId);
+        var refreshCacheKey = AdminRefreshTokenCacheKey(tenantId);
+
+        return await GetOrRefreshTokenAsync(
+            accessCacheKey,
+            refreshCacheKey,
+            async token => await _supersetApi.LoginAsync(new Uri(supersetTenantConfig.FqdnUrl), _supersetLoginRequest, token),
+            supersetTenantConfig.FqdnUrl,
+            cancellationToken);
+    }
+
+    public async Task<string> SupersetLogin(
+        UserTenantDto user, 
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        var tenantId = user.TenantDto.TenantId;
+        var userId = user.Id;
+
+        var supersetTenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(tenantId, cancellationToken);
+        if (supersetTenantConfig == null)
+        {
+            throw new KeyNotFoundException($"Superset instance for tenant '{tenantId}' not found or not running.");
+        }
+
+        var accessCacheKey = UserAccessTokenCacheKey(userId, tenantId);
+        var refreshCacheKey = UserRefreshTokenCacheKey(userId, tenantId);
+
+        var supersetLoginApiRequest = user.Map();
+
+        return await GetOrRefreshTokenAsync(
+            accessCacheKey,
+            refreshCacheKey,
+            async token => await _supersetApi.LoginAsync(new Uri(supersetTenantConfig.FqdnUrl), supersetLoginApiRequest, token),
+            supersetTenantConfig.FqdnUrl,
+            cancellationToken);
+    }
+
+    public async Task<SupersetRoleDto?> GetTenantScopeRole(
+        Guid tenantId, 
+        CancellationToken cancellationToken = default)
+    {
+        var tenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(tenantId, cancellationToken);
+        if (tenantConfig == null)
+        {
+            throw new SupersetTenantNotFoundException(tenantId);
+        }
+        var supersetRoles = await _supersetApi.GetRolesAsync(
+            new Uri(tenantConfig.FqdnUrl),
+            $"Bearer {await GetAdminToken(tenantId, cancellationToken)}",
             cancellationToken);
         
-        return response.access_token;
+        var tenantScopeRole = supersetRoles.Result
+            .FirstOrDefault(role => role.Name.Equals(TenantScopeRole.TenantScopeRoleName(tenantId), StringComparison.OrdinalIgnoreCase));
+
+        if (tenantScopeRole == null)
+        {
+            return null;
+        }
         
+        return new SupersetRoleDto(
+            tenantScopeRole.Id,
+            tenantScopeRole.Name);
     }
 
-    async Task<string> ISupersetAuthService.GetDatabaseConnectionString(
-        Guid connectionStringId, 
+    public async Task CreateTenantScopeRole(
+        Guid tenantId, 
+        CancellationToken cancellationToken = default)
+    {
+        var tenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(tenantId, cancellationToken);
+        if (tenantConfig == null)
+        {
+            throw new SupersetTenantNotFoundException(tenantId);
+        }
+
+        var roleName = TenantScopeRole.TenantScopeRoleName(tenantId);
+        var existingRole = await GetTenantScopeRole(tenantId, cancellationToken);
+        if (existingRole != null)
+        {
+            return;
+        }
+
+        var adminToken = await GetAdminToken(tenantId, cancellationToken);
+        var bearerToken = $"Bearer {adminToken}";
+        var host = new Uri(tenantConfig.FqdnUrl);
+
+        var permissionResources = await _supersetApi.GetPermissionResourcesAsync(
+            host,
+            bearerToken,
+            "(page:0,page_size:10000)",
+            cancellationToken);
+
+        var expectedDatabaseNames = new[]
+            {
+                $"db_tenant_{tenantId:N}".ToLowerInvariant(),
+                SupersetTenantConfig.Database(tenantId).ToLowerInvariant()
+            }
+            .Distinct()
+            .ToList();
+
+        var databaseAccessPermissionIds = permissionResources.Result
+            .Where(permission =>
+                string.Equals(permission.EffectivePermissionName, "database_access", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(permission.EffectiveViewMenuName) &&
+                expectedDatabaseNames.Any(dbName =>
+                    permission.EffectiveViewMenuName!.StartsWith($"[{dbName}]", StringComparison.OrdinalIgnoreCase)))
+            .Select(permission => permission.Id)
+            .Distinct()
+            .ToList();
+
+        if (!databaseAccessPermissionIds.Any())
+        {
+            throw new InvalidOperationException(
+                $"Could not resolve 'database_access' permission for tenant '{tenantId}'. " +
+                $"Expected database names: {string.Join(", ", expectedDatabaseNames)}.");
+        }
+
+        try
+        {
+            await _supersetApi.CreateRoleAsync(
+                host,
+                bearerToken,
+                new SupersetCreateRoleApiRequest(roleName, databaseAccessPermissionIds),
+                cancellationToken);
+        }
+        catch (ApiException ex) when (
+            ex.StatusCode == HttpStatusCode.Conflict ||
+            ex.StatusCode == HttpStatusCode.BadRequest ||
+            (int)ex.StatusCode == 422)
+        {
+            var roleAfterConflict = await GetTenantScopeRole(tenantId, cancellationToken);
+            if (roleAfterConflict != null)
+            {
+               return;
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<string> GetOrRefreshTokenAsync(
+        string accessCacheKey,
+        string refreshCacheKey,
+        Func<CancellationToken, Task<SupersetLoginApiResponse>> loginFallbackFactory,
+        string fqdnUrl,
         CancellationToken cancellationToken)
     {
-        var connectionString = await _mediator.Send(new GetSecretKeyByIdQuery<ConnectionStringSecret>(connectionStringId), cancellationToken);
-        if(connectionString == null)
+        var cachedAccessToken = await _cache.GetOrCreateAsync<string?>(
+            accessCacheKey, 
+            _ => ValueTask.FromResult<string?>(null), 
+            cancellationToken: cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(cachedAccessToken))
         {
-            throw new KeyNotFoundException($"Connection string with ID '{connectionStringId}' was not found.");
+            return cachedAccessToken;
         }
         
-        return connectionString.ConnectionString;
-    }
+        var refreshToken = await _cache.GetOrCreateAsync<string?>(
+            refreshCacheKey, 
+            _ => ValueTask.FromResult<string?>(null), 
+            cancellationToken: cancellationToken);
 
-    public async Task<string> GetSupersetSecretApiKey(
-        Guid apiKeyId, 
-        CancellationToken cancellationToken = default)
-    {
-        var secret = await _mediator.Send(new GetSecretKeyByIdQuery<ApiKeySecret>(apiKeyId), cancellationToken);
-        if(secret == null)
+        if (!string.IsNullOrWhiteSpace(refreshToken))
         {
-            throw new KeyNotFoundException($"API key with ID '{apiKeyId}' was not found.");
+            try
+            {
+                var refreshResponse = await _supersetApi.RefreshTokenAsync(
+                    new Uri(fqdnUrl),
+                    $"Bearer {refreshToken}",
+                    cancellationToken);
+                
+                var accessTtl = ExtractTokenTimeToLive(refreshResponse.AccessToken);
+                if (accessTtl.HasValue)
+                {
+                    await _cache.SetAsync(
+                        accessCacheKey, 
+                        refreshResponse.AccessToken, 
+                        new HybridCacheEntryOptions { Expiration = accessTtl.Value }, 
+                        cancellationToken: cancellationToken);
+                }
+               
+
+                return refreshResponse.AccessToken;
+            }
+            catch (Exception ex)
+            {
+                await _cache.RemoveAsync(refreshCacheKey, cancellationToken);
+            }
+        }
+       
+        var loginResponse = await loginFallbackFactory(cancellationToken);
+        
+        var newAccessTtl = ExtractTokenTimeToLive(loginResponse.AccessToken);
+        if (newAccessTtl.HasValue)
+        {
+            await _cache.SetAsync(
+                accessCacheKey, 
+                loginResponse.AccessToken, 
+                new HybridCacheEntryOptions { Expiration = newAccessTtl.Value }, 
+                cancellationToken: cancellationToken);
         }
         
-        return secret.ApiKey;
-    }
-
-    public async Task<(Guid KeyId, string Key)> CreateSupersetSecretApiKey(
-        Guid userId, 
-        Guid tenantId, 
-        CancellationToken cancellationToken = default)
-    {
-        var id = Guid.NewGuid();
         
-        var reference = new SecretKeyReferenceDto(
-            id,
-            SecretKeyType.WebhookSigningSecret,
-            tenantId,
-            SupersetTenantConfig.SecretKeyName(tenantId),
-            false
-        );
-
-        var key = new WebhookSigningSecret(
-            CreateSecretKeyService.CreateSecretKey(),
-            HashAlgorithmType.HmacSha256
-        );
-        
-        var dto = new SecretKeyDto(
-            reference,
-            key);
-        
-        await _mediator.Send(new CreateSecretKeyCommand( userId, dto), cancellationToken);
-
-        return (id, key.SecretKey);
-
-    }
-    public async Task<(Guid ConnectionStringId, SupersetDatabaseParams databaseParams, string ConnectionString)> CreateDatabaseConnectionString(
-        Guid userId, 
-        Guid tenantId, 
-        CancellationToken cancellationToken = default)
-    {
-        var id = Guid.NewGuid();
-        
-        var reference = new SecretKeyReferenceDto(
-            id,
-            SecretKeyType.ConnectionString,
-            tenantId,
-            SupersetTenantConfig.ConnectionStringName(tenantId),
-            false
-        );
-
-        var userName = $"user_{tenantId.ToString().Replace("-", string.Empty)[..8]}";
-        var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-        var databaseName = SupersetTenantConfig.Database(tenantId);
-        
-        var databaseParams = new SupersetDatabaseParams(
-            userName,
-            password,
-            databaseName);
-        
-        var connectionString = BuildSupersetMetadataConnectionString(databaseParams);
-        var key = new ConnectionStringSecret(
-            connectionString);
-        
-        var dto = new SecretKeyDto(
-            reference,
-            key);
-        
-        await _mediator.Send(new CreateSecretKeyCommand( userId, dto), cancellationToken);
-
-        return (id, databaseParams, connectionString);
-    }
-    
-    private string BuildSupersetMetadataConnectionString(SupersetDatabaseParams databaseParams)
-    {
-        
-        return new NpgsqlConnectionStringBuilder(_connectionString)
+        if (!string.IsNullOrWhiteSpace(loginResponse.RefreshToken))
         {
-            Database = databaseParams.Username,
-            Host = _host,
-            Port = _port
-        }.ConnectionString;
-        
-        
+            var refreshTtl = ExtractTokenTimeToLive(loginResponse.RefreshToken);
+            if (refreshTtl.HasValue)
+            {
+                await _cache.SetAsync(
+                    refreshCacheKey, 
+                    loginResponse.RefreshToken, 
+                    new HybridCacheEntryOptions { Expiration = refreshTtl.Value }, 
+                    cancellationToken: cancellationToken);
+            }
+        }
+
+        return loginResponse.AccessToken;
+    }
+    private TimeSpan? ExtractTokenTimeToLive(string jwtToken)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(jwtToken) || !_jwtHandler.CanReadToken(jwtToken))
+            {
+                _logger.LogError("Invalid JWT format received. Unable to parse token for caching.");
+                return null;
+            }
+
+            var token = _jwtHandler.ReadJwtToken(jwtToken);
+            var expClaim = token.ValidTo; 
+
+            if (expClaim == DateTimeOffset.MinValue)
+            {
+                _logger.LogError("JWT missing 'exp' claim. Cannot determine expiration time.");
+                return null;
+            }
+
+            var timeRemaining = expClaim - DateTimeOffset.UtcNow - TokenExpirationBuffer;
+
+            
+            if (timeRemaining <= TimeSpan.Zero)
+            {
+                _logger.LogWarning("JWT is already expired or within the safety buffer window. Will not cache.");
+                return null;
+            }
+
+            return timeRemaining;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse JWT expiration claim. Token will NOT be cached.");
+            return null;
+        }
     }
     
 }

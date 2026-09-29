@@ -1,13 +1,13 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using FieldService.Superset.Dtos;
-using FieldService.Superset.Enums;
-using System.Text.RegularExpressions;
-using FieldService.Shared.Services;
+using FiledService.Shared.Attributes;
+
 
 namespace FieldService.Superset.Entities;
 
-internal enum InstanceTier
+public enum InstanceTier
 {
     OnDemand = 1,
     Dedicated = 2,
@@ -19,10 +19,12 @@ internal enum SupersetInstanceStatus
 
     Provisioning = 1,
     Running = 2,
-    Failed = 3
+    Failed = 3,
+    Stopped = 4,
+    Unknown = 5
 }
 
-internal record ScheduledExecutionWindow(
+public record ScheduledExecutionWindow(
     TimeOnly StartTime,
     TimeOnly EndTime,
     bool IncludeSaturdays = false,
@@ -30,16 +32,19 @@ internal record ScheduledExecutionWindow(
 
 internal class SupersetTenantInstance
 {
-    public Guid TenantId { get; init; } 
-    public SupersetInstanceStatus Status { get; private set; } 
-    public SupersetTenantConfig TenantConfig { get; private set; }
-    
+    public Guid TenantId { get; init; }
+    [JsonInclude]
+    public SupersetInstanceStatus Status { get; private set; }
+    [JsonInclude]
+    public SupersetTenantConfig TenantConfig { get; private set; } = default!;
+
+    [JsonInclude]
     private ICollection<SupersetHealthCheck> _healthCheck = new List<SupersetHealthCheck>();
-    
+
     protected SupersetTenantInstance() { }
-    
+
     private SupersetTenantInstance(
-        Guid tenantId, 
+        Guid tenantId,
         SupersetTenantConfig tenantConfig,
         SupersetInstanceStatus status)
     {
@@ -49,17 +54,18 @@ internal class SupersetTenantInstance
     }
 
     public static SupersetTenantInstance Create(
-        string fqdnUrl,
-        SupersetTenantConfig tenantConfig)
+        SupersetTenantConfig tenantConfig,
+        SupersetInstanceStatus status)
     {
         return new SupersetTenantInstance(
             tenantId: tenantConfig.TenantId,
             tenantConfig: tenantConfig,
-            status: SupersetInstanceStatus.Provisioning);
+            status: status);
     }
     
 }
 
+[Auditable("SupersetTenantConfig", nameof(Id))]
 internal class SupersetTenantConfig
 {
     public static string ContainerPrefix = "superset_tenant";
@@ -70,13 +76,27 @@ internal class SupersetTenantConfig
     public static string SupersetSecretKeyPrefix = "superset_secret_key";
     public static string ConnectionStringPrefix = "superset_connection_string";
     public Guid Id { get; init; }
-    public string FqdnUrl { get; private set; } 
+    [JsonInclude]
+    public string FqdnUrl { get; private set; } = string.Empty;
     public Guid SupersetSecretKeyId { get; set; }
     public Guid ConnectionStringId { get; set; }
-    public InstanceTier InstanceTier { get; init; }
+    [JsonInclude]
+    private JsonElement _instanceTier { get; set; }
+
+    [NotMapped]
+    public InstanceTier InstanceTier
+    {
+        get
+        {
+            return JsonSerializer.Deserialize<InstanceTier?>(_instanceTier) 
+                   ?? throw new InvalidOperationException("Failed to deserialize instance tier.");
+        }
+    }
+
     public Guid TenantId { get; init; }
-    public string ResourceId { get; init; }
-    private JsonElement _executionWindow = new();
+    public string ResourceId { get; init; } = string.Empty;
+    [JsonInclude]
+    private JsonElement _executionWindow;
 
     [NotMapped]
     public ScheduledExecutionWindow? ExecutionWindow
@@ -116,47 +136,54 @@ internal class SupersetTenantConfig
     }
 
     private SupersetTenantConfig(
-        Guid id, 
-        Guid tenantId, 
-        InstanceTier instanceTier, 
-        Guid supersetSecretKeyId, 
+        Guid id,
+        Guid tenantId,
+        InstanceTier instanceTier,
         Guid connectionStringId,
         string resourceId,
         string fqdnUrl,
+        Guid supersetSecretKeyId,
         ScheduledExecutionWindow? executionWindow = null
-        )
+    )
     {
         Id = id;
+        TenantId = tenantId;
         FqdnUrl = fqdnUrl ?? string.Empty;
         SupersetSecretKeyId = supersetSecretKeyId;
         ConnectionStringId = connectionStringId;
-        InstanceTier = instanceTier;
-        TenantId = tenantId;
         ResourceId = resourceId ?? throw new ArgumentNullException(nameof(resourceId));
-
-        if (InstanceTier == InstanceTier.Scheduled && executionWindow == null)
+        
+        if (instanceTier == InstanceTier.Scheduled && executionWindow == null)
         {
-            throw new ArgumentException("Execution window should be set for Sheduled instance tier");
+            throw new ArgumentException("Execution window should be set for Scheduled instance tier.", nameof(executionWindow));
         }
+        
+        _instanceTier = JsonSerializer.SerializeToElement(instanceTier);
+
         if (executionWindow != null)
         {
             _executionWindow = JsonSerializer.SerializeToElement(executionWindow);
         }
-        
     }
 
     public static SupersetTenantConfig Create(
-        SupersetTenantConfigParams configParams)
+        Guid tenantId,
+        InstanceTier instanceTier,
+        Guid connectionStringId,
+        string resourceId,
+        string fqdnUrl,
+        Guid supersetSecretKeyId,
+        ScheduledExecutionWindow? scheduledExecutionWindow = null)
     {
         return new SupersetTenantConfig(
             Guid.NewGuid(),
-            configParams.TenantId,
-            configParams.InstanceTier,
-            configParams.SupersetSecretKeyId,
-            configParams.ConnectionStringId,
-            configParams.ResourceId,
-            configParams.FqdnUrl,
-            configParams.ScheduledExecutionWindow
+            tenantId,
+            instanceTier,
+            connectionStringId,
+            resourceId,
+            fqdnUrl,
+            supersetSecretKeyId,
+            scheduledExecutionWindow
         );
     }
 }
@@ -164,7 +191,7 @@ internal class SupersetTenantConfig
 internal class SupersetHealthCheck
 {
         public Guid Id { get; init; }
-        public string AzureResourceId { get; init; }
+        public string AzureResourceId { get; init; } = string.Empty;
         public Guid TenantId { get; init; }
         public DateTimeOffset CheckedAt { get; init; }
         public bool IsHealthy { get; init; }
@@ -211,3 +238,8 @@ internal class SupersetHealthCheck
         }
     }
         
+
+
+
+
+

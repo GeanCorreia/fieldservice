@@ -12,7 +12,7 @@ internal interface ISupersetRepository
         string resourceId, 
         CancellationToken cancellationToken);
     
-    Task<SupersetTenantConfig> SaveAsync(
+    Task SaveAsync(
         SupersetTenantConfig tenantConfig, 
         CancellationToken cancellationToken);
 }

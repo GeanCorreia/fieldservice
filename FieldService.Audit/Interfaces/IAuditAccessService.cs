@@ -8,7 +8,7 @@ public interface IAuditAccessService
     Task AuditAccess(
         string resourceName,
         SchemaVersion schemaVersion,
-        Guid? resourceId,
+        string? resourceId,
         IEnumerable<AuditAccessParameter>? parameters,
         CancellationToken ct = default);
 }

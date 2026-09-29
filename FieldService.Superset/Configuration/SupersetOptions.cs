@@ -7,6 +7,8 @@ public class SupersetOptions
     public DataBaseHost DataBaseHost { get; set; } = new DataBaseHost();
     public SupersetProvisioningOptions Provisioning { get; set; } = new SupersetProvisioningOptions();
     public string BaseUrl { get; set; } = string.Empty;
+    public string ResourceId { get; set; } = string.Empty;
+    public Guid SecretKeyId { get; set; } = Guid.Empty;
     public string Username { get; set; } = "Admin";
     public string Password { get; set; } = "admin";
     public int GuestTokenExpirationMinutes { get; set; } = 1440;
@@ -44,6 +46,7 @@ public class SupersetProvisioningOptions
     public int GunicornWorkers { get; set; } = 1;
     public int GunicornTimeoutSeconds { get; set; } = 120;
     public bool ScaleDownAfterProvisioning { get; set; } = true;
+    public string KedaCronTimezone { get; set; } = "America/Sao_Paulo";
     public string AdminEmail { get; set; } = "admin@fieldservice.local";
     public string AdminFirstName { get; set; } = "Superset";
     public string AdminLastName { get; set; } = "Admin";

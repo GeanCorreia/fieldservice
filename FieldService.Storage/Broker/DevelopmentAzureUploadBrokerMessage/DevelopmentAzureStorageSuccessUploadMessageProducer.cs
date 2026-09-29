@@ -6,7 +6,7 @@ namespace FieldService.Storage.Broker.DevelopmentAzureUploadBrokerMessage;
 
 internal class DevelopmentAzureStorageSuccessUploadMessageProducer : AbstractBrokerProducer<AzureStorageSuccessUploadEnvelopeMessage, AzureEventGridBlobCreatedPayload>
 {
-    public static BrokerPublishContext BrokerPublishContext => StoredFileUploadedEnvelopeMessage.EnvelopeContext;
+    public static BrokerPublishContext BrokerPublishContext => AzureStorageSuccessUploadEnvelopeMessage.EnvelopeContext;
     
     public DevelopmentAzureStorageSuccessUploadMessageProducer(
         IBrokerPublisher brokerPublisher

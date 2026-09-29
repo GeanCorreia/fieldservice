@@ -30,17 +30,15 @@ internal sealed class FieldServiceAuthorizationPolicyProvider(
 
     private static bool TryParsePermission(string policyName, out Permission permission)
     {
-        permission = null!;
-
-        var segments = policyName.Split(':', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length != 2)
+        try
+        {
+            permission = Permission.Create(policyName);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            permission = null!;
             return false;
-
-        var scope = segments[0].Split('.', StringSplitOptions.RemoveEmptyEntries);
-        if (scope.Length != 2)
-            return false;
-
-        permission = Permission.Create(scope[0], scope[1], segments[1]);
-        return true;
+        }
     }
 }

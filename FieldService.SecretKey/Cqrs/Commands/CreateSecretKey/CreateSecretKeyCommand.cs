@@ -5,5 +5,5 @@ using MediatR;
 namespace FieldService.SecretKey.Cqrs.Commands.CreateSecretKey;
 
 public record CreateSecretKeyCommand(
-    Guid UserId,
-    SecretKeyDto SecretKeyDto) : IRequest;
+    SecretKeyDto SecretKeyDto,
+    Guid? UserId = null) : IRequest;

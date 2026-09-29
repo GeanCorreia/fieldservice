@@ -7,4 +7,4 @@ internal record GetGuestTokenQuery(
     Guid UserId,
     Guid TenantId,
     SupersetResourceDto SupersetResourceDto
-    ) : IRequest<SupersetTokenResponse>;
+    ) : IRequest<GuestTokenResponse>;

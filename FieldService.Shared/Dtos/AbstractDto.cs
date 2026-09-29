@@ -14,12 +14,12 @@ public abstract record AbstractDto
     [JsonIgnore]
     public abstract string ResourceName { get; }
     [JsonIgnore]
-    public abstract Guid? ResourceId { get; }
+    public abstract string? ResourceId { get; }
 
     [JsonIgnore]
     public JsonElement Properties => BuildPropertiesJson(GetType());
 
-    public static Guid? ResolveResourceId(AbstractDto dto)
+    public static string? ResolveResourceId(AbstractDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
         return dto.ResourceId;

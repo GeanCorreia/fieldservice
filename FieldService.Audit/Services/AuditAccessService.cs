@@ -15,7 +15,7 @@ public sealed class AuditAccessService(
     public async Task AuditAccess(
         string resourceName,
         SchemaVersion schemaVersion,
-        Guid? resourceId,
+        string? resourceId,
         IEnumerable<AuditAccessParameter>? parameters,
         CancellationToken ct = default)
     {

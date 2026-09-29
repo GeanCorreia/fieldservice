@@ -6,7 +6,7 @@ namespace FiledService.Audit.Entities;
 public sealed class AuditDtoSchema
 {
     public string ResourceName { get; init; } = default!;
-    public string Version { get; init; } = default!;
+    public SchemaVersion Version { get; init; } = default!;
     public DateTimeOffset CreatedAt { get; init; }
 
     private JsonDocument _properties = default!;
@@ -29,7 +29,7 @@ public sealed class AuditDtoSchema
         return new AuditDtoSchema
         {
             ResourceName = resourceName,
-            Version = version.ToString(),
+            Version = version,
             CreatedAt = createdAt,
             _properties = JsonSerializer.SerializeToDocument(properties)
         };

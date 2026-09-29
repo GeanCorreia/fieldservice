@@ -1,3 +1,4 @@
+using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using FieldService.Data;
 using FieldService.SecretKey.Configuration;
@@ -24,11 +25,21 @@ public static class SecretKeyModule
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<SecretKeyOptions>>().Value;
-            
+    
             if (string.IsNullOrEmpty(options.KeyVaultEndpoint))
                 throw new InvalidOperationException("Azure Key Vault Endpoint não configurado em SecretKeyOptions.");
+    
+            var clientOptions = new SecretClientOptions();
             
-            return new SecretClient(new Uri(options.KeyVaultEndpoint), new global::Azure.Identity.DefaultAzureCredential());
+            if (options.KeyVaultEndpoint.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                clientOptions.DisableChallengeResourceVerification = true;
+            }
+
+            return new SecretClient(
+                new Uri(options.KeyVaultEndpoint), 
+                new DefaultAzureCredential(), 
+                clientOptions);
         });
         
         services.AddScoped<ISecretKeyService, SecretKeyService>();

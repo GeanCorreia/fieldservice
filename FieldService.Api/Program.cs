@@ -13,6 +13,7 @@ using FieldService.SecretKey;
 using FieldService.SignalR;
 using FieldService.SignalR.Hubs;
 using FieldService.Shared;
+using FieldService.Superset;
 using FiledService.Audit;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -49,16 +50,15 @@ builder.Services.AddSignalRModule(builder.Configuration);
 builder.Services.AddQueueModule(builder.Configuration);
 builder.Services.AddSignalR();
 builder.Services.AddSecretKeyModule(builder.Configuration);
-
 builder.Services.AddHttpModule();
-builder.UseHttpPipeline();
 builder.Services.AddNotificationModule(builder.Configuration, builder.Environment);
+builder.Services.AddSupersetModule(builder.Configuration);
 
-
+builder.UseHttpPipeline();
 var app = builder.Build();
-
 app.UseHttpPipeline(builder.Environment);
 app.UseQueueModule(builder.Environment);
 app.UseSignalRModule();
+app.UseSupersetProxy();
 app.MapGet("/", () => "FieldService API running.");
 app.Run();

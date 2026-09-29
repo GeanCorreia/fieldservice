@@ -67,5 +67,12 @@ public sealed class AuditAccessConfiguration : IEntityTypeConfiguration<AuditAcc
 
         builder.HasIndex(e => new { e.ResourceName, e.SchemaVersion })
             .HasDatabaseName("idx_AuditAccesses_ResourceName_SchemaVersion");
+
+        builder.HasOne<AuditDtoSchema>()
+            .WithMany()
+            .HasForeignKey(e => new { e.ResourceName, e.SchemaVersion })
+            .HasPrincipalKey(e => new { e.ResourceName, e.Version })
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("fk_AuditAccesses_AuditDtoSchemas_ResourceName_SchemaVersion");
     }
 }

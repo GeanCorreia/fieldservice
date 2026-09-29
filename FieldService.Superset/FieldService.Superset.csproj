@@ -26,7 +26,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Data\" />
       <Folder Include="Events\" />
       <Folder Include="Mcp\" />
       <Folder Include="Middlewares\" />

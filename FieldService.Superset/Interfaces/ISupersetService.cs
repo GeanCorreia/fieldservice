@@ -13,21 +13,4 @@ internal interface ISupersetService : ISupersetRepository
         SupersetInstanceStatus? status = SupersetInstanceStatus.Running,
         CancellationToken cancellationToken = default);
     
-    Task<bool> HasSuperset(
-        Guid tenantId,
-        CancellationToken cancellationToken = default);
-    
-    Task<string?> GetAdminToken(
-        Guid tenantId, 
-        CancellationToken cancellationToken = default);
-    
-    Task<string> GetAdminToken(
-        string fqdnUrl, 
-        CancellationToken cancellationToken = default);
-    
-    Task<SupersetTenantResources> GetTenantResourcesAsync(
-        Guid tenantId,
-        CancellationToken cancellationToken);
-    
-   
 }

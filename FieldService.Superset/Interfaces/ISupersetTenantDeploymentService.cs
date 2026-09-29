@@ -5,7 +5,9 @@ namespace FieldService.Superset.Interfaces;
 
 internal interface ISupersetTenantDeploymentService
 {
-    Task<SupersetTenantConfigParams> CreateInstanceAsync(
-        SupersetTenantCreateParams supersetTenantCreateParams, 
-        CancellationToken cancellationToken);
+    Task CreateInstanceAsync(
+        SupersetTenantCreateParams supersetTenantCreateParams,
+        Guid connectionStringId,
+        Guid? userId = null,
+        CancellationToken cancellationToken = default);
 }

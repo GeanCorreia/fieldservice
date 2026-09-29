@@ -20,7 +20,7 @@ internal sealed class SecretKeyEventConfiguration : IEntityTypeConfiguration<Sec
             .IsRequired();
 
         builder.Property(x => x.UserId)
-            .IsRequired();
+            .IsRequired(false);
 
         builder.Property(x => x.EventType)
             .HasConversion<int>()

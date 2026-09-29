@@ -79,7 +79,7 @@ internal class DevelopmentAzureStorageService : AzureStorageService
 
         using var scope = _serviceProvider.CreateScope();
         var eventGridJobProducer = scope.ServiceProvider
-            .GetRequiredService<DevelopmentAzureEventGridJobProducer>();
+            .GetRequiredService<DevelopmentAzureEventGridJobProducerWithRequest>();
         eventGridJobProducer.PublishDelayed(jobPayload, timeSpan);
         return url;
     }
