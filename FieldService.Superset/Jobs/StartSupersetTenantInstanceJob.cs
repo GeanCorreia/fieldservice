@@ -22,16 +22,16 @@ internal sealed record StartSupersetTenantInstanceJob : Job<Guid>
 
 internal sealed class StartSupersetTenantInstanceJobHandler : IQueueConsumer<Guid>
 {
-    private readonly ISupersetService _supersetService;
+    private readonly ISupersetTenantService _supersetTenantService;
     private readonly ISupersetTenantInstanceLifecycleService _supersetTenantInstanceLifecycleService;
     private readonly SupersetTenantInstanceStartedBrokerProducer _supersetTenantInstanceStartedBrokerProducer;
 
     public StartSupersetTenantInstanceJobHandler(
-        ISupersetService supersetService,
+        ISupersetTenantService supersetTenantService,
         ISupersetTenantInstanceLifecycleService supersetTenantInstanceLifecycleService,
         SupersetTenantInstanceStartedBrokerProducer supersetTenantInstanceStartedBrokerProducer)    
     {
-        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         _supersetTenantInstanceLifecycleService = supersetTenantInstanceLifecycleService ?? throw new ArgumentNullException(nameof(supersetTenantInstanceLifecycleService));
         _supersetTenantInstanceStartedBrokerProducer = supersetTenantInstanceStartedBrokerProducer ?? throw new ArgumentNullException(nameof(supersetTenantInstanceStartedBrokerProducer));
     }
@@ -45,7 +45,7 @@ internal sealed class StartSupersetTenantInstanceJobHandler : IQueueConsumer<Gui
 
         try
         {
-            var supersetTenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(
+            var supersetTenantConfig = await _supersetTenantService.GetSupersetTenantByIdAsync(
                 job.Payload, 
                 ct);
             
@@ -55,7 +55,7 @@ internal sealed class StartSupersetTenantInstanceJobHandler : IQueueConsumer<Gui
             var brokerPayload = new SupersetTenantInstanceStartedPayload(
                 TenantId: supersetTenantConfig.TenantId,
                 FqdnUrl: supersetTenantConfig.FqdnUrl,
-                AzureResourceId: supersetTenantConfig.ResourceId
+                AzureResourceId: supersetTenantConfig.Container.ResourceId
             );
 
             await _supersetTenantInstanceStartedBrokerProducer.PublishAsync(brokerPayload, ct);
@@ -70,9 +70,9 @@ internal sealed class StartSupersetTenantInstanceJobHandler : IQueueConsumer<Gui
     
 }
 
-internal sealed class StartSupersetTenantInstanceCreatedJobProducer : AbstractPublishProducer<StartSupersetTenantInstanceJobHandler, Guid>
+internal sealed class StartSupersetTenantInstanceCreatedJobProducerWithRequest : AbstractPublishProducerWithRequest<StartSupersetTenantInstanceJobHandler, Guid>
 {
-    public StartSupersetTenantInstanceCreatedJobProducer(IBackgroundJobClient backgroundJobClient)
+    public StartSupersetTenantInstanceCreatedJobProducerWithRequest(IBackgroundJobClient backgroundJobClient)
         : base(backgroundJobClient)
     {
     }

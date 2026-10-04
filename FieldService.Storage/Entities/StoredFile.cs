@@ -18,7 +18,7 @@ public enum StorageStatus
     Uploaded =2,
     Failed = 3,
     Canceled =4,
-    Deleted =5,
+    Deleted = 5,
     Corrupted=6
 }
 

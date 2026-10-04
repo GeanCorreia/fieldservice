@@ -29,6 +29,11 @@ public interface IStorageService
         StoredFileDownloadsRequest request, 
         CancellationToken ct = default);
     
+    Task MarkDeleteAsync(
+        Guid fileId, 
+        UserTenantDto userTenantDto, 
+        CancellationToken ct = default);
+    
     Task DeleteAsync(
         Guid fileId, 
         UserTenantDto userTenantDto, 

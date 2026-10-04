@@ -14,7 +14,7 @@ public static class QueueProducerRegistrationExtensions
             .SelectMany(a => a.GetTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false })
             .Where(t => IsDerivedFrom(t, typeof(AbstractPublishProducer<>))
-                        || IsDerivedFrom(t, typeof(AbstractPublishProducer<,>))
+                        || IsDerivedFrom(t, typeof(AbstractPublishProducerWithRequest<,>))
                         || IsDerivedFrom(t, typeof(AbstractPublishDelayedProducer<>))
                         || IsDerivedFrom(t, typeof(AbstractPublishDelayedProducerWithRequest<,>)));
 

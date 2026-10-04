@@ -5,7 +5,7 @@ using FieldService.Storage.Types;
 using FieldService.Storage.Factories;
 using Microsoft.Extensions.Configuration;
 using FieldService.Data.Interfaces;
-using FieldService.Shared.Dtos;
+using FieldService.Shared.Configuration;
 using FieldService.Shared.Types;
 using FieldService.Storage.Abstracts;
 using FieldService.Storage.Channels;
@@ -15,17 +15,18 @@ using FieldService.Storage.Logs;
 using FieldService.Storage.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FieldService.Storage.Services;
 
 public class StorageService : AbstractStorageService, IStorageService
 {
-
     private readonly ILogger<StorageService> _logger;
     private readonly StoredFileFailedUploadOutboxChannel _failedUploadChannel;
     private readonly StoredFileCanceledUploadOutboxChannel _canceledUploadChannel;
-
+    private readonly ApplicationAccountOptions _applicationAccountOptions;
     public StorageService(
+        IOptions<ApplicationAccountOptions> applicationAccountOptions,
         StorageProviderFactory storageProviderFactory,
         IConfiguration configuration,
         IStoredFileService storedFileService,
@@ -44,6 +45,7 @@ public class StorageService : AbstractStorageService, IStorageService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _failedUploadChannel = failedUploadChannel ?? throw new ArgumentNullException(nameof(failedUploadChannel));
         _canceledUploadChannel = canceledUploadOutboxChannel ?? throw new ArgumentNullException(nameof(canceledUploadOutboxChannel));
+        _applicationAccountOptions = applicationAccountOptions?.Value ?? throw new ArgumentNullException(nameof(applicationAccountOptions));
     }
     
     
@@ -278,24 +280,85 @@ public class StorageService : AbstractStorageService, IStorageService
     }
 
     
+    public async Task MarkDeleteAsync(
+        Guid fileId, 
+        UserTenantDto userTenantDto, 
+        CancellationToken ct = default)
+    {
+        var file = await _storedFileService.GetByIdAsync(fileId, userTenantDto, ct);
+     
+        if (file == null)
+        {
+            throw new FileNotFoundException("File not found.", nameof(fileId));
+        }
+        
+        
+        var category = file.FileCategory;
+        if(category == null)
+        {
+            throw new InvalidOperationException("File category is required.");
+        }
+        category.ValidateAccess(userTenantDto);
+
+        if (file.Status == StorageStatus.Deleted)
+        {
+            return;
+        }
+        
+        if(file.Status == StorageStatus.Corrupted || 
+           file.Status == StorageStatus.Canceled ||
+           file.Status == StorageStatus.Failed)
+        {
+            throw new FileNotFoundException("File not found.", nameof(fileId));
+        }
+        await _storedFileService.UpdateDeletedStatusAsync(fileId, userTenantDto.Id, ct);
+
+    }
     public async Task DeleteAsync(
         Guid fileId, 
         UserTenantDto userTenantDto, 
         CancellationToken ct = default)
     {
-       var file = await _storedFileService.GetByIdAsync(fileId, userTenantDto, ct);
-
+        var storageFallbackService = _serviceProvider.GetRequiredService<IStorageFallbackService>();
+        var file = await _storedFileService.GetByIdAsync(fileId, userTenantDto, ct);
         if (file == null)
         {
             throw new FileNotFoundException("File not found.", nameof(fileId));
         }
+        var category = file.FileCategory;
+        if(category == null)
+        {
+            throw new InvalidOperationException("File category is required.");
+        }
+        if(userTenantDto.TenantDto.TenantId != _applicationAccountOptions.TenantId)
+        {
+            await MarkDeleteAsync(fileId, userTenantDto, ct);
+            return;
+        }
 
-        file.UpdateStatus(
-            userTenantDto.Id,
-            StorageStatus.Deleted);
+        category.ValidateAccess(userTenantDto);
+        if(file.Status == StorageStatus.Corrupted || 
+           file.Status == StorageStatus.Canceled ||
+           file.Status == StorageStatus.Failed)
+        {
+            throw new FileNotFoundException("File not found.", nameof(fileId));
+        }
         
-        await _storedFileService.SaveStoredFileAsync(file, userTenantDto, ct);
-
+        var provider = GetStorageProvider(file.Provider);
+        await _unitOfWork.BeginAsync(ct);
+        try
+        {
+            await provider.DeleteAsync(file, ct);
+            file.UpdateStatus(
+                userTenantDto.Id,
+                StorageStatus.Deleted);
+            await _unitOfWork.CommitAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            await storageFallbackService.CreateFallbackFailedDeleteCache(fileId, userTenantDto.Id, ct);
+            await _unitOfWork.RollbackAsync(ct);
+        }
     }
 
     public async Task UpdateUploadedStatusAsync(

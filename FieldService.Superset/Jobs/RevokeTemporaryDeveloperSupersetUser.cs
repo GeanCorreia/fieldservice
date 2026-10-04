@@ -45,16 +45,16 @@ internal sealed class SupersetRevokeTemporaryDeveloperUserProducer :
 
 internal class SupersetRevokeTemporaryDeveloperUserConsumer : IQueueConsumer<SupersetRevokeTemporaryDeveloperUserPayload>
 {
-    private readonly ISupersetService _supersetService;
+    private readonly ISupersetTenantService _supersetTenantService;
     private readonly ILogger<SupersetRevokeTemporaryDeveloperUserConsumer> _logger;
     private readonly IMediator _mediator;
 
     public SupersetRevokeTemporaryDeveloperUserConsumer(
-        ISupersetService supersetService, 
+        ISupersetTenantService supersetTenantService, 
         ILogger<SupersetRevokeTemporaryDeveloperUserConsumer> logger,
         IMediator mediator)
     {
-        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
     }

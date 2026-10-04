@@ -10,29 +10,29 @@ namespace FieldService.Superset.Cqrs.Commands.UpdateUser;
 
 internal class UpdateUserHandler : IRequestHandler<UpdateUserCommand>
 {
-    private readonly ISupersetService _supersetService;
+    private readonly ISupersetTenantService _supersetTenantService;
     private readonly ISupersetAuthService _supersetAuthService;
-    private readonly ISupersetUserManagement _supersetUserManagement;
+    private readonly ISupersetSecurityApi _supersetSecurityApi;
     private readonly IMediator _mediator;
     private readonly ILogger<UpdateUserHandler> _logger;
 
     public UpdateUserHandler(
-        ISupersetService supersetService, 
+        ISupersetTenantService supersetTenantService, 
         ISupersetAuthService supersetAuthService,
-        ISupersetUserManagement supersetUserManagement, 
+        ISupersetSecurityApi supersetSecurityApi, 
         IMediator mediator, 
         ILogger<UpdateUserHandler> logger)
     {
-        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         _supersetAuthService = supersetAuthService ?? throw new ArgumentNullException(nameof(supersetAuthService));
-        _supersetUserManagement = supersetUserManagement ?? throw new ArgumentNullException(nameof(supersetUserManagement));
+        _supersetSecurityApi = supersetSecurityApi ?? throw new ArgumentNullException(nameof(supersetSecurityApi));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task Handle(UpdateUserCommand request, CancellationToken cancellationToken)
     {
-        var tenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(request.TenantId, cancellationToken);
+        var tenantConfig = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
         if (tenantConfig == null)
         {
             throw new SupersetTenantNotFoundException(request.TenantId);
@@ -105,7 +105,7 @@ internal class UpdateUserHandler : IRequestHandler<UpdateUserCommand>
             RoleIds: targetRoleIdsList
         );
 
-        await _supersetUserManagement.UpdateUserAsync(
+        await _supersetSecurityApi.UpdateUserAsync(
             host,
             bearerToken,
             supersetUser.SupersetUserId,

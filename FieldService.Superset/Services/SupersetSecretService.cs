@@ -19,25 +19,28 @@ namespace FieldService.Superset.Services;
 
 internal class SupersetSecretService : ISupersetSecretService
 {
+    private readonly IDatabaseService _databaseService;
     private readonly string _connectionString;
     private readonly IMediator _mediator;
     private readonly ISupersetApi _supersetApi;
     private readonly SupersetLoginApiRequest _supersetLoginRequest;
     private readonly SupersetOptions _supersetOptions;
-    private readonly ISupersetService _supersetService;
+    private readonly ISupersetTenantService _supersetTenantService;
     private readonly string _host;
     private readonly int _port;
     
     
     public SupersetSecretService(
+        IDatabaseService databaseService,
         IMediator mediator,
         ISupersetApi supersetApi, 
         IConfiguration configuration,
-        ISupersetService supersetService,
+        ISupersetTenantService supersetTenantService,
         IOptions<SupersetOptions> supersetOptions)
     {
+        _databaseService = databaseService;
         _supersetApi = supersetApi ?? throw new ArgumentNullException(nameof(supersetApi));
-        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         if (supersetOptions == null)
         {
             throw new ArgumentNullException(nameof(supersetOptions));
@@ -89,7 +92,7 @@ internal class SupersetSecretService : ISupersetSecretService
             id,
             SecretKeyType.WebhookSigningSecret,
             tenantId,
-            SupersetTenantConfig.SecretKeyName(tenantId),
+            SupersetTenant.SecretKeyName(tenantId),
             false
         );
 
@@ -107,52 +110,6 @@ internal class SupersetSecretService : ISupersetSecretService
         return (id, key.SecretKey);
 
     }
-    public async Task<(Guid ConnectionStringId, SupersetDatabaseParams databaseParams, string ConnectionString)> CreateDatabaseConnectionString(
-        Guid tenantId, 
-        Guid? userId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var id = Guid.NewGuid();
-        
-        var reference = new SecretKeyReferenceDto(
-            id,
-            SecretKeyType.ConnectionString,
-            tenantId,
-            SupersetTenantConfig.ConnectionStringName(tenantId),
-            false
-        );
-
-        var userName = $"user_{tenantId.ToString().Replace("-", string.Empty)[..8]}";
-        var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-        var databaseName = SupersetTenantConfig.Database(tenantId);
-        
-        var databaseParams = new SupersetDatabaseParams(
-            userName,
-            password,
-            databaseName);
-        
-        var connectionString = BuildSupersetMetadataConnectionString(databaseParams);
-        var key = new ConnectionStringSecret(
-            connectionString);
-        
-        var dto = new SecretKeyDto(
-            reference,
-            key);
-        
-        await _mediator.Send(new CreateSecretKeyCommand( dto, userId), cancellationToken);
-
-        return (id, databaseParams, connectionString);
-    }
-
-    private string BuildSupersetMetadataConnectionString(SupersetDatabaseParams databaseParams)
-    {
-
-        return new NpgsqlConnectionStringBuilder(_connectionString)
-        {
-            Database = databaseParams.Username,
-            Host = _host,
-            Port = _port
-        }.ConnectionString;
-
-    }
+    
+    
 }

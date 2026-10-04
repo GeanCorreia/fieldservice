@@ -3,7 +3,7 @@ using FieldService.Shared.Types;
 
 namespace FieldService.Superset.Attributes;
 
-public enum SupersetRole
+public enum SupersetRoleType
 {
 
     Admin = 1,
@@ -11,28 +11,26 @@ public enum SupersetRole
     Gamma = 3,
     SqlLab = 4,
     DevelopmentScope = 5,
-    ProductionScope = 6,
-    TenantScope = 7
+    ProductionScope = 6
     
 }
 
 public static class TenantScopeRole
 {
-    public static string TenantScopeRoleName(Guid tenantId) => $"Tenant_{tenantId:N}_Scope";
+    public static string RoleName(Guid tenantId) => $"Tenant_{tenantId:N}_Scope";
 }
 
 public static class SupersetRoleExtensions
 {
-    public static string ToRoleName(this SupersetRole role) => role switch
+    public static string ToRoleName(this SupersetRoleType roleType) => roleType switch
     {
-        SupersetRole.Gamma => "Gamma",
-        SupersetRole.Alpha => "Alpha",
-        SupersetRole.Admin => "Admin",
-        SupersetRole.SqlLab => "sql_lab",
-        SupersetRole.DevelopmentScope => "development_scope",
-        SupersetRole.ProductionScope => "production_scope",
-        SupersetRole.TenantScope => "tenant_scope",
-        _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Role do Superset desconhecida.")
+        SupersetRoleType.Gamma => "Gamma",
+        SupersetRoleType.Alpha => "Alpha",
+        SupersetRoleType.Admin => "Admin",
+        SupersetRoleType.SqlLab => "sql_lab",
+        SupersetRoleType.DevelopmentScope => "development_scope",
+        SupersetRoleType.ProductionScope => "production_scope",
+        _ => throw new ArgumentOutOfRangeException(nameof(roleType), roleType, "Role do Superset desconhecida.")
     };
 }
 
@@ -55,42 +53,42 @@ public static class SupersetPermissions
     public static readonly Permission DevelopmentScopePermission = Permission.Create(DevelopmentScope);
     public static readonly Permission ProductionScopePermission = Permission.Create(ProductionScope);
     
-    public static List<SupersetRole> MapToSupersetRoles(IEnumerable<Permission> permissions)
+    public static List<SupersetRoleType> MapToSupersetRoles(IEnumerable<Permission> permissions)
     {
         if (permissions == null || !permissions.Any())
         {
-            return new List<SupersetRole> { SupersetRole.Gamma };
+            return new List<SupersetRoleType> { SupersetRoleType.Gamma };
         }
 
-        var roles = new HashSet<SupersetRole>();
+        var roles = new HashSet<SupersetRoleType>();
         var policyNames = permissions.Select(p => p.PolicyName.ToLowerInvariant()).ToHashSet();
         
         if (policyNames.Contains(Admin))
         {
-            roles.Add(SupersetRole.Admin);
+            roles.Add(SupersetRoleType.Admin);
         }
         else if (policyNames.Contains(Alpha))
         {
-            roles.Add(SupersetRole.Alpha);
+            roles.Add(SupersetRoleType.Alpha);
         }
         else
         {
-            roles.Add(SupersetRole.Gamma);
+            roles.Add(SupersetRoleType.Gamma);
         }
         
         if (policyNames.Contains(SqlLab))
         {
-            roles.Add(SupersetRole.SqlLab);
+            roles.Add(SupersetRoleType.SqlLab);
         }
 
         if (policyNames.Contains(DevelopmentScope))
         {
-            roles.Add(SupersetRole.DevelopmentScope);
+            roles.Add(SupersetRoleType.DevelopmentScope);
         }
 
         if (policyNames.Contains(ProductionScope))
         {
-            roles.Add(SupersetRole.ProductionScope);
+            roles.Add(SupersetRoleType.ProductionScope);
         }
 
         return roles.ToList();
@@ -103,7 +101,7 @@ public static class SupersetPermissions
             .ToList();
     }
     
-    public static List<Permission> MapDomainPermissions(IEnumerable<SupersetRole> roles)
+    public static List<Permission> MapDomainPermissions(IEnumerable<SupersetRoleType> roles)
     {
         if (roles == null || !roles.Any())
         {
@@ -115,30 +113,30 @@ public static class SupersetPermissions
         
         permissions.Add(AccessPermission);
 
-        if (rolesSet.Contains(SupersetRole.Admin))
+        if (rolesSet.Contains(SupersetRoleType.Admin))
         {
             permissions.Add(AdminPermission);
         }
-        else if (rolesSet.Contains(SupersetRole.Alpha))
+        else if (rolesSet.Contains(SupersetRoleType.Alpha))
         {
             permissions.Add(AlphaPermission);
         }
-        else if (rolesSet.Contains(SupersetRole.Gamma))
+        else if (rolesSet.Contains(SupersetRoleType.Gamma))
         {
             permissions.Add(GammaPermission);
         }
 
-        if (rolesSet.Contains(SupersetRole.SqlLab))
+        if (rolesSet.Contains(SupersetRoleType.SqlLab))
         {
             permissions.Add(SqlLabPermission);
         }
 
-        if (rolesSet.Contains(SupersetRole.DevelopmentScope))
+        if (rolesSet.Contains(SupersetRoleType.DevelopmentScope))
         {
             permissions.Add(DevelopmentScopePermission);
         }
 
-        if (rolesSet.Contains(SupersetRole.ProductionScope))
+        if (rolesSet.Contains(SupersetRoleType.ProductionScope))
         {
             permissions.Add(ProductionScopePermission);
         }
@@ -156,19 +154,19 @@ public static class SupersetPermissions
         var parsedRoles = roleNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(TryParseRole)
-            .OfType<SupersetRole>();
+            .OfType<SupersetRoleType>();
 
         return MapDomainPermissions(parsedRoles);
     }
 
-    private static SupersetRole? TryParseRole(string roleName) => roleName.ToLowerInvariant() switch
+    private static SupersetRoleType? TryParseRole(string roleName) => roleName.ToLowerInvariant() switch
     {
-        "admin" => SupersetRole.Admin,
-        "alpha" => SupersetRole.Alpha,
-        "gamma" => SupersetRole.Gamma,
-        "sql_lab" => SupersetRole.SqlLab,
-        "development_scope" => SupersetRole.DevelopmentScope,
-        "production_scope" => SupersetRole.ProductionScope,
+        "admin" => SupersetRoleType.Admin,
+        "alpha" => SupersetRoleType.Alpha,
+        "gamma" => SupersetRoleType.Gamma,
+        "sql_lab" => SupersetRoleType.SqlLab,
+        "development_scope" => SupersetRoleType.DevelopmentScope,
+        "production_scope" => SupersetRoleType.ProductionScope,
         _ => null
     };
 }

@@ -2,17 +2,13 @@ using FieldService.Superset.Entities;
 
 namespace FieldService.Superset.Dtos;
 
-public record SupersetTenantCreateParams(
-    Guid UserId,
-    Guid TenantId,
-    InstanceTier InstanceTier,
-    ScheduledExecutionWindow? ScheduledExecutionWindow = null);
 
-internal sealed record SupersetDatabaseParams(
-    string DatabaseName,
-    string Username,
-    string Password
-);
+public record SupersetTenantCreateParams(
+    ProviderType ProviderType,
+    SupersetContainerConfiguration configuration,
+    Guid? DedicatedDbConnectionStringId = null
+    );
+
 
 
 internal sealed record SupersetContainerCreationResult(
@@ -21,8 +17,3 @@ internal sealed record SupersetContainerCreationResult(
 );
 
 
-// internal record SupersetTenantCreateParams(
-//     Guid UserId,
-//     Guid TenantId,
-//     InstanceTier InstanceTier,
-//     ScheduledExecutionWindow? ScheduledExecutionWindow = null);

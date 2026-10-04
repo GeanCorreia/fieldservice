@@ -1,6 +1,7 @@
 using FieldService.Shared.Types;
 using FieldService.Superset.Attributes;
 using FieldService.Superset.Dtos;
+using FieldService.Superset.Entities;
 using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
 using FieldService.Superset.Utils;
@@ -12,37 +13,38 @@ namespace FieldService.Superset.Cqrs.Queries.GetSupersetUser;
 internal class GetSupersetUserHandler : IRequestHandler<GetSupersetUserQuery, SupersetUserDetailDto>
 {
     private readonly ILogger<GetSupersetUserHandler> _logger;
-    private readonly ISupersetService _supersetService;
+    private readonly ISupersetTenantService _supersetTenantService;
     private readonly ISupersetAuthService _supersetAuthService;
-    private readonly ISupersetUserManagement _supersetUserManagement;
+    private readonly ISupersetSecurityApi _supersetSecurityApi;
 
     public GetSupersetUserHandler(
         ILogger<GetSupersetUserHandler> logger,
-        ISupersetService supersetService,
+        ISupersetTenantService supersetTenantService,
         ISupersetAuthService supersetAuthService,
-        ISupersetUserManagement supersetUserManagement)
+        ISupersetSecurityApi supersetSecurityApi)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         _supersetAuthService = supersetAuthService ?? throw new ArgumentNullException(nameof(supersetAuthService));
-        _supersetUserManagement = supersetUserManagement ?? throw new ArgumentNullException(nameof(supersetUserManagement));
+        _supersetSecurityApi = supersetSecurityApi ?? throw new ArgumentNullException(nameof(supersetSecurityApi));
     }
 
     public async Task<SupersetUserDetailDto> Handle(GetSupersetUserQuery request, CancellationToken cancellationToken)
     {
-        var tenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(request.TenantId, cancellationToken);
-        if (tenantConfig == null)
+        var tenantSuperset = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
+        if (tenantSuperset == null)
         {
             throw new SupersetTenantNotFoundException(request.TenantId);
         }
-
+        await _supersetTenantService.EnsureSupersetContainerActiveAsync(request.TenantId, cancellationToken);
+        
         var adminToken = await _supersetAuthService.GetAdminToken(request.TenantId, cancellationToken);
         var bearerToken = $"Bearer {adminToken}";
         var userName = SupersetUsernameResolver.ResolveUsername(request.UserId, request.TenantId);
         var filterQuery = $"(filters:!((col:username,opr:eq,value:'{userName}')))";
-        var host = new Uri(tenantConfig.FqdnUrl);
+        var host = new Uri(tenantSuperset.FqdnUrl);
 
-        var response = await _supersetUserManagement.GetUsersAsync(
+        var response = await _supersetSecurityApi.GetUsersAsync(
             host,
             bearerToken,
             filterQuery,

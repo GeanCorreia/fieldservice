@@ -1,19 +1,20 @@
 using FieldService.Superset.Entities;
+using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 
 namespace FieldService.Superset.Services;
 
-internal class SupersetService : ISupersetService
+internal class SupersetTenantService : ISupersetTenantService
 {
     private readonly ISupersetTenantInstanceLifecycleService _supersetTenantInstanceLifecycleService;
-    private readonly ILogger<SupersetService> _logger;
+    private readonly ILogger<SupersetTenantService> _logger;
     private readonly ISupersetRepository _supersetRepository;
     private readonly HybridCache _cache;
 
-    public SupersetService(
-        ILogger<SupersetService> logger,
+    public SupersetTenantService(
+        ILogger<SupersetTenantService> logger,
         ISupersetRepository supersetRepository,
         HybridCache cache,
         ISupersetTenantInstanceLifecycleService supersetTenantInstanceLifecycleService)
@@ -25,7 +26,7 @@ internal class SupersetService : ISupersetService
                                                   throw new ArgumentNullException(nameof(supersetTenantInstanceLifecycleService));
     }
 
-    public async Task<SupersetTenantConfig?> GetSupersetTenantByTenantIdAsync(
+    public async Task<SupersetTenant?> GetSupersetTenantByIdAsync(
         Guid tenantId,
         CancellationToken cancellationToken)
     {
@@ -34,12 +35,12 @@ internal class SupersetService : ISupersetService
 
         return await _cache.GetOrCreateAsync(
             SupersetCache.GetTenantConfigByTenantIdCacheKey(tenantId),
-            async token => await _supersetRepository.GetSupersetTenantByTenantIdAsync(tenantId, token),
+            async token => await _supersetRepository.GetSupersetTenantByIdAsync(tenantId, token),
             SupersetCache.ConfigCacheOptions,
             cancellationToken: cancellationToken);
     }
 
-    public async Task<SupersetTenantConfig?> GetSupersetTenantByResourceIdAsync(
+    public async Task<SupersetTenant?> GetSupersetTenantByResourceIdAsync(
         string resourceId,
         CancellationToken cancellationToken)
     {
@@ -56,17 +57,17 @@ internal class SupersetService : ISupersetService
     }
 
     public async Task SaveAsync(
-        SupersetTenantConfig tenantConfig,
+        SupersetTenant tenant,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(tenantConfig);
+        ArgumentNullException.ThrowIfNull(tenant);
 
         await RemoveTenantConfigCacheAsync(
-            tenantConfig.TenantId,
-            tenantConfig.ResourceId,
+            tenant.TenantId,
+            tenant.Container.ResourceId,
             cancellationToken);
 
-        await _supersetRepository.SaveAsync(tenantConfig, cancellationToken);
+        await _supersetRepository.SaveAsync(tenant, cancellationToken);
 
     }
 
@@ -89,7 +90,7 @@ internal class SupersetService : ISupersetService
 
     public async Task<SupersetTenantInstance?> GetSupersetTenantInstance(
         Guid tenantId,
-        SupersetInstanceStatus? status,
+        SupersetContainerInstanceStatus? status,
         CancellationToken cancellationToken = default)
     {
         
@@ -117,7 +118,7 @@ internal class SupersetService : ISupersetService
             return instanceFromAzure.Status == status.Value ? instanceFromAzure : null;
         }
         
-        foreach (var currentStatus in Enum.GetValues<SupersetInstanceStatus>())
+        foreach (var currentStatus in Enum.GetValues<SupersetContainerInstanceStatus>())
         {
             var instance = await _cache.GetOrCreateAsync(
                 SupersetCache.GetTenantInstanceCacheKey(tenantId, currentStatus),
@@ -139,14 +140,30 @@ internal class SupersetService : ISupersetService
         return null;
     }
 
+    public async Task EnsureSupersetContainerActiveAsync(
+        Guid tenantId, 
+        CancellationToken cancellationToken = default)
+    {
+        var tenantSuperset = await GetSupersetTenantByIdAsync(tenantId, cancellationToken);
+        if (tenantSuperset is null)
+            throw new SupersetTenantNotFoundException(tenantId);
+
+        if(tenantSuperset.Status != SupersetTenantStatus.Active)
+        {
+            throw new SupersetTenantBlockedException(
+                tenantSuperset.Id, 
+                tenantSuperset.Status);
+        }
+    }
+
     private async Task<SupersetTenantInstance?> GetTenantInstanceFromAzureOrDbAsync(
         Guid tenantId,
         CancellationToken cancellationToken)
     {
-        var tenantConfig = await GetSupersetTenantByTenantIdAsync(tenantId, cancellationToken);
-        if (tenantConfig is null)
+        var supersetTenant = await GetSupersetTenantByIdAsync(tenantId, cancellationToken);
+        if (supersetTenant is null)
             return null;
-        var resourceId = tenantConfig.ResourceId;
+        var resourceId = supersetTenant.Container.ResourceId;
         
         var instance = await _supersetTenantInstanceLifecycleService.IsContainerActiveAsync(
             resourceId,
@@ -155,7 +172,7 @@ internal class SupersetService : ISupersetService
         if (!instance)
             return null;
         
-        return SupersetTenantInstance.Create(tenantConfig, SupersetInstanceStatus.Running);
+        return SupersetTenantInstance.Create(supersetTenant, SupersetContainerInstanceStatus.Running);
     }
 
   private async Task RemoveTenantConfigCacheAsync(
@@ -175,7 +192,7 @@ internal class SupersetService : ISupersetService
         Guid tenantId,
         CancellationToken cancellationToken)
     {
-        var removeTasks = Enum.GetValues<SupersetInstanceStatus>()
+        var removeTasks = Enum.GetValues<SupersetContainerInstanceStatus>()
             .Select(status => _cache.RemoveAsync(SupersetCache.GetTenantInstanceCacheKey(tenantId, status), cancellationToken).AsTask());
 
         await Task.WhenAll(removeTasks);

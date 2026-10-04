@@ -13,22 +13,22 @@ namespace FieldService.Superset.Cqrs.Commands.CreateUser;
 internal class CreateUserHandler : IRequestHandler<CreateUserCommand>
 {
     private readonly ILogger<CreateUserHandler> _logger;
-    private readonly ISupersetService _supersetService;
+    private readonly ISupersetTenantService _supersetTenantService;
     private readonly ISupersetAuthService _supersetAuthService;
-    private readonly ISupersetUserManagement _supersetUserManagement;
+    private readonly ISupersetSecurityApi _supersetSecurityApi;
     private readonly IMediator _mediator;
     
     public CreateUserHandler(
         ILogger<CreateUserHandler> logger,
-        ISupersetService supersetService,
+        ISupersetTenantService supersetTenantService,
         ISupersetAuthService supersetAuthService,
-        ISupersetUserManagement supersetUserManagement,
+        ISupersetSecurityApi supersetSecurityApi,
         IMediator mediator)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         _supersetAuthService = supersetAuthService ?? throw new ArgumentNullException(nameof(supersetAuthService));
-        _supersetUserManagement = supersetUserManagement ?? throw new ArgumentNullException(nameof(supersetUserManagement));
+        _supersetSecurityApi = supersetSecurityApi ?? throw new ArgumentNullException(nameof(supersetSecurityApi));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
     }
 
@@ -43,7 +43,7 @@ internal class CreateUserHandler : IRequestHandler<CreateUserCommand>
         {
             throw new UnauthorizedAccessException();
         }
-        var tenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(request.TenantId, cancellationToken);
+        var tenantConfig = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
         if (tenantConfig == null)
         {
             throw new SupersetTenantNotFoundException(request.TenantId);
@@ -76,7 +76,7 @@ internal class CreateUserHandler : IRequestHandler<CreateUserCommand>
         var roles = SupersetPermissions.MapToSupersetRoles(request.Permissions);
         List<int> roleIds = roles.Select(role => (int)role).ToList();
         
-        roleIds.Add((int)SupersetRole.ProductionScope);
+        roleIds.Add((int)SupersetRoleType.ProductionScope);
         
         var supersetTenantRole = await _supersetAuthService.GetTenantScopeRole(request.TenantId, cancellationToken);
         if (supersetTenantRole == null)
@@ -86,7 +86,7 @@ internal class CreateUserHandler : IRequestHandler<CreateUserCommand>
         
         roleIds.Add(supersetTenantRole.Id);
 
-        await _supersetUserManagement.CreateUserAsync(
+        await _supersetSecurityApi.CreateUserAsync(
             host,
             bearerToken,
             new SupersetCreateUserApiRequest(

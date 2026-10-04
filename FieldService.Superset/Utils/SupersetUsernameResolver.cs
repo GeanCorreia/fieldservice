@@ -47,4 +47,19 @@ public static class SupersetUsernameResolver
 
         return $"password_{userIdString}_{tenantIdString}";
     }
+    
+    public static Guid ResolveDomainUserId(string supersetUsername)
+    {
+        if (string.IsNullOrWhiteSpace(supersetUsername))
+            throw new ArgumentException("Superset username cannot be null or whitespace.", nameof(supersetUsername));
+
+        var parts = supersetUsername.Split('_');
+        if (parts.Length != 3 || parts[0] != "user")
+            throw new ArgumentException($"Invalid Superset username format: {supersetUsername}", nameof(supersetUsername));
+
+        if (!Guid.TryParse(parts[1], out var userId))
+            throw new ArgumentException($"Invalid user ID in Superset username: {supersetUsername}", nameof(supersetUsername));
+
+        return userId;
+    }
 }

@@ -5,18 +5,62 @@ using Refit;
 
 namespace FieldService.Superset.Interfaces;
 
-internal interface ISupersetUserManagement
+internal interface ISupersetSecurityApi
 {
-    /// <summary>
-    /// Lista roles do Superset para resolução dos IDs numéricos (ex: Gamma = 3).
-    /// </summary>
+    
     [Get("/api/v1/security/roles/")]
-    Task<SupersetListApiResponse<SupersetRoleApiResponse>> GetRolesAsync(
+    Task<SupersetRolesApiResponse> GetRolesAsync(
+        [Header("Host")] Uri host, 
+        [Header("Authorization")] string bearerToken,
+        CancellationToken cancellationToken = default
+    );
+
+    [Post("/api/v1/security/roles/")]
+    Task<SupersetRoleDetailApiResponse> CreateRoleAsync(
+        [Header("Host")] Uri host,
+        [Header("Authorization")] string bearerToken,
+        [Body] SupersetCreateRoleApiRequest request,
+        CancellationToken cancellationToken = default
+    );
+    
+    [Get("/api/v1/security/roles/{id}")]
+    Task<SupersetRoleDetailApiResponse> GetRoleByIdAsync(
         [Url] Uri host,
         [Header("Authorization")] string bearerToken,
+        int id,
         CancellationToken ct = default
     );
 
+    [Get("/api/v1/security/permissions-resources/")]
+    Task<SupersetListApiResponse<SupersetPermissionResourceApiResponse>> GetPermissionResourcesAsync(
+        [Header("Host")] Uri host,
+        [Header("Authorization")] string bearerToken,
+        [Query("q")] string query,
+        CancellationToken cancellationToken = default
+    );
+    
+    [Post("/api/v1/security/login")]
+    Task<SupersetLoginApiResponse> LoginAsync(
+        [Url] Uri host,
+        [Body] SupersetLoginApiRequest request, 
+        CancellationToken ct = default
+    );
+    
+    [Post("/api/v1/security/refresh")]
+    Task<SupersetRefreshTokenApiResponse> RefreshTokenAsync(
+        [Header("Host")] Uri host, 
+        [Header("Authorization")] string bearerRefreshToken, 
+        CancellationToken cancellationToken = default);
+    
+    
+    [Post("/api/v1/security/guest_token/")]
+    Task<SupersetGuestTokenApiResponse> GetGuestTokenAsync(
+        [Url] Uri host,
+        [Header("Authorization")] string bearerToken, 
+        [Body] SupersetGuestTokenApiRequest request, 
+        CancellationToken ct = default
+    );
+ 
     /// <summary>
     /// Busca usuário por filtro RSQL na API do Superset.
     /// Exemplo do valor em filterQuery: (filters:[(col:username,opr:eq,value:'usr_123')])
@@ -25,7 +69,7 @@ internal interface ISupersetUserManagement
     Task<SupersetListApiResponse<SupersetUserApiResponse>> GetUsersAsync(
         [Url] Uri host,
         [Header("Authorization")] string bearerToken,
-        [Query("q")] string filterQuery,
+        [Query("q")] string? filterQuery = null,
         CancellationToken ct = default
     );
 

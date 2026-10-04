@@ -23,16 +23,4 @@ internal interface ISupersetSecretService
         Guid? userId = null,
         CancellationToken cancellationToken = default);
     
-    Task<(
-        Guid ConnectionStringId, 
-        SupersetDatabaseParams databaseParams, 
-        string ConnectionString)> 
-        CreateDatabaseConnectionString(
-        Guid tenantId,
-        Guid? userId = null,
-        CancellationToken cancellationToken = default);
-    
-   
-    
-
 }

@@ -27,7 +27,7 @@ public static class SupersetModule
                 client.Timeout = TimeSpan.FromSeconds(30);
             });
 
-        services.AddRefitClient<ISupersetUserManagement>()
+        services.AddRefitClient<ISupersetSecurityApi>()
             .ConfigureHttpClient(client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(30);
@@ -63,14 +63,24 @@ public static class SupersetModule
             );
         
         services.AddSingleton<ISupersetTenantInstanceProcessingLock, SupersetTenantInstanceProcessingLock>();
-        services.AddScoped<ISupersetService, SupersetService>();
+        services.AddScoped<IDatabaseService, DatabaseService>();
         services.AddScoped<ISupersetAuthService, SupersetAuthService>();
-        services.AddScoped<ISupersetRepository, SupersetRepository>();
+        services.AddScoped<ISupersetDataBaseService, SupersetDataBaseService>();
+        services.AddScoped<ISupersetRoleServices, SupersetRoleServices>();
+        services.AddScoped<ISupersetResourceServices, SupersetResourceServices>();
         services.AddScoped<ISupersetSecretService, SupersetSecretService>();
-        services.AddScoped<ISupersetTenantDeploymentService, SupersetTenantDeploymentService>();
-        services.AddScoped<ISupersetTenantContainerConfigurationService, SupersetTenantContainerConfigurationService>();
-        services.AddScoped<ISupersetTenantInstanceLifecycleService, SupersetTenantInstanceLifecycleService>();
+        services.AddScoped<ISupersetContainerConfigurationService, AzureSupersetContainerConfigurationService>();
+        services.AddScoped<ISupersetContainerDeploymentService, AzureSupersetContainerDeploymentService>();
+        services.AddScoped<ISupersetTenantInstanceLifecycleService, AzureSupersetTenantInstanceLifecycleService>();
+        services.AddScoped<ISupersetTenantInstanceProcessingLock, SupersetTenantInstanceProcessingLock>();
+        services.AddScoped<ISupersetTenantService, SupersetTenantService>();
         services.AddScoped<SupersetContainerAllowedOriginsCors>();
+        services.AddScoped<SupersetTenantDynamicTransformProvider>();
+        
+        services.AddScoped<ISupersetRepository, SupersetRepository>();
+        services.AddScoped<ISupersetTenantFlowRepository, SupersetTenantFlowRepository>();
+        services.AddScoped<ISupersetContainerRepository, SupersetContainerRepository>();
+        
         return services;
     }
     

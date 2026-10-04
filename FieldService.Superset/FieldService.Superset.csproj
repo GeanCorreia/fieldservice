@@ -23,12 +23,11 @@
       <ProjectReference Include="..\FieldService.Http\FieldService.Http.csproj" />
       <ProjectReference Include="..\FieldService.SecretKey\FieldService.SecretKey.csproj" />
       <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
+      <ProjectReference Include="..\FieldService.Storage\FieldService.Storage.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Events\" />
       <Folder Include="Mcp\" />
-      <Folder Include="Middlewares\" />
     </ItemGroup>
 
 </Project>

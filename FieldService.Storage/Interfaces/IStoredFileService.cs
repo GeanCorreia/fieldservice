@@ -35,6 +35,11 @@ public interface IStoredFileService
         Guid fileId, 
         CancellationToken ct = default);
     
+    Task UpdateDeletedStatusAsync(
+        Guid fileId, 
+        Guid userId,
+        CancellationToken ct = default);
+    
     Task UpdateUploadedStatusAsync(
         IEnumerable<Guid> fileIds, 
         CancellationToken ct = default);
@@ -80,5 +85,7 @@ public interface IStoredFileService
         StoredFileCategory storedFileCategory, 
         UserTenantDto userTenantDto,
         CancellationToken ct = default);
+    
+   
     
 }

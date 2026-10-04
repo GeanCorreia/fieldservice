@@ -20,21 +20,21 @@ internal class CreateDeveloperUserHandler : IRequestHandler<CreateDeveloperUserC
 {
     
     private readonly ILogger<CreateDeveloperUserHandler> _logger;
-    private readonly ISupersetService _supersetService;
+    private readonly ISupersetTenantService _supersetTenantService;
     private readonly ISupersetAuthService _supersetAuthService;
-    private readonly ISupersetUserManagement _supersetUserManagement;
+    private readonly ISupersetSecurityApi _supersetSecurityApi;
     private readonly IMediator _mediator;
     private readonly SupersetRevokeTemporaryDeveloperUserProducer _revokeTemporaryDeveloperUserProducer;
 
-    public CreateDeveloperUserHandler(ILogger<CreateDeveloperUserHandler> logger, ISupersetService supersetService,
-        ISupersetAuthService supersetAuthService, ISupersetUserManagement supersetUserManagement, IMediator mediator,
+    public CreateDeveloperUserHandler(ILogger<CreateDeveloperUserHandler> logger, ISupersetTenantService supersetTenantService,
+        ISupersetAuthService supersetAuthService, ISupersetSecurityApi supersetSecurityApi, IMediator mediator,
         SupersetRevokeTemporaryDeveloperUserProducer revokeTemporaryDeveloperUserProducer)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         _supersetAuthService = supersetAuthService ?? throw new ArgumentNullException(nameof(supersetAuthService));
-        _supersetUserManagement =
-            supersetUserManagement ?? throw new ArgumentNullException(nameof(supersetUserManagement));
+        _supersetSecurityApi =
+            supersetSecurityApi ?? throw new ArgumentNullException(nameof(supersetSecurityApi));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _revokeTemporaryDeveloperUserProducer = revokeTemporaryDeveloperUserProducer ??
                                                 throw new ArgumentNullException(
@@ -56,11 +56,12 @@ internal class CreateDeveloperUserHandler : IRequestHandler<CreateDeveloperUserC
         {
             throw new UnauthorizedAccessException();
         }
-        var tenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(request.TenantId, cancellationToken);
+        var tenantConfig = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
         if (tenantConfig == null)
         {
             throw new SupersetTenantNotFoundException(request.TenantId);
         }
+        
 
         var supersetUser = await _mediator.Send(new GetSupersetUserQuery(request.UserId, request.TenantId), cancellationToken);
 
@@ -110,7 +111,7 @@ internal class CreateDeveloperUserHandler : IRequestHandler<CreateDeveloperUserC
     }
 
     private async Task HandleNewUser(
-        SupersetTenantConfig tenantConfig,
+        SupersetTenant tenant,
         CreateDeveloperUserCommand request, 
         CancellationToken cancellationToken)
     {
@@ -125,7 +126,7 @@ internal class CreateDeveloperUserHandler : IRequestHandler<CreateDeveloperUserC
         var adminToken = await _supersetAuthService.GetAdminToken(request.TenantId, cancellationToken);
         var bearerToken = $"Bearer {adminToken}";
         
-        var host = new Uri(tenantConfig.FqdnUrl);
+        var host = new Uri(tenant.FqdnUrl);
         var roles = SupersetPermissions.MapToSupersetRoles(permissions);
         var supersetTenantRole = await _supersetAuthService.GetTenantScopeRole(request.TenantId, cancellationToken);
         if (supersetTenantRole == null)
@@ -136,7 +137,7 @@ internal class CreateDeveloperUserHandler : IRequestHandler<CreateDeveloperUserC
         List<int> roleIds = roles.Select(role => (int)role).ToList();
         roleIds.Add(supersetTenantRole.Id);
         
-        await _supersetUserManagement.CreateUserAsync(
+        await _supersetSecurityApi.CreateUserAsync(
             host,
             bearerToken,
             new SupersetCreateUserApiRequest(

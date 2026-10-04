@@ -49,6 +49,13 @@ public class StoragePresignedUrlService : AbstractStorageService, IStoragePresig
             fileId, 
             ct);
         
+        var category = file.FileCategory;
+        if(category == null)
+        {
+            throw new InvalidOperationException("File category is required.");
+        }
+        category.ValidateAccess(userTenantDto);
+        
         var provider = GetStorageProvider();
         
         var url = await provider.GeneratePresignedUploadUrlAsync(
@@ -145,6 +152,13 @@ public class StoragePresignedUrlService : AbstractStorageService, IStoragePresig
         {
             throw new FileNotFoundException("File not found.", nameof(request.Id));
         }
+        
+        var category = file.FileCategory;
+        if(category == null)
+        {
+            throw new InvalidOperationException("File category is required.");
+        }
+        category.ValidateAccess(userTenantDto);
         
         if(file.Status == StorageStatus.Corrupted || 
            file.Status == StorageStatus.Deleted ||

@@ -15,55 +15,12 @@ internal interface ISupersetApi
         CancellationToken cancellationToken = default
     );
     
-    [Get("/api/v1/security/roles/")]
-    Task<SupersetRolesApiResponse> GetRolesAsync(
-        [Header("Host")] Uri host, 
-        [Header("Authorization")] string bearerToken,
-        CancellationToken cancellationToken = default
-    );
-
-    [Post("/api/v1/security/roles/")]
-    Task<SupersetCreateRoleApiResponse> CreateRoleAsync(
-        [Header("Host")] Uri host,
-        [Header("Authorization")] string bearerToken,
-        [Body] SupersetCreateRoleApiRequest request,
-        CancellationToken cancellationToken = default
-    );
-
-    [Get("/api/v1/security/permissions-resources/")]
-    Task<SupersetListApiResponse<SupersetPermissionResourceApiResponse>> GetPermissionResourcesAsync(
-        [Header("Host")] Uri host,
-        [Header("Authorization")] string bearerToken,
-        [Query("q")] string query,
-        CancellationToken cancellationToken = default
-    );
     
-    [Post("/api/v1/security/login")]
-    Task<SupersetLoginApiResponse> LoginAsync(
-        [Url] Uri host,
-        [Body] SupersetLoginApiRequest request, 
-        CancellationToken ct = default
-    );
-    
-    [Post("/api/v1/security/refresh")]
-    Task<SupersetRefreshTokenApiResponse> RefreshTokenAsync(
-        [Header("Host")] Uri host, 
-        [Header("Authorization")] string bearerRefreshToken, 
-        CancellationToken cancellationToken = default);
-    
-    
-    [Post("/api/v1/security/guest_token/")]
-    Task<SupersetGuestTokenApiResponse> GetGuestTokenAsync(
-        [Url] Uri host,
-        [Header("Authorization")] string bearerToken, 
-        [Body] SupersetGuestTokenApiRequest request, 
-        CancellationToken ct = default
-    );
-
     [Get("/api/v1/dashboard/")]
     Task<SupersetListApiResponse<SupersetDashboardApiResponse>> GetDashboardsAsync(
         [Url] Uri host,
         [Header("Authorization")] string bearerToken,
+        [Query] string? q = null,
         CancellationToken ct = default
     );
 
@@ -71,6 +28,7 @@ internal interface ISupersetApi
     Task<SupersetListApiResponse<SupersetChartApiResponse>> GetChartsAsync(
         [Url] Uri host,
         [Header("Authorization")] string bearerToken,
+        [Query] string? q = null,
         CancellationToken ct = default
     );
 
@@ -78,6 +36,7 @@ internal interface ISupersetApi
     Task<SupersetListApiResponse<SupersetDatasetApiResponse>> GetDatasetsAsync(
         [Url] Uri host,
         [Header("Authorization")] string bearerToken,
+        [Query] string? q = null,
         CancellationToken ct = default
     );
 
@@ -85,13 +44,40 @@ internal interface ISupersetApi
     Task<SupersetListApiResponse<SupersetSavedQueryApiResponse>> GetSavedQueriesAsync(
         [Url] Uri host,
         [Header("Authorization")] string bearerToken,
+        [Query] string? q = null,
         CancellationToken ct = default
     );
     
-    [Get("/api/v1/security/users/")]
-    Task<SupersetListApiResponse<SupersetUserApiResponse>> GetTenantSupersetUsersAsync(
+    [Get("/api/v1/dashboard/export/")]
+    Task<HttpResponseMessage> ExportDashboardsAsync(
         [Url] Uri host,
         [Header("Authorization")] string bearerToken,
-        CancellationToken ct = default
+        [Query] string q,
+        CancellationToken cancellationToken = default);
+
+    [Get("/api/v1/chart/export/")]
+    Task<HttpResponseMessage> ExportChartsAsync(
+        [Url] Uri host,
+        [Header("Authorization")] string bearerToken,
+        [Query] string q,
+        CancellationToken cancellationToken = default);
+    
+    [Get("/api/v1/saved_query/export/")]
+    Task<HttpResponseMessage> ExportSavedQueriesAsync(
+        [Url] Uri host,
+        [Header("Authorization")] string bearerToken,
+        [Query] string q,
+        CancellationToken cancellationToken = default);
+    
+    [Multipart]
+    [Post("/api/v1/assets/import/")]
+    Task ImportAssetsAsync(
+        [Url] Uri host,
+        [Header("Authorization")] string bearerToken,
+        [AliasAs("formData")] StreamPart file,
+        [AliasAs("overwrite")] bool overwrite = true,
+        CancellationToken cancellationToken = default
     );
+    
+   
 }

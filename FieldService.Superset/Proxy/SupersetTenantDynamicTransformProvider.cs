@@ -42,19 +42,19 @@ public class SupersetTenantDynamicTransformProvider : ITransformProvider
                 var tenantId = ClaimsResolver.GetTenantId(principal);
                 var userId = ClaimsResolver.GetUserId(principal);
                 
-                var supersetService = httpContext.RequestServices.GetRequiredService<ISupersetService>();
+                var supersetService = httpContext.RequestServices.GetRequiredService<ISupersetTenantService>();
                 var mediator = httpContext.RequestServices.GetRequiredService<IMediator>();
                 
-                var supersetTenantConfiguration = await supersetService
-                    .GetSupersetTenantByTenantIdAsync(tenantId, httpContext.RequestAborted);
+                var supersetTenant = await supersetService
+                    .GetSupersetTenantByIdAsync(tenantId, httpContext.RequestAborted);
                 
-                if (supersetTenantConfiguration == null)
+                if (supersetTenant == null)
                 {
                     httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
                     return;
                 }
 
-                if (string.IsNullOrWhiteSpace(supersetTenantConfiguration.FqdnUrl))
+                if (string.IsNullOrWhiteSpace(supersetTenant.Container.FqdnUrl))
                 {
                     httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
                     return;
@@ -70,7 +70,7 @@ public class SupersetTenantDynamicTransformProvider : ITransformProvider
                 var userPermissions = user.Permissions;
                 var isStandAloneUser = !userPermissions.Contains(SupersetPermissions.AdminPermission);
                 
-                var targetUri = new Uri(supersetTenantConfiguration.FqdnUrl);
+                var targetUri = new Uri(supersetTenant.Container.FqdnUrl);
                 var pathAndQuery = httpContext.Request.GetEncodedPathAndQuery();
 
                 if (isStandAloneUser)

@@ -3,24 +3,6 @@ using System.Text.Json.Serialization;
 namespace FieldService.Superset.Dtos.SupersetApiRequestDto;
 
 
-public record CreateSupersetUserRequest(
-    [property: System.Text.Json.Serialization.JsonPropertyName("first_name")] string FirstName,
-    [property: System.Text.Json.Serialization.JsonPropertyName("last_name")] string LastName,
-    [property: System.Text.Json.Serialization.JsonPropertyName("username")] string Username,
-    [property: System.Text.Json.Serialization.JsonPropertyName("email")] string Email,
-    [property: System.Text.Json.Serialization.JsonPropertyName("password")] string Password,
-    [property: System.Text.Json.Serialization.JsonPropertyName("active")] bool Active,
-    [property: System.Text.Json.Serialization.JsonPropertyName("roles")] List<int> RoleIds
-);
-
-// Request para ATUALIZAR Usuário/Roles no Superset (PUT /api/v1/security/users/{id})
-public record UpdateSupersetUserRequest(
-    [property: System.Text.Json.Serialization.JsonPropertyName("first_name")] string FirstName,
-    [property: System.Text.Json.Serialization.JsonPropertyName("last_name")] string LastName,
-    [property: System.Text.Json.Serialization.JsonPropertyName("email")] string Email,
-    [property: System.Text.Json.Serialization.JsonPropertyName("active")] bool Active,
-    [property: System.Text.Json.Serialization.JsonPropertyName("roles")] List<int> RoleIds
-);
 
 public record SupersetCreateUserApiRequest(
     [property: JsonPropertyName("first_name")] string FirstName,
@@ -45,9 +27,6 @@ public record SupersetCreateRoleApiRequest(
     [property: JsonPropertyName("permissions")] List<int> PermissionViewMenuIds
 );
 
-/// <summary>
-/// Enviado no POST /api/v1/security/login
-/// </summary>
 internal record SupersetLoginApiRequest(
     [property: JsonPropertyName("username")] string Username,
     [property: JsonPropertyName("password")] string Password,
@@ -55,9 +34,6 @@ internal record SupersetLoginApiRequest(
     [property: JsonPropertyName("refresh")] bool Refresh = true
 );
 
-/// <summary>
-/// Enviado no POST /api/v1/security/guest_token/
-/// </summary>
 internal record SupersetGuestTokenApiRequest(
     [property: JsonPropertyName("user")] SupersetGuestTokenUserApiPayload User,
     [property: JsonPropertyName("resources")] IEnumerable<SupersetResourceApiPayload> Resources,
@@ -66,8 +42,14 @@ internal record SupersetGuestTokenApiRequest(
 
 internal record SupersetGuestTokenUserApiPayload(
     [property: JsonPropertyName("username")] string Username,
-    [property: JsonPropertyName("first_name")] string? FirstName = null,
-    [property: JsonPropertyName("last_name")] string? LastName = null
+    
+    [property: JsonPropertyName("first_name")] 
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] 
+    string? FirstName = null,
+    
+    [property: JsonPropertyName("last_name")] 
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] 
+    string? LastName = null
 );
 
 internal record SupersetResourceApiPayload(
@@ -77,4 +59,39 @@ internal record SupersetResourceApiPayload(
 
 internal record SupersetRlsApiPayload(
     [property: JsonPropertyName("clause")] string Clause
+){
+    public static SupersetRlsApiPayload ForTenant(Guid tenantId) 
+        => new($"TenantId = '{tenantId}'");
+};
+
+
+public record SupersetFilter
+{
+    [JsonPropertyName("filters")]
+    public List<SupersetFilterCondition> Filters { get; init; } = new();
+
+    public SupersetFilter() { }
+
+    public SupersetFilter(string column, string operatorCode, object value)
+    {
+        Filters.Add(new SupersetFilterCondition(column, operatorCode, value));
+    }
+
+    public SupersetFilter AddCondition(string column, string operatorCode, object value)
+    {
+        Filters.Add(new SupersetFilterCondition(column, operatorCode, value));
+        return this;
+    }
+    public override string ToString()
+    {
+        return System.Text.Json.JsonSerializer.Serialize(this);
+    }
+    
+    public static implicit operator string(SupersetFilter filter) => filter.ToString();
+}
+
+public record SupersetFilterCondition(
+    [property: JsonPropertyName("col")] string Column,
+    [property: JsonPropertyName("opr")] string Operator,
+    [property: JsonPropertyName("value")] object Value
 );

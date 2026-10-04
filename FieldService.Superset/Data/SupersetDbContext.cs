@@ -1,10 +1,13 @@
+using FieldService.Superset.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace FieldService.Superset.Data;
 
 public class SupersetDbContext(DbContextOptions<SupersetDbContext> options) : DbContext(options)
 {
-    internal DbSet<Entities.SupersetTenantConfig> SupersetTenantConfigs => Set<Entities.SupersetTenantConfig>();
+    internal DbSet<SupersetTenant> SupersetTenants => Set<SupersetTenant>();
+    internal DbSet<SupersetContainer> SupersetContainers => Set<SupersetContainer>();
+    internal DbSet<SupersetTenantFlow> SupersetTenantFlows => Set<SupersetTenantFlow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

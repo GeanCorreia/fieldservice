@@ -8,6 +8,8 @@ public class SupersetOptions
     public SupersetProvisioningOptions Provisioning { get; set; } = new SupersetProvisioningOptions();
     public string BaseUrl { get; set; } = string.Empty;
     public string ResourceId { get; set; } = string.Empty;
+    public Guid ApplicationSupersetTenantId { get; set; } = Guid.Empty;
+    public Guid ApplicationSupersetContainerId { get; set; } = Guid.Empty;
     public Guid SecretKeyId { get; set; } = Guid.Empty;
     public string Username { get; set; } = "Admin";
     public string Password { get; set; } = "admin";
@@ -19,7 +21,7 @@ public class SupersetOptions
     public string DestinationName { get; set; } = string.Empty;
     public string RoutePath { get; set; } = string.Empty;
     public string PathRemovePrefix { get; set; } = string.Empty;
-    
+    public int ResourceCacheTtlMinutes { get; set; } = 30;
     public int LockTtlMinutes { get; set; } = 5;
 }
 

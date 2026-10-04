@@ -23,7 +23,7 @@ internal static class SupersetCache
     public static string GetTenantConfigByResourceIdCacheKey(string resourceId) =>
         $"superset:tenant-config:resource-id:{NormalizeResourceId(resourceId)}";
 
-    public static string GetTenantInstanceCacheKey(Guid tenantId, SupersetInstanceStatus status) =>
+    public static string GetTenantInstanceCacheKey(Guid tenantId, SupersetContainerInstanceStatus status) =>
         $"superset:tenant-instance:tenant-id:{tenantId:N}:status:{status}";
 
     public static string NormalizeResourceId(string resourceId) => resourceId.Trim().ToLowerInvariant();

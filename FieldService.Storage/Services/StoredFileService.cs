@@ -386,6 +386,29 @@ internal sealed class StoredFileService : IStoredFileService
         }
     }
 
+    public async Task UpdateDeletedStatusAsync(
+        Guid fileId, 
+        Guid userId,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var file = await _storedFileRepository.GetByIdAsync(fileId, ct)
+                       ?? throw new FileNotFoundException($"Stored file with ID {fileId} not found.");
+
+            file.UpdateStatus(userId, StorageStatus.Deleted);
+
+            await _storedFileRepository.SaveStoredFileAsync(file, ct);
+            await _hybridCache.SetAsync(FileKey(file.Id), file, CacheOptions, cancellationToken: ct);
+            await _storageFallbackService.RemoveFallbackCached(file.Id, ct);
+        }
+        catch (Exception ex) when (ex is not FileNotFoundException)
+        {
+            _logger.LogFallbackUploadError(LogLevel.Error, fileId.ToString(), ex.Message, ex);
+            await _storageFallbackService.CreateFallbackFailedMarkDeleteCache(fileId, userId, ct);
+        }
+    }
+
     public async Task UpdateUploadedStatusAsync(
         IEnumerable<Guid> fileIds, 
         CancellationToken ct = default)

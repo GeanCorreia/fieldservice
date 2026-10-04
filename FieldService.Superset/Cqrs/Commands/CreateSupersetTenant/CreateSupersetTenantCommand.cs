@@ -5,5 +5,6 @@ using MediatR;
 namespace FieldService.Superset.Cqrs.Commands.CreateSupersetTenant;
 
 public record CreateSupersetTenantCommand(
+    Guid TenantId,
     SupersetTenantCreateParams CreateParams, 
     Guid? UserId = null) : IRequest;

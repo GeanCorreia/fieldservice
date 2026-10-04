@@ -10,30 +10,30 @@ namespace FieldService.Superset.Cqrs.Commands.DeleteUser;
 internal class DeleteUserHandler : IRequestHandler<DeleteUserCommand>
 {
     private readonly ILogger<DeleteUserHandler> _logger;
-    private readonly ISupersetService _supersetService;
+    private readonly ISupersetTenantService _supersetTenantService;
     private readonly ISupersetAuthService _supersetAuthService;
-    private readonly ISupersetUserManagement _supersetUserManagement;
+    private readonly ISupersetSecurityApi _supersetSecurityApi;
     private readonly IMediator _mediator;
     
     
     public DeleteUserHandler(
         ILogger<DeleteUserHandler> logger,
-        ISupersetService supersetService,
+        ISupersetTenantService supersetTenantService,
         ISupersetAuthService supersetAuthService,
-        ISupersetUserManagement supersetUserManagement,
+        ISupersetSecurityApi supersetSecurityApi,
         IMediator mediator)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         _supersetAuthService = supersetAuthService ?? throw new ArgumentNullException(nameof(supersetAuthService));
-        _supersetUserManagement = supersetUserManagement ?? throw new ArgumentNullException(nameof(supersetUserManagement));
+        _supersetSecurityApi = supersetSecurityApi ?? throw new ArgumentNullException(nameof(supersetSecurityApi));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
     }
     
     public async Task Handle(DeleteUserCommand request, CancellationToken cancellationToken)
     {
-        var tenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(request.TenantId, cancellationToken);
-        if (tenantConfig == null)
+        var supersetTenant = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
+        if (supersetTenant == null)
         {
             throw new SupersetTenantNotFoundException(request.TenantId);
         }
@@ -48,9 +48,9 @@ internal class DeleteUserHandler : IRequestHandler<DeleteUserCommand>
         var adminToken = await _supersetAuthService.GetAdminToken(request.TenantId, cancellationToken);
         var bearerToken = $"Bearer {adminToken}";
         
-        var host = new Uri(tenantConfig.FqdnUrl);
+        var host = new Uri(supersetTenant.FqdnUrl);
         
-        await _supersetUserManagement.DeleteUserAsync(host, bearerToken, supersetUser.SupersetUserId, cancellationToken);
+        await _supersetSecurityApi.DeleteUserAsync(host, bearerToken, supersetUser.SupersetUserId, cancellationToken);
         
         
     }

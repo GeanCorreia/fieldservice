@@ -4,15 +4,15 @@ namespace FieldService.Superset.Interfaces;
 
 internal interface ISupersetRepository
 {
-    Task<SupersetTenantConfig?> GetSupersetTenantByTenantIdAsync(
+    Task<SupersetTenant?> GetSupersetTenantByIdAsync(
         Guid tenantId, 
         CancellationToken cancellationToken);
     
-    Task<SupersetTenantConfig?> GetSupersetTenantByResourceIdAsync(
+    Task<SupersetTenant?> GetSupersetTenantByResourceIdAsync(
         string resourceId, 
         CancellationToken cancellationToken);
     
     Task SaveAsync(
-        SupersetTenantConfig tenantConfig, 
+        SupersetTenant tenant, 
         CancellationToken cancellationToken);
 }

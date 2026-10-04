@@ -3,9 +3,10 @@ using FieldService.Superset.Entities;
 
 namespace FieldService.Superset.Interfaces;
 
-internal interface ISupersetTenantDeploymentService
+internal interface ISupersetContainerDeploymentService
 {
-    Task CreateInstanceAsync(
+    Task<SupersetContainer> CreateInstanceAsync(
+        Guid tenantId,
         SupersetTenantCreateParams supersetTenantCreateParams,
         Guid connectionStringId,
         Guid? userId = null,

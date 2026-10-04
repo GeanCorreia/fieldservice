@@ -18,11 +18,12 @@ namespace FieldService.Superset.Services;
 internal class SupersetAuthService : ISupersetAuthService
 {
     private readonly ISupersetApi _supersetApi;
-    private readonly ISupersetService _supersetService;
+    private readonly ISupersetTenantService _supersetTenantService;
     private readonly ILogger<SupersetAuthService> _logger;
     private readonly SupersetLoginApiRequest _supersetLoginRequest;
     private readonly HybridCache _cache;
     private readonly JwtSecurityTokenHandler _jwtHandler = new();
+    private readonly ISupersetSecurityApi _supersetSecurityApi;
     
     private static readonly TimeSpan TokenExpirationBuffer = TimeSpan.FromSeconds(30);
 
@@ -40,25 +41,29 @@ internal class SupersetAuthService : ISupersetAuthService
 
     public SupersetAuthService(
         ISupersetApi supersetApi,
-        ISupersetService supersetService,
+        ISupersetTenantService supersetTenantService,
         ILogger<SupersetAuthService> logger,
-        HybridCache cache)
+        HybridCache cache,
+        ISupersetSecurityApi supersetSecurityApi)
     {
         _supersetApi = supersetApi ?? throw new ArgumentNullException(nameof(supersetApi));
-        _supersetService = supersetService ?? throw new ArgumentNullException(nameof(supersetService));
+        _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _supersetSecurityApi = supersetSecurityApi ?? throw new ArgumentNullException(nameof(supersetSecurityApi));
     }
 
     public async Task<string> GetAdminToken(
         Guid tenantId, 
         CancellationToken cancellationToken = default)
     {
-        var supersetTenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(tenantId, cancellationToken);
-        if (supersetTenantConfig == null)
+        var supersetTenant = await _supersetTenantService.GetSupersetTenantByIdAsync(tenantId, cancellationToken);
+        if (supersetTenant == null)
         {
             throw new KeyNotFoundException($"Superset instance for tenant '{tenantId}' not found or not running.");
         }
+        
+        await _supersetTenantService.EnsureSupersetContainerActiveAsync(tenantId, cancellationToken);
 
         var accessCacheKey = AdminAccessTokenCacheKey(tenantId);
         var refreshCacheKey = AdminRefreshTokenCacheKey(tenantId);
@@ -66,8 +71,8 @@ internal class SupersetAuthService : ISupersetAuthService
         return await GetOrRefreshTokenAsync(
             accessCacheKey,
             refreshCacheKey,
-            async token => await _supersetApi.LoginAsync(new Uri(supersetTenantConfig.FqdnUrl), _supersetLoginRequest, token),
-            supersetTenantConfig.FqdnUrl,
+            async token => await _supersetSecurityApi.LoginAsync(new Uri(supersetTenant.Container.FqdnUrl), _supersetLoginRequest, token),
+            supersetTenant.Container.FqdnUrl,
             cancellationToken);
     }
 
@@ -80,8 +85,8 @@ internal class SupersetAuthService : ISupersetAuthService
         var tenantId = user.TenantDto.TenantId;
         var userId = user.Id;
 
-        var supersetTenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(tenantId, cancellationToken);
-        if (supersetTenantConfig == null)
+        var supersetTenant = await _supersetTenantService.GetSupersetTenantByIdAsync(tenantId, cancellationToken);
+        if (supersetTenant == null)
         {
             throw new KeyNotFoundException($"Superset instance for tenant '{tenantId}' not found or not running.");
         }
@@ -94,8 +99,8 @@ internal class SupersetAuthService : ISupersetAuthService
         return await GetOrRefreshTokenAsync(
             accessCacheKey,
             refreshCacheKey,
-            async token => await _supersetApi.LoginAsync(new Uri(supersetTenantConfig.FqdnUrl), supersetLoginApiRequest, token),
-            supersetTenantConfig.FqdnUrl,
+            async token => await _supersetSecurityApi.LoginAsync(new Uri(supersetTenant.Container.FqdnUrl), supersetLoginApiRequest, token),
+            supersetTenant.Container.FqdnUrl,
             cancellationToken);
     }
 
@@ -103,18 +108,18 @@ internal class SupersetAuthService : ISupersetAuthService
         Guid tenantId, 
         CancellationToken cancellationToken = default)
     {
-        var tenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(tenantId, cancellationToken);
+        var tenantConfig = await _supersetTenantService.GetSupersetTenantByIdAsync(tenantId, cancellationToken);
         if (tenantConfig == null)
         {
             throw new SupersetTenantNotFoundException(tenantId);
         }
-        var supersetRoles = await _supersetApi.GetRolesAsync(
-            new Uri(tenantConfig.FqdnUrl),
+        var supersetRoles = await _supersetSecurityApi.GetRolesAsync(
+            new Uri(tenantConfig.Container.FqdnUrl),
             $"Bearer {await GetAdminToken(tenantId, cancellationToken)}",
             cancellationToken);
         
         var tenantScopeRole = supersetRoles.Result
-            .FirstOrDefault(role => role.Name.Equals(TenantScopeRole.TenantScopeRoleName(tenantId), StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(role => role.Name.Equals(TenantScopeRole.RoleName(tenantId), StringComparison.OrdinalIgnoreCase));
 
         if (tenantScopeRole == null)
         {
@@ -130,13 +135,13 @@ internal class SupersetAuthService : ISupersetAuthService
         Guid tenantId, 
         CancellationToken cancellationToken = default)
     {
-        var tenantConfig = await _supersetService.GetSupersetTenantByTenantIdAsync(tenantId, cancellationToken);
+        var tenantConfig = await _supersetTenantService.GetSupersetTenantByIdAsync(tenantId, cancellationToken);
         if (tenantConfig == null)
         {
             throw new SupersetTenantNotFoundException(tenantId);
         }
 
-        var roleName = TenantScopeRole.TenantScopeRoleName(tenantId);
+        var roleName = TenantScopeRole.RoleName(tenantId);
         var existingRole = await GetTenantScopeRole(tenantId, cancellationToken);
         if (existingRole != null)
         {
@@ -145,9 +150,9 @@ internal class SupersetAuthService : ISupersetAuthService
 
         var adminToken = await GetAdminToken(tenantId, cancellationToken);
         var bearerToken = $"Bearer {adminToken}";
-        var host = new Uri(tenantConfig.FqdnUrl);
+        var host = new Uri(tenantConfig.Container.FqdnUrl);
 
-        var permissionResources = await _supersetApi.GetPermissionResourcesAsync(
+        var permissionResources = await _supersetSecurityApi.GetPermissionResourcesAsync(
             host,
             bearerToken,
             "(page:0,page_size:10000)",
@@ -156,7 +161,7 @@ internal class SupersetAuthService : ISupersetAuthService
         var expectedDatabaseNames = new[]
             {
                 $"db_tenant_{tenantId:N}".ToLowerInvariant(),
-                SupersetTenantConfig.Database(tenantId).ToLowerInvariant()
+                SupersetTenant.Database(tenantId).ToLowerInvariant()
             }
             .Distinct()
             .ToList();
@@ -180,7 +185,7 @@ internal class SupersetAuthService : ISupersetAuthService
 
         try
         {
-            await _supersetApi.CreateRoleAsync(
+            await _supersetSecurityApi.CreateRoleAsync(
                 host,
                 bearerToken,
                 new SupersetCreateRoleApiRequest(roleName, databaseAccessPermissionIds),
@@ -227,7 +232,7 @@ internal class SupersetAuthService : ISupersetAuthService
         {
             try
             {
-                var refreshResponse = await _supersetApi.RefreshTokenAsync(
+                var refreshResponse = await _supersetSecurityApi.RefreshTokenAsync(
                     new Uri(fqdnUrl),
                     $"Bearer {refreshToken}",
                     cancellationToken);

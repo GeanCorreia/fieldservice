@@ -11,6 +11,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       POSTGRES_DB: ${POSTGRES_DB:-fieldservice}
+
       # 2. Força o sistema operacional do container a rodar em UTC
       TZ: UTC
       PGTZ: UTC
@@ -144,7 +145,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
       POSTGRES_DB: ${POSTGRES_DB:-fieldservice}
       SUPERSET_CONFIG_PATH: "/app/pythonpath/superset_config.py"
-      SUPERSET_SECRET_KEY: "SUA_CHAVE_SUPER_SECRETA_GERADA_AQUI_12345"
+      SUPERSET_SECRET_KEY: "3OsmrhVnMn7kyXgRPhwV4vfVC0KwE6wmZh4R9mzmxkM="
       SUPERSET_METADATA_DATABASE_URL: "postgresql+psycopg2://postgres:postgres123@postgres:5432/fieldservice"
       SUPERSET_METADATA_SCHEMA: "superset"
       SUPERSET_APP_DB_NAME: "PostgreSQL"
@@ -159,7 +160,7 @@ services:
       AUTH_USER_REGISTRATION: "False"
       AUTH_TYPE: "AUTH_DB"
       SUPERSET_ENV: "production"
-      TENANT_ID: "local"
+      TENANT_ID: "48b2053d-09a1-4785-8f5e-a28f1d8087e4"
       DATABASE_URL: "postgresql+psycopg2://postgres:postgres123@postgres:5432/fieldservice"
       SUPERSET_DATA_SCHEMA: "public"
       SUPERSET_MOCKED_DATA_SCHEMA: "mocked_data"
@@ -179,7 +180,9 @@ services:
         # 1. Cria a configuração do Superset usando o schema de metadata e o 'public' no search_path
         cat <<'EOF' >/app/pythonpath/superset_config.py
         import os
+        from flask import Flask
         from flask_appbuilder.security.manager import AUTH_DB
+        from sqlalchemy import event, text
 
         SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
         SQLALCHEMY_DATABASE_URI = os.environ["SUPERSET_METADATA_DATABASE_URL"]
@@ -218,6 +221,74 @@ services:
             "EMBEDDED_SUPERSET": True
         }
 
+        # Enforce mandatory tenant dashboard scoping (Tenant_<id>_Scope) for every new dashboard.
+        TENANT_SCOPE_ROLE_PREFIX = "Tenant_"
+        TENANT_SCOPE_ROLE_SUFFIX = "_Scope"
+
+        def _register_tenant_dashboard_scope_listeners(app: Flask) -> None:
+            if app.extensions.get("tenant_dashboard_scope_listeners_registered"):
+                return
+
+            with app.app_context():
+                from superset.models.dashboard import Dashboard
+
+                def _resolve_single_tenant_scope_role_id(connection, user_id):
+                    rows = connection.execute(
+                        text(
+                            "SELECT r.id "
+                            "FROM ab_user_role ur "
+                            "JOIN ab_role r ON r.id = ur.role_id "
+                            "WHERE ur.user_id = :user_id "
+                            "AND r.name LIKE :role_pattern"
+                        ),
+                        {
+                            "user_id": user_id,
+                            "role_pattern": f"{TENANT_SCOPE_ROLE_PREFIX}%{TENANT_SCOPE_ROLE_SUFFIX}",
+                        },
+                    ).fetchall()
+
+                    if len(rows) != 1:
+                        raise RuntimeError(
+                            "Dashboard creation blocked: creator must have exactly one Tenant_*_Scope role."
+                        )
+
+                    return int(rows[0][0])
+
+                @event.listens_for(Dashboard, "before_insert")
+                def _enforce_tenant_scope_before_dashboard_insert(mapper, connection, target):
+                    creator_id = getattr(target, "created_by_fk", None)
+                    if creator_id is None:
+                        raise RuntimeError(
+                            "Dashboard creation blocked: created_by_fk is required for tenant scope resolution."
+                        )
+
+                    role_id = _resolve_single_tenant_scope_role_id(connection, creator_id)
+                    setattr(target, "_tenant_scope_role_id", role_id)
+
+                @event.listens_for(Dashboard, "after_insert")
+                def _attach_tenant_scope_after_dashboard_insert(mapper, connection, target):
+                    role_id = getattr(target, "_tenant_scope_role_id", None)
+                    if role_id is None:
+                        creator_id = getattr(target, "created_by_fk", None)
+                        role_id = _resolve_single_tenant_scope_role_id(connection, creator_id)
+
+                    connection.execute(
+                        text(
+                            "INSERT INTO dashboard_roles (dashboard_id, role_id) "
+                            "SELECT :dashboard_id, :role_id "
+                            "WHERE NOT EXISTS ("
+                            "SELECT 1 FROM dashboard_roles "
+                            "WHERE dashboard_id = :dashboard_id AND role_id = :role_id"
+                            ")"
+                        ),
+                        {"dashboard_id": target.id, "role_id": role_id},
+                    )
+
+            app.extensions["tenant_dashboard_scope_listeners_registered"] = True
+
+        def FLASK_APP_MUTATOR(app: Flask) -> None:
+            _register_tenant_dashboard_scope_listeners(app)
+
         RECAPTCHA_PUBLIC_KEY = ""
         RECAPTCHA_PRIVATE_KEY = ""
         GUEST_ROLE_NAME = "Gamma"
@@ -249,6 +320,13 @@ services:
             if not db_name:
                 raise RuntimeError("SUPERSET_TENANT_DB_NAME is required for tenant role bootstrap.")
 
+            tenant_id_raw = os.environ.get("TENANT_ID")
+            if not tenant_id_raw:
+                raise RuntimeError("TENANT_ID is required for tenant role bootstrap.")
+
+            tenant_id_n = tenant_id_raw.replace("-", "").lower()
+            tenant_scope_role_name = f"Tenant_{tenant_id_n}_Scope"
+
             database_uri = os.environ.get("DATABASE_URL") or os.environ.get("SUPERSET_METADATA_DATABASE_URL")
             if not database_uri:
                 raise RuntimeError("DATABASE_URL or SUPERSET_METADATA_DATABASE_URL is required for tenant role bootstrap.")
@@ -273,6 +351,16 @@ services:
             database_perm = security_manager.get_database_perm(database.id, database.database_name)
             if database_perm:
                 security_manager.add_permission_view_menu("database_access", database_perm)
+
+            db_pvm = security_manager.find_permission_view_menu("database_access", database_perm) if database_perm else None
+
+            # 0. Cria a role de escopo do tenant da aplicacao (Tenant_<tenantIdN>_Scope).
+            tenant_scope_role = security_manager.find_role(tenant_scope_role_name)
+            if not tenant_scope_role:
+                tenant_scope_role = security_manager.add_role(tenant_scope_role_name)
+
+            if db_pvm and db_pvm not in tenant_scope_role.permissions:
+                tenant_scope_role.permissions.append(db_pvm)
 
             schema_permission_names = {}
             for schema_name in schema_scopes.values():
@@ -314,9 +402,26 @@ services:
                     if pvm and pvm in role.permissions:
                         role.permissions.remove(pvm)
 
-                db_pvm = security_manager.find_permission_view_menu("database_access", database_perm) if database_perm else None
                 if db_pvm and db_pvm in role.permissions:
                     role.permissions.remove(db_pvm)
+
+                # Remove global wildcard permissions (legacy names may vary with spaces/underscores).
+                global_access_pvms = [
+                    ("all_database_access", "all_database_access"),
+                    ("all database access", "all_database_access"),
+                    ("all_datasource_access", "all_datasource_access"),
+                    ("all datasource access", "all_datasource_access"),
+                ]
+                for action, view in global_access_pvms:
+                    wildcard_pvm = security_manager.find_permission_view_menu(action, view)
+                    if wildcard_pvm and wildcard_pvm in role.permissions:
+                        role.permissions.remove(wildcard_pvm)
+
+                # Remove all-query permission from end-user roles to prevent unrestricted SQL history access.
+                if r_name in {"Alpha", "Gamma"}:
+                    all_query_pvm = security_manager.find_permission_view_menu("can_access", "all_query_access")
+                    if all_query_pvm and all_query_pvm in role.permissions:
+                        role.permissions.remove(all_query_pvm)
 
             # 2. Criação das Roles de Escopo de Schema para dados reais e dados mocked.
             for role_name, schema_name in schema_scopes.items():
