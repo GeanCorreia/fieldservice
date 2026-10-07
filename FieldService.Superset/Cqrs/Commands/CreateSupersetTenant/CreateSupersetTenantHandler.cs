@@ -11,6 +11,7 @@ using FieldService.Superset.Interfaces;
 using FieldService.Superset.Jobs;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace FieldService.Superset.Cqrs.Commands.CreateSupersetTenant;
@@ -39,7 +40,7 @@ internal class CreateSupersetTenantHandler : IRequestHandler<CreateSupersetTenan
         ISupersetTenantInstanceProcessingLock supersetInstanceLock,
         ILogger<CreateSupersetTenantHandler> logger, ISupersetAuthService supersetAuthService,
         ISupersetTenantService supersetTenantService, ISupersetSecretService supersetSecretService,
-        SupersetOptions supersetOptions,
+        IOptions<SupersetOptions> supersetOptions,
         CreateSupersetTenantContainerJobProducer createSupersetTenantContainerJobProducer,
         SupersetTenantDeploymentBrokerProducer supersetTenantDeploymentBrokerProducer)
     {
@@ -54,7 +55,7 @@ internal class CreateSupersetTenantHandler : IRequestHandler<CreateSupersetTenan
             supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
         _supersetSecretService =
             supersetSecretService ?? throw new ArgumentNullException(nameof(supersetSecretService));
-        _supersetOptions = supersetOptions ?? throw new ArgumentNullException(nameof(supersetOptions));
+        _supersetOptions = supersetOptions?.Value ?? throw new ArgumentNullException(nameof(supersetOptions));
         _createSupersetTenantContainerJobProducer = createSupersetTenantContainerJobProducer ??
                                                                throw new ArgumentNullException(
                                                                    nameof(
@@ -66,18 +67,23 @@ internal class CreateSupersetTenantHandler : IRequestHandler<CreateSupersetTenan
 
 
     public async Task Handle(
-        CreateSupersetTenantCommand request, 
+        CreateSupersetTenantCommand request,
         CancellationToken cancellationToken)
     {
-        var tenantConfig = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
-        if(tenantConfig != null)
+        var supersetTenant = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
+        if (supersetTenant != null)
         {
             throw new InvalidOperationException($"Tenant with ID {request.TenantId} already exists.");
         }
         
-        
+        var flow = SupersetContainerDeploymentFlow.Create(request.Configuration, request.TenantId, request.DedicatedHostConnectionStringId);
+        var payload = new CreateSupersetTenantContainerJobPayload(flow.Id, request.TenantId);
+        var job = new CreateSupersetTenantContainerJob(payload);
+        _createSupersetTenantContainerJobProducer.Publish(job);
 
-        
-        
-    
+
+
+    }
+
+
 }

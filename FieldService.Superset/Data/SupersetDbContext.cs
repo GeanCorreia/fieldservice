@@ -7,7 +7,7 @@ public class SupersetDbContext(DbContextOptions<SupersetDbContext> options) : Db
 {
     internal DbSet<SupersetTenant> SupersetTenants => Set<SupersetTenant>();
     internal DbSet<SupersetContainer> SupersetContainers => Set<SupersetContainer>();
-    internal DbSet<SupersetTenantFlow> SupersetTenantFlows => Set<SupersetTenantFlow>();
+    internal DbSet<SupersetContainerDeploymentFlow> SupersetTenantFlows => Set<SupersetContainerDeploymentFlow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

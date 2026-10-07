@@ -10,7 +10,7 @@ internal sealed class SupersetTenantFlowRepository(
     SupersetDbContext dbContext,
     ISqlUnitOfWork<SupersetDbContext> unitOfWork) : ISupersetTenantFlowRepository
 {
-    public async Task<SupersetTenantFlow?> GetByIdAsync(
+    public async Task<SupersetContainerDeploymentFlow?> GetByIdAsync(
         Guid creationId,
         CancellationToken cancellationToken)
     {
@@ -22,7 +22,7 @@ internal sealed class SupersetTenantFlowRepository(
             .FirstOrDefaultAsync(x => x.Id == creationId, cancellationToken);
     }
 
-    public async Task<IEnumerable<SupersetTenantFlow>> GetByStatusAsync(
+    public async Task<IEnumerable<SupersetContainerDeploymentFlow>> GetByStatusAsync(
         SupersetTenantDeployStatus status,
         CancellationToken cancellationToken)
     {
@@ -34,21 +34,21 @@ internal sealed class SupersetTenantFlowRepository(
     }
 
     public async Task SaveAsync(
-        SupersetTenantFlow supersetTenantFlow,
+        SupersetContainerDeploymentFlow supersetContainerDeploymentFlow,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(supersetTenantFlow);
+        ArgumentNullException.ThrowIfNull(supersetContainerDeploymentFlow);
 
         var existing = await dbContext.SupersetTenantFlows
-            .FirstOrDefaultAsync(x => x.Id == supersetTenantFlow.Id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == supersetContainerDeploymentFlow.Id, cancellationToken);
 
         if (existing is null)
         {
-            await dbContext.SupersetTenantFlows.AddAsync(supersetTenantFlow, cancellationToken);
+            await dbContext.SupersetTenantFlows.AddAsync(supersetContainerDeploymentFlow, cancellationToken);
         }
         else
         {
-            dbContext.Entry(existing).CurrentValues.SetValues(supersetTenantFlow);
+            dbContext.Entry(existing).CurrentValues.SetValues(supersetContainerDeploymentFlow);
         }
 
         await unitOfWork.PersistChangesAsync(cancellationToken);

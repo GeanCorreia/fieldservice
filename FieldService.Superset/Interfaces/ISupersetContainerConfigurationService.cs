@@ -14,7 +14,8 @@ internal interface ISupersetContainerConfigurationService
         CancellationToken cancellationToken = default);
     
     Task ApplyContainerConfigurationAsync(
-        SupersetContainer container,
+        string resourceId,
+        SupersetContainerConfiguration configuration,
         CancellationToken cancellationToken = default);
     
 }

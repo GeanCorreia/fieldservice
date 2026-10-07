@@ -5,9 +5,14 @@ namespace FieldService.Superset.Interfaces;
 
 internal interface ISupersetDataBaseService
 {
+    Task EnsureSupersetDataInfraCheckpointAsync(
+        Guid tenantId,
+        Guid connectionStringId,
+        CancellationToken cancellationToken = default);
+
     Task<Guid> CreateSupersetDataInfra(
         Guid tenantId,
-        DbConnectionStringBuilder? dedicatedDbConnectionString = null,
+        Guid? customHostConnectionStringId = null,
         CancellationToken cancellationToken = default);
     
 }

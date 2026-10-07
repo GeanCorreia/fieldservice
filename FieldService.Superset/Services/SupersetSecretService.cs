@@ -51,8 +51,8 @@ internal class SupersetSecretService : ISupersetSecretService
         _supersetLoginRequest = new SupersetLoginApiRequest(supersetOptions.Value.Username, supersetOptions.Value.Password);
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _supersetOptions = (supersetOptions ?? throw new ArgumentNullException(nameof(supersetOptions))).Value;
-        _host = _supersetOptions.DataBaseHost.Host;
-        _port = _supersetOptions.DataBaseHost.Port;
+        _host = _supersetOptions.DatabaseHost.Host;
+        _port = _supersetOptions.DatabaseHost.Port;
     }
     
     async Task<string?> ISupersetSecretService.GetDatabaseConnectionString(

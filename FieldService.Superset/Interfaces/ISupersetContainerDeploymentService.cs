@@ -1,14 +1,17 @@
-using FieldService.Superset.Dtos;
 using FieldService.Superset.Entities;
 
 namespace FieldService.Superset.Interfaces;
 
+internal readonly record struct SupersetContainerDeploymentResult(
+    string ResourceId,
+    string FqdnUrl);
+
 internal interface ISupersetContainerDeploymentService
 {
-    Task<SupersetContainer> CreateInstanceAsync(
+    Task<SupersetContainerDeploymentResult> CreateInstanceAsync(
         Guid tenantId,
-        SupersetTenantCreateParams supersetTenantCreateParams,
+        SupersetContainerConfiguration configuration,
         Guid connectionStringId,
-        Guid? userId = null,
+        Guid secretKeyId,
         CancellationToken cancellationToken = default);
 }

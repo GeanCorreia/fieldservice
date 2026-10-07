@@ -41,11 +41,7 @@ internal class SupersetTenant
     [NotMapped] public string SupersetSecretKeyName => $"{SupersetSecretKeyPrefix}_{TenantId.ToString().ToLower()}";
     [NotMapped] public string SupersetConnectionStringName => $"{ConnectionStringPrefix}_{TenantId.ToString().ToLower()}";
 
-    protected SupersetTenant()
-    {
-        
-        
-    }
+    protected SupersetTenant() { }
 
     private SupersetTenant(
         Guid id, 

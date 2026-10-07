@@ -4,7 +4,7 @@ public class SupersetOptions
 {
     public const string SectionName = "Superset";
     public ContainerAppResourceRequirements ContainerAppResourceRequirements { get; set; } = new ContainerAppResourceRequirements();
-    public DataBaseHost DataBaseHost { get; set; } = new DataBaseHost();
+    public DataBaseHost DatabaseHost { get; set; } = new DataBaseHost();
     public SupersetProvisioningOptions Provisioning { get; set; } = new SupersetProvisioningOptions();
     public string BaseUrl { get; set; } = string.Empty;
     public string ResourceId { get; set; } = string.Empty;

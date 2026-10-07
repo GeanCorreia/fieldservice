@@ -1,21 +1,18 @@
-using System.Data.Common;
 using FieldService.Data.Interfaces;
+using FieldService.Queue.Attributes;
 using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
-using FieldService.SecretKey.Cqrs.Queries.GetSecretKeyById;
-using FieldService.SecretKey.Entities;
 using FieldService.Shared.Message;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Interfaces;
 using Hangfire;
-using MediatR;
 
 
 namespace FieldService.Superset.Jobs;
 
 internal record CreateSupersetDataInfraJobPayload(
-    Guid CreationId,
+    Guid FlowId,
     Guid TenantId) : AbstractMessagePayload<CreateSupersetDataInfraJobPayload>;
 
 internal record CreateSupersetDataInfraJob : Job<CreateSupersetDataInfraJobPayload>
@@ -23,30 +20,31 @@ internal record CreateSupersetDataInfraJob : Job<CreateSupersetDataInfraJobPaylo
     public static readonly JobType JobType = "superset-create-data-infra-job";
 
     internal CreateSupersetDataInfraJob(CreateSupersetDataInfraJobPayload payload)
-        : base(payload, new JobContext(JobType, tenantId: payload.TenantId))
+        : base(payload, new JobContext(
+            JobType,
+            payload.TenantId,
+            SupersetContainerDeploymentFlow.SupersetContainerDeploymentFlowContext(payload.FlowId)
+            )
+        )
     {
     }
 }
 
+[DisableRetry]
 internal class CreateSupersetDataInfraJobConsumer : IQueueConsumer<CreateSupersetDataInfraJobPayload>
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IMediator _mediator;
     private readonly ISupersetTenantFlowRepository _tenantFlowRepository;
     private readonly ISupersetDataBaseService _supersetDataBaseService;
     private readonly ISupersetTenantInstanceProcessingLock _supersetInstanceLock;
 
     public CreateSupersetDataInfraJobConsumer(
-        IMediator mediator,
         IUnitOfWork unitOfWork,
         ISupersetTenantFlowRepository tenantFlowRepository,
-        ISupersetTenantService supersetTenantService, 
         ISupersetDataBaseService supersetDataBaseService, 
-        ISupersetTenantInstanceProcessingLock supersetInstanceLock,
-        ISupersetSecretService supersetSecretService)
+        ISupersetTenantInstanceProcessingLock supersetInstanceLock)
     {
         _unitOfWork = unitOfWork;
-        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _tenantFlowRepository = tenantFlowRepository ?? throw new ArgumentNullException(nameof(tenantFlowRepository));
         _supersetDataBaseService = supersetDataBaseService ?? throw new ArgumentNullException(nameof(supersetDataBaseService));
         _supersetInstanceLock = supersetInstanceLock ?? throw new ArgumentNullException(nameof(supersetInstanceLock));
@@ -58,26 +56,38 @@ internal class CreateSupersetDataInfraJobConsumer : IQueueConsumer<CreateSuperse
             throw new InvalidOperationException($"Unexpected job type '{job.Context.Type}'.");
 
         
-        var tenantCreation = await _tenantFlowRepository.GetByIdAsync(job.Payload.CreationId, cancellationToken);
-        if (tenantCreation == null)
+        var supersetDeploymentFlow = await _tenantFlowRepository.GetByIdAsync(job.Payload.FlowId, cancellationToken);
+        if (supersetDeploymentFlow == null)
         {
             throw new InvalidOperationException($"No Superset tenant creation process found for tenant {job.Payload.TenantId}.");
         }
         
-        if(tenantCreation.Status == SupersetTenantDeployStatus.Cancelled)
+        if(supersetDeploymentFlow.Status == SupersetTenantDeployStatus.Cancelled)
         {
             throw new InvalidOperationException($"Superset tenant creation process for tenant {job.Payload.TenantId} has been cancelled.");
         }
         
-        if(tenantCreation.Status == SupersetTenantDeployStatus.Completed)
+        if(supersetDeploymentFlow.Status == SupersetTenantDeployStatus.Completed)
         {
-            throw new InvalidOperationException($"Superset tenant creation process for tenant {job.Payload.TenantId} has already been completed.");
+            return;
         }
         
-        if(tenantCreation.DataSchemaCreatedAt.HasValue)
+        if(supersetDeploymentFlow.DataSchemaCreatedAt.HasValue)
         {
-            throw new InvalidOperationException($"Superset tenant creation process for tenant {job.Payload.TenantId} has already created the data schema.");
+            return;
         }
+
+        if (supersetDeploymentFlow.ConnectionStringId.HasValue)
+        {
+            await _supersetDataBaseService.EnsureSupersetDataInfraCheckpointAsync(
+                tenantId: job.Payload.TenantId,
+                connectionStringId: supersetDeploymentFlow.ConnectionStringId.Value,
+                cancellationToken: cancellationToken);
+            return;
+        }
+        
+        if(supersetDeploymentFlow.TenantId != job.Payload.TenantId)
+            throw new InvalidOperationException($"Tenant ID mismatch for creation process. Expected: {supersetDeploymentFlow.TenantId}, Actual: {job.Payload.TenantId}.");
         
         var tenantId = job.Payload.TenantId;
         var lockAcquired = await _supersetInstanceLock.AcquireLock(tenantId, cancellationToken);
@@ -87,33 +97,19 @@ internal class CreateSupersetDataInfraJobConsumer : IQueueConsumer<CreateSuperse
                                                 $"Another instance creation process might be running.");
         }
         
-        DbConnectionStringBuilder? dedicatedDbConnectionString = null;
-        
         await _unitOfWork.BeginAsync(cancellationToken);
 
         try
         {
-            if (tenantCreation.CreateParams.DedicatedDbConnectionStringId.HasValue)
-            {
-                var connectionString = await _mediator.Send(new GetSecretKeyByIdQuery<ConnectionStringSecret>(
-                    tenantCreation.CreateParams.DedicatedDbConnectionStringId.Value), cancellationToken);
-
-                dedicatedDbConnectionString = new DbConnectionStringBuilder
-                {
-                    ConnectionString = connectionString?.ConnectionString ??
-                                       throw new InvalidOperationException(
-                                           $"Dedicated database connection string not found for tenant {tenantId}.")
-                };
-            }
 
             var connectionStringId = await _supersetDataBaseService.CreateSupersetDataInfra(
                 tenantId,
-                dedicatedDbConnectionString,
+                supersetDeploymentFlow.CustomHostConnectionStringId,
                 cancellationToken: cancellationToken);
 
-            tenantCreation.MarkDataSchemaCreated(connectionStringId);
+            supersetDeploymentFlow.MarkDataSchemaCreated(connectionStringId);
 
-            await _tenantFlowRepository.SaveAsync(tenantCreation, cancellationToken);
+            await _tenantFlowRepository.SaveAsync(supersetDeploymentFlow, cancellationToken);
             await _unitOfWork.CommitAsync(cancellationToken);
         }
         catch

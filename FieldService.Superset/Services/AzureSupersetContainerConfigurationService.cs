@@ -41,35 +41,107 @@ internal class AzureSupersetContainerConfigurationService : ISupersetContainerCo
         $"/subscriptions/{_azureIdentityOptions.AzureSubscriptionId}/resourceGroups/{_azureIdentityOptions.AzureResourceGroupName}/providers/Microsoft.App/containerApps/{SupersetContainer.ResourceName(containerId)}";
     
     public async Task ApplyContainerConfigurationAsync(
-        SupersetContainer container,
+        string resourceId,
+        SupersetContainerConfiguration configuration,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(container);
-        
-        if(container.ProviderType != ProviderType.Azure)
-            throw new InvalidOperationException($"Invalid provider type: {container.ProviderType}. Expected: {ProviderType.Azure}.");
-
-        if (string.IsNullOrWhiteSpace(container.ResourceId))
-            throw new ResourceIdNotFoundException(container.ResourceId);
+        ArgumentNullException.ThrowIfNull(configuration);
+        if (string.IsNullOrWhiteSpace(resourceId))
+            throw new ResourceIdNotFoundException(resourceId);
         
 
         try
         {
-            var azureResourceId = new ResourceIdentifier(CloudResourceId(container.Id));
+            var azureResourceId = new ResourceIdentifier(resourceId);
             var containerAppResource = _armClient.GetContainerAppResource(azureResourceId);
             var response = await containerAppResource.GetAsync(cancellationToken);
             var containerApp = response.Value;
 
+            var desiredScale = ((AzureContainerAppScale)CreateScaleConfiguration(configuration)).Value;
+            if (IsSameScale(containerApp.Data.Template?.Scale, desiredScale))
+                return;
+
             containerApp.Data.Template ??= new ContainerAppTemplate();
-            containerApp.Data.Template.Scale = ((AzureContainerAppScale)CreateScaleConfiguration(
-                container.Configuration)).Value;
+            containerApp.Data.Template.Scale = desiredScale;
 
             await containerAppResource.UpdateAsync(WaitUntil.Completed, containerApp.Data, cancellationToken);
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
-            throw new ResourceIdNotFoundException(container.ResourceId);
+            throw new ResourceIdNotFoundException(resourceId);
         }
+    }
+
+    private static bool IsSameScale(ContainerAppScale? current, ContainerAppScale desired)
+    {
+        if (current is null)
+            return false;
+
+        if (current.MinReplicas != desired.MinReplicas || current.MaxReplicas != desired.MaxReplicas)
+            return false;
+
+        var currentRules = current.Rules.OrderBy(r => r.Name, StringComparer.Ordinal).ToArray();
+        var desiredRules = desired.Rules.OrderBy(r => r.Name, StringComparer.Ordinal).ToArray();
+
+        if (currentRules.Length != desiredRules.Length)
+            return false;
+
+        for (var i = 0; i < currentRules.Length; i++)
+        {
+            if (!IsSameRule(currentRules[i], desiredRules[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsSameRule(ContainerAppScaleRule current, ContainerAppScaleRule desired)
+    {
+        if (!string.Equals(current.Name, desired.Name, StringComparison.Ordinal))
+            return false;
+
+        if (!IsSameHttpRule(current.Http, desired.Http))
+            return false;
+
+        return IsSameCustomRule(current.Custom, desired.Custom);
+    }
+
+    private static bool IsSameHttpRule(ContainerAppHttpScaleRule? current, ContainerAppHttpScaleRule? desired)
+    {
+        if (current is null || desired is null)
+            return current is null && desired is null;
+
+        return IsSameMetadata(current.Metadata, desired.Metadata);
+    }
+
+    private static bool IsSameCustomRule(ContainerAppCustomScaleRule? current, ContainerAppCustomScaleRule? desired)
+    {
+        if (current is null || desired is null)
+            return current is null && desired is null;
+
+        if (!string.Equals(current.CustomScaleRuleType, desired.CustomScaleRuleType, StringComparison.Ordinal))
+            return false;
+
+        return IsSameMetadata(current.Metadata, desired.Metadata);
+    }
+
+    private static bool IsSameMetadata(
+        IDictionary<string, string> current,
+        IDictionary<string, string> desired)
+    {
+        if (current.Count != desired.Count)
+            return false;
+
+        foreach (var (key, value) in current)
+        {
+            if (!desired.TryGetValue(key, out var desiredValue))
+                return false;
+
+            if (!string.Equals(value, desiredValue, StringComparison.Ordinal))
+                return false;
+        }
+
+        return true;
     }
 
     public ICloudContainerAppScale CreateScaleConfiguration(

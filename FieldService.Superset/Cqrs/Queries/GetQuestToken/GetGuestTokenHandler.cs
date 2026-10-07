@@ -11,6 +11,7 @@ using FieldService.Superset.Utils;
 using Humanizer;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FieldService.Superset.Cqrs.Queries;
 
@@ -33,13 +34,13 @@ internal class GetGuestTokenHandler : IRequestHandler<GetGuestTokenQuery, GuestT
         ISupersetTenantService supersetTenantService,
         StartSupersetTenantInstanceCreatedJobProducerWithRequest startSupersetTenantInstanceCreatedJobProducerWithRequest,
         ISupersetSecurityApi supersetSecurityApi,
-        SupersetOptions supersetOptions)
+        IOptions<SupersetOptions> supersetOptions)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _supersetApi = supersetApi ?? throw new ArgumentNullException(nameof(supersetApi));
         _supersetAuthService = supersetAuthService ?? throw new ArgumentNullException(nameof(supersetAuthService));
-        _supersetOptions = supersetOptions ?? throw new ArgumentNullException(nameof(supersetOptions));
+        _supersetOptions = supersetOptions?.Value ?? throw new ArgumentNullException(nameof(supersetOptions));
         _supersetSecurityApi = supersetSecurityApi ?? throw new ArgumentNullException(nameof(supersetSecurityApi));
         _startSupersetTenantInstanceCreatedJobProducerWithRequest = startSupersetTenantInstanceCreatedJobProducerWithRequest ?? 
                                                           throw new ArgumentNullException(

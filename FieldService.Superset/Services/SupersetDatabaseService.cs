@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Security.Cryptography;
 using FieldService.SecretKey.Cqrs.Commands.CreateSecretKey;
+using FieldService.SecretKey.Cqrs.Queries.GetSecretKeyById;
 using FieldService.SecretKey.Dtos;
 using FieldService.SecretKey.Entities;
 using FieldService.Superset.Entities;
@@ -83,18 +84,86 @@ internal class SupersetDataBaseService : ISupersetDataBaseService
         return (connectionStringId, databaseParams);
     }
 
+    public async Task EnsureSupersetDataInfraCheckpointAsync(
+        Guid tenantId,
+        Guid connectionStringId,
+        CancellationToken cancellationToken = default)
+    {
+        if (tenantId == default)
+            throw new ArgumentException("TenantId is required.", nameof(tenantId));
+
+        if (connectionStringId == default)
+            throw new ArgumentException("ConnectionStringId is required.", nameof(connectionStringId));
+
+        var connectionStringSecret = await _mediator
+            .Send(new GetSecretKeyByIdQuery<ConnectionStringSecret>(connectionStringId), cancellationToken);
+
+        if (connectionStringSecret is null || string.IsNullOrWhiteSpace(connectionStringSecret.ConnectionString))
+        {
+            throw new InvalidOperationException(
+                $"No valid connection string found for tenant {tenantId} with connection string ID {connectionStringId}.");
+        }
+
+        var tenantConnectionStringBuilder = new DbConnectionStringBuilder
+        {
+            ConnectionString = connectionStringSecret.ConnectionString
+        };
+
+        var expectedSchemas = new[]
+        {
+            SupersetTenant.DataSchemaPrefix,
+            SupersetTenant.MetadataSchemaPrefix,
+            SupersetTenant.MockedDataSchemaPrefix
+        };
+
+        var missingSchemas = new List<string>();
+        foreach (var schema in expectedSchemas)
+        {
+            var exists = await _databaseService.SchemaExistsAsync(schema, tenantConnectionStringBuilder, cancellationToken);
+            if (!exists)
+            {
+                missingSchemas.Add(schema);
+            }
+        }
+
+        if (missingSchemas.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Superset data infra checkpoint failed for tenant '{tenantId}'. Missing schemas: {string.Join(", ", missingSchemas)}.");
+        }
+    }
+
     
     public async Task<Guid> CreateSupersetDataInfra(
         Guid tenantId,
-        DbConnectionStringBuilder? dedicatedDbConnectionString = null,
+        Guid? customHostConnectionStringId = null,
         CancellationToken cancellationToken = default)
     {
         if(! await _processingLock.AcquireLock(tenantId, cancellationToken))
         {
             throw new InvalidOperationException($"It's not possible to acquire the processing lock for tenant {tenantId}.");
         }
+        
+        DbConnectionStringBuilder? customHostConnectionString = null;
 
-        var hostConnectionStringBuilder = CloneConnectionStringBuilder(dedicatedDbConnectionString ?? _hostConnectionString);
+        if (customHostConnectionStringId.HasValue)
+        {
+            var hostConnectionString = await _mediator
+                .Send(new GetSecretKeyByIdQuery<ConnectionStringSecret>(customHostConnectionStringId.Value), cancellationToken);
+            
+            if(hostConnectionString == null)
+            {
+                throw new InvalidOperationException($"No connection string found for tenant {tenantId} " +
+                                                    $"with connection string ID {customHostConnectionStringId.Value}.");
+            }
+            
+            customHostConnectionString = new DbConnectionStringBuilder
+            {
+                ConnectionString = hostConnectionString!.ConnectionString
+            };
+        }
+        
+        var hostConnectionStringBuilder = CloneConnectionStringBuilder(customHostConnectionString ?? _hostConnectionString);
         var connectionStringResult = CreateDatabaseConnectionString(tenantId, hostConnectionStringBuilder);
         var connectionStringId = connectionStringResult.ConnectionStringId;
         var supersetDatabaseParams = connectionStringResult.DatabaseParams;
@@ -181,6 +250,8 @@ internal class SupersetDataBaseService : ISupersetDataBaseService
             tenantId,
             supersetDatabaseParams.tenantDbConnectionString,
             cancellationToken);
+
+        await EnsureSupersetDataInfraCheckpointAsync(tenantId, connectionStringId, cancellationToken);
 
         
         return connectionStringId;

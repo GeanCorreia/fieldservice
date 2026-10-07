@@ -25,11 +25,42 @@ public enum ExecutionType
     AlwaysOn = 3
 }
 
-public record SupersetContainerConfiguration(
-    ExecutionType ExecutionType,
-    int MaxReplicas,
-    int MinReplicas,
-    ExecutionWindow? ExecutionWindow = null);
+public record SupersetContainerConfiguration
+{
+    public ExecutionType ExecutionType { get; init; }
+    public int MaxReplicas { get; init; }
+    public int MinReplicas { get; init; }
+    public ExecutionWindow? ExecutionWindow { get; init; }
+
+    public SupersetContainerConfiguration(
+        ExecutionType executionType,
+        int maxReplicas,
+        int minReplicas,
+        ExecutionWindow? executionWindow = null)
+    {
+        if (executionType != ExecutionType.Scheduled && executionWindow != null)
+        {
+            throw new ArgumentException(
+                $"Execution window should be provided only for Scheduled execution type. " +
+                $"ExecutionType: {executionType}");
+        }
+
+        if (executionType == ExecutionType.Scheduled && executionWindow == null)
+        {
+            throw new ArgumentException("Execution window must be provided for Scheduled execution type.");
+        }
+
+        if (minReplicas < 0 || maxReplicas < minReplicas)
+        {
+            throw new ArgumentException($"Invalid replica bounds: MinReplicas ({minReplicas}) cannot be greater than MaxReplicas ({maxReplicas}).");
+        }
+
+        ExecutionType = executionType;
+        MaxReplicas = maxReplicas;
+        MinReplicas = minReplicas;
+        ExecutionWindow = executionWindow;
+    }
+}
 
 public record ExecutionWindow(
     DailyExecutionWindow? Monday,
@@ -49,13 +80,13 @@ internal class SupersetContainer
     public Guid Id { get; init; }
     public Guid TenantId { get; init; }
     public Guid SecretKeyId { get; init; }
-    public ProviderType ProviderType { get; init; }
+    public ProviderType ProviderType { get; private set; }
     
     [NotMapped]
     public string Name => ResourceName(TenantId);
-    public string ResourceId {get; init;}
-    public string FqdnUrl { get; init; }
-    public ExecutionType ExecutionType { get; init; }
+    public string ResourceId {get; private set;}
+    public string FqdnUrl { get; private set; }
+    public ExecutionType ExecutionType { get; private set; }
     public int MaxReplicas { get; private set; }
     public int MinReplicas { get; private set; }
     [JsonInclude]
@@ -130,10 +161,30 @@ internal class SupersetContainer
     private SupersetContainerConfiguration GetConfiguration()
     {
         return new SupersetContainerConfiguration(
-            ExecutionType: ExecutionType,
-            MaxReplicas: MaxReplicas,
-            MinReplicas: MinReplicas,
-            ExecutionWindow: ExecutionWindow);
+            ExecutionType,
+            MaxReplicas,
+            MinReplicas,
+            ExecutionWindow);
+    }
+    
+    public void UpdateConfiguration(SupersetContainerConfiguration newConfig)
+    {
+        if (newConfig.Equals(GetConfiguration()))
+        {
+            return;
+        }
+        
+        ExecutionType = newConfig.ExecutionType;
+        MaxReplicas = newConfig.MaxReplicas;
+        MinReplicas = newConfig.MinReplicas;
+        _executionWindow = newConfig.ExecutionWindow is null ? null : JsonSerializer.SerializeToElement(newConfig.ExecutionWindow);
+    }
+    
+    public void UpdateProviderInfo(ProviderType providerType, string resourceId, string fqdnUrl)
+    {
+        ProviderType = providerType;
+        ResourceId = resourceId;
+        FqdnUrl = fqdnUrl;
     }
     
 }

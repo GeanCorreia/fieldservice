@@ -1,14 +1,7 @@
-using Amazon.S3.Model;
-using FieldService.Superset.Dtos;
-using FieldService.Superset.Interfaces;
+using System.ComponentModel.DataAnnotations.Schema;
+
 
 namespace FieldService.Superset.Entities;
-
-internal enum FlowType
-{
-    Creation,
-    Migration
-}
 
 public enum SupersetTenantDeployStatus
 {
@@ -17,80 +10,89 @@ public enum SupersetTenantDeployStatus
     Completed,
     Cancelled
 }
-internal class SupersetTenantFlow 
+internal class SupersetContainerDeploymentFlow 
 {
     public Guid Id { get; init; }
-    public FlowType FlowType { get; init; }
     public Guid TenantId { get; init; }
-    public SupersetTenantCreateParams CreateParams { get; init; }
+    public SupersetContainerConfiguration Configuration { get; init; }
+    public Guid? CustomHostConnectionStringId { get; init; }
     public DateTimeOffset StartedAt { get; init; }
     public DateTimeOffset? ContainerCreatedAt { get; private set; }
-    public Guid? CreatedContainerId { get; private set; }
+    public Guid? ContainerId { get; private set; }
+    public DateTimeOffset? SecretKeyCreatedAt { get; private set; }
     public Guid? SecretKeyId { get; private set; }
     public DateTimeOffset? DataSchemaCreatedAt { get; private set; }
-    public DateTimeOffset? RolesCreatedAt { get; private set; }
     public Guid? ConnectionStringId { get; private set; }
-    public Guid? YamlMigrationFileId { get; private set; }
-    public DateTimeOffset? YamlMigrationFileCreatedAt { get; private set; }
-    public DateTimeOffset? YamlMigrationFileDeletedAt { get; private set; }
-    public DateTimeOffset? YamlMigrationFileUpdatedAt { get; private set; }
-    public DateTimeOffset? CompletedAt { get; private set; }
+    public DateTimeOffset? PersistedAt { get; private set; }
     public DateTimeOffset? CancelledAt { get; private set; }
     
-    protected SupersetTenantFlow() { }
+    
+    protected SupersetContainerDeploymentFlow() { }
 
-    private SupersetTenantFlow(
+    private SupersetContainerDeploymentFlow(
         Guid id, 
         Guid tenantId, 
-        SupersetTenantCreateParams createParams, 
+        SupersetContainerConfiguration configuration, 
         DateTimeOffset startedAt, 
+        Guid? customHostConnectionStringId = null,
         DateTimeOffset? containerCreatedAt = null, 
-        Guid? createdContainerId = null, 
+        Guid? containerId = null, 
         Guid? secretKeyId = null, 
         DateTimeOffset? dataSchemaCreatedAt = null,
-        DateTimeOffset? rolesCreatedAt = null,
         Guid? connectionStringId = null, 
-        DateTimeOffset? completedAt = null, 
+        DateTimeOffset? persistedAt = null, 
         DateTimeOffset? cancelledAt = null)
     {
         Id = id;
         TenantId = tenantId;
-        CreateParams = createParams;
+        Configuration = configuration;
         StartedAt = startedAt;
+        CustomHostConnectionStringId = customHostConnectionStringId;
         ContainerCreatedAt = containerCreatedAt;
-        CreatedContainerId = createdContainerId;
+        ContainerId = containerId;
         SecretKeyId = secretKeyId;
         DataSchemaCreatedAt = dataSchemaCreatedAt;
-        RolesCreatedAt = rolesCreatedAt;
         ConnectionStringId = connectionStringId;
-        CompletedAt = completedAt;
+        PersistedAt = persistedAt;
         CancelledAt = cancelledAt;
     }
+    
+    
 
-    public static SupersetTenantFlow Create(
-        SupersetTenantCreateParams createParams,
-        Guid tenantId)
+    public static SupersetContainerDeploymentFlow Create(
+        SupersetContainerConfiguration configuration,
+        Guid tenantId,
+        Guid? dedicatedHostConnectionStringId = null)
     {
-        return new SupersetTenantFlow(
+        return new SupersetContainerDeploymentFlow(
             Guid.NewGuid(), 
             tenantId, 
-            createParams,
-            DateTimeOffset.UtcNow);
+            configuration,
+            DateTimeOffset.UtcNow,
+            customHostConnectionStringId: dedicatedHostConnectionStringId);
     }
     
-    public void MarkContainerCreated(Guid containerId, Guid secretKeyId, DateTimeOffset? at = null)
+    public static string SupersetContainerDeploymentFlowContext(Guid flowId) =>
+        $"superset-tenant-container-deployment-flow-{flowId}";
+
+    public string SupersetContainerDeploymentFlowContext() =>
+        SupersetContainerDeploymentFlowContext(Id);
+
+    public void MarkContainerCreated(Guid containerId, DateTimeOffset? at = null)
     {
         at ??= DateTimeOffset.UtcNow;
         if(CancelledAt.HasValue)
             throw new InvalidOperationException("Cannot mark as created after being cancelled.");
         
+        if(SecretKeyId == null)
+            throw new InvalidOperationException("Cannot mark as created without a secret key.");
+                
         if(StartedAt > at)
             throw new InvalidOperationException("Cannot mark as created before the start time.");
         
-        CompletedAt = at;
-        CreatedContainerId = containerId;
-        SecretKeyId = secretKeyId;
-        
+        PersistedAt = at;
+        ContainerId = containerId;
+        ContainerCreatedAt = at;
     }
     
     public void MarkDataSchemaCreated(Guid connectionStringId, DateTimeOffset? at = null)
@@ -106,10 +108,26 @@ internal class SupersetTenantFlow
         DataSchemaCreatedAt = at;
         ConnectionStringId = connectionStringId;
     }
+
+    public void MarkSecretKeyCreated(Guid secretKeyId, DateTimeOffset? at = null)
+    {
+        at ??= DateTimeOffset.UtcNow;
+        if (CancelledAt.HasValue)
+            throw new InvalidOperationException("Cannot mark secret key after being cancelled.");
+
+        if (secretKeyId == default)
+            throw new ArgumentException("Secret key id is required.", nameof(secretKeyId));
+
+        if (SecretKeyId.HasValue && SecretKeyId.Value != secretKeyId)
+            throw new InvalidOperationException("Secret key has already been set with a different value.");
+
+        SecretKeyId = secretKeyId;
+        SecretKeyCreatedAt = at;
+    }
     
     public void MarkAsCancelled()
     {
-        if(CompletedAt.HasValue)
+        if(PersistedAt.HasValue)
             throw new InvalidOperationException("Cannot cancel a creation that has already been created.");
         
         if(StartedAt > DateTimeOffset.UtcNow)
@@ -118,38 +136,15 @@ internal class SupersetTenantFlow
         CancelledAt = DateTimeOffset.UtcNow;
     }
     
-    public void MarkYamlMigrationFileCreated(Guid fileId, DateTimeOffset? at = null)
-    {
-        at ??= DateTimeOffset.UtcNow;
-        if(CancelledAt.HasValue)
-            throw new InvalidOperationException("Cannot mark as YAML migration file created after being cancelled.");
-        
-        if(StartedAt > at)
-            throw new InvalidOperationException("Cannot mark as YAML migration file created before the start time.");
-        
-        YamlMigrationFileId = fileId;
-        YamlMigrationFileCreatedAt = at;
-    }
-    
-    
     public SupersetTenantDeployStatus Status => GetStatus();
 
     private SupersetTenantDeployStatus GetStatus()
     {
-        if (FlowType == FlowType.Creation)
-            return GetStatusCreation();
-        
-        if (FlowType == FlowType.Migration)
-            return GetStatusMigration();
-        
-        throw new InvalidOperationException("Invalid flow type for status retrieval.");
-    }
-    private SupersetTenantDeployStatus GetStatusCreation()
-    {
+     
         if (CancelledAt.HasValue)
             return SupersetTenantDeployStatus.Cancelled;
         
-        if (CompletedAt.HasValue)
+        if (PersistedAt.HasValue)
             return SupersetTenantDeployStatus.Completed;
         
         if (ContainerCreatedAt.HasValue || DataSchemaCreatedAt.HasValue)
@@ -163,28 +158,13 @@ internal class SupersetTenantFlow
         if (CancelledAt.HasValue)
             return SupersetTenantDeployStatus.Cancelled;
         
-        if (CompletedAt.HasValue)
+        if (PersistedAt.HasValue)
             return SupersetTenantDeployStatus.Completed;
         
-        if (YamlMigrationFileCreatedAt.HasValue || YamlMigrationFileUpdatedAt.HasValue || YamlMigrationFileDeletedAt.HasValue)
+        if(DataSchemaCreatedAt.HasValue || ContainerCreatedAt.HasValue)
             return SupersetTenantDeployStatus.InProgress;
         
         return SupersetTenantDeployStatus.Pending;
     }
-    
-    public void MarkRolesCreated(DateTimeOffset? at = null)
-    {
-        at ??= DateTimeOffset.UtcNow;
-        if(CancelledAt.HasValue)
-            throw new InvalidOperationException("Cannot mark as roles created after being cancelled.");
-        
-        if(StartedAt > at)
-            throw new InvalidOperationException("Cannot mark as roles created before the start time.");
-        
-        RolesCreatedAt = at;
-    }
-    
-    
-
     
 }

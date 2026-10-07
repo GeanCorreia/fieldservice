@@ -1,12 +1,13 @@
 using FieldService.Superset.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using System.Text.Json;
 
 namespace FieldService.Superset.Data.Configurations;
 
-internal sealed class SupersetTenantFlowConfiguration : IEntityTypeConfiguration<SupersetTenantFlow>
+internal sealed class SupersetTenantFlowConfiguration : IEntityTypeConfiguration<SupersetContainerDeploymentFlow>
 {
-    public void Configure(EntityTypeBuilder<SupersetTenantFlow> builder)
+    public void Configure(EntityTypeBuilder<SupersetContainerDeploymentFlow> builder)
     {
         builder.ToTable("SupersetTenantFlow");
         
@@ -14,13 +15,12 @@ internal sealed class SupersetTenantFlowConfiguration : IEntityTypeConfiguration
 
         builder.Property(x => x.Id)
             .ValueGeneratedNever();
-        
-        builder.Property(x => x.FlowType)
-            .HasConversion<int>()
-            .IsRequired();
 
         builder.Property(x => x.TenantId)
             .IsRequired();
+        
+        builder.Property(x => x.CustomHostConnectionStringId)
+            .IsRequired(false);
 
         builder.Property(x => x.StartedAt)
             .IsRequired();
@@ -28,7 +28,7 @@ internal sealed class SupersetTenantFlowConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.ContainerCreatedAt)
             .IsRequired(false);
 
-        builder.Property(x => x.CreatedContainerId)
+        builder.Property(x => x.ContainerId)
             .IsRequired(false);
 
         builder.Property(x => x.SecretKeyId)
@@ -36,35 +36,21 @@ internal sealed class SupersetTenantFlowConfiguration : IEntityTypeConfiguration
 
         builder.Property(x => x.DataSchemaCreatedAt)
             .IsRequired(false);
-
-        builder.Property(x => x.RolesCreatedAt)
-            .IsRequired(false);
-
+        
         builder.Property(x => x.ConnectionStringId)
             .IsRequired(false);
-
-        builder.Property(x => x.YamlMigrationFileId)
-            .IsRequired(false);
-
-        builder.Property(x => x.YamlMigrationFileCreatedAt)
-            .IsRequired(false);
-
-        builder.Property(x => x.YamlMigrationFileDeletedAt)
-            .IsRequired(false);
-
-        builder.Property(x => x.YamlMigrationFileUpdatedAt)
-            .IsRequired(false);
-
-        builder.Property(x => x.CompletedAt)
+        
+        builder.Property(x => x.PersistedAt)
             .IsRequired(false);
 
         builder.Property(x => x.CancelledAt)
             .IsRequired(false);
 
-        builder.OwnsOne(x => x.CreateParams, createParamsBuilder =>
-        {
-            createParamsBuilder.ToJson();
-        });
+        builder.Property(x => x.Configuration)
+            .HasColumnType("jsonb")
+            .HasConversion(
+                value => JsonSerializer.Serialize(value, (JsonSerializerOptions?)null),
+                value => JsonSerializer.Deserialize<FieldService.Superset.Entities.SupersetContainerConfiguration>(value, (JsonSerializerOptions?)null)!);
 
 
         builder.Ignore(x => x.Status);

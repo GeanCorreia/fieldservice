@@ -83,6 +83,24 @@ public class ResourceIdNotFoundException : Exception
     }
 }
 
+public class SupersetContainerResourceAlreadyExistsException : Exception
+{
+    public Guid TenantId { get; }
+    public string ResourceId { get; }
+    public string FqdnUrl { get; }
+
+    public SupersetContainerResourceAlreadyExistsException(
+        Guid tenantId,
+        string resourceId,
+        string fqdnUrl)
+        : base($"Superset container resource for tenant '{tenantId}' already exists.")
+    {
+        TenantId = tenantId;
+        ResourceId = resourceId;
+        FqdnUrl = fqdnUrl;
+    }
+}
+
 public class SupersetTenantInstanceNotRunningException : Exception
 {
     public Guid TenantId { get; }

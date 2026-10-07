@@ -1,5 +1,7 @@
+using FieldService.Data;
 using FieldService.Superset.Attributes;
 using FieldService.Superset.Configuration;
+using FieldService.Superset.Data;
 using FieldService.Superset.Data.Repositories;
 using FieldService.Superset.Interfaces;
 using FieldService.Superset.Proxy;
@@ -76,7 +78,7 @@ public static class SupersetModule
         services.AddScoped<ISupersetTenantService, SupersetTenantService>();
         services.AddScoped<SupersetContainerAllowedOriginsCors>();
         services.AddScoped<SupersetTenantDynamicTransformProvider>();
-        
+        services.AddSqlModule<SupersetDbContext>(configuration);
         services.AddScoped<ISupersetRepository, SupersetRepository>();
         services.AddScoped<ISupersetTenantFlowRepository, SupersetTenantFlowRepository>();
         services.AddScoped<ISupersetContainerRepository, SupersetContainerRepository>();
