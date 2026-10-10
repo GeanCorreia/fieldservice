@@ -1,4 +1,4 @@
-namespace FieldService.Shared.Responses;
+namespace FieldService.Shared.Types.Http;
 
 public record Pagination(
     int Page,

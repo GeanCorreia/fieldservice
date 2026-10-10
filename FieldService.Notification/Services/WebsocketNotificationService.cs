@@ -8,12 +8,14 @@ namespace FieldService.Notification.Services;
 public class WebsocketNotificationService : IWebsocketNotificationService
 {
     private readonly ILogger<WebsocketNotificationService> _logger;
-    private readonly ISignalRMessageSender _signalRMessageSender;
+    private readonly IMessageSender _messageSender;
     
-    public WebsocketNotificationService(ILogger<WebsocketNotificationService> logger, ISignalRMessageSender signalRMessageSender)
+    public WebsocketNotificationService(
+        ILogger<WebsocketNotificationService> logger, 
+        IMessageSender messageSender)
     {
         _logger = logger;
-        _signalRMessageSender = signalRMessageSender;
+        _messageSender = messageSender;
     }
     public Task SendNotification(Entities.Notification notification)
     {

@@ -1,5 +1,5 @@
 using FieldService.Shared.Dtos;
-using FieldService.Shared.Responses;
+using FieldService.Shared.Types.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using ObservabilityExecutionContext = FieldService.Observability.Services.ExecutionContext;

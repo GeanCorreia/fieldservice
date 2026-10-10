@@ -7,7 +7,7 @@ namespace FieldService.SignalR.Services;
 
 internal sealed class SignalRMessageSender(
     IPresenceRegistry presenceRegistry,
-    IHubContext<SignalRHub> hubContext) : ISignalRMessageSender
+    IHubContext<SignalRHub> hubContext) : IMessageSender
 {
     private const string NotificationEvent = "notification";
 

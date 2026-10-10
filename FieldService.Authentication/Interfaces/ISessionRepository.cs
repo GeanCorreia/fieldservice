@@ -1,5 +1,6 @@
 using FieldService.Authentication.Entities;
-using FieldService.Shared.Responses;
+using FieldService.Shared.Types.Http;
+
 
 namespace FieldService.Authentication.Interfaces;
 

@@ -1,5 +1,4 @@
-using FieldService.Shared.Responses;
-using FieldService.Shared.Types;
+using FieldService.Shared.Types.Http;
 
 namespace FieldService.Shared.Dtos;
 

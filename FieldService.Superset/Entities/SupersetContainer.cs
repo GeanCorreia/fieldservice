@@ -1,22 +1,18 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using FieldService.Shared.Types;
 
 namespace FieldService.Superset.Entities;
 
-public enum SupersetContainerStatus
+public enum ContainerStatus
 {
     Active = 1,
     Suspended = 2,
     Deallocated = 3
 }
 
-public enum ProviderType
-{
-    Azure = 1,
-    Aws = 2,
-    Gcp = 3
-}
+
 
 public enum ExecutionType
 {
@@ -80,7 +76,7 @@ internal class SupersetContainer
     public Guid Id { get; init; }
     public Guid TenantId { get; init; }
     public Guid SecretKeyId { get; init; }
-    public ProviderType ProviderType { get; private set; }
+    public CloudProvider CloudProvider { get; private set; }
     
     [NotMapped]
     public string Name => ResourceName(TenantId);
@@ -106,27 +102,27 @@ internal class SupersetContainer
                    ?? throw new InvalidOperationException("Failed to deserialize execution window.");
         }
     }
-    public SupersetContainerStatus Status { get; set; }
+    public ContainerStatus Status { get; set; }
     
     protected SupersetContainer() { }
     
     public SupersetContainer(
         Guid id,
         Guid tenantId,
-        ProviderType providerType,
+        CloudProvider cloudProvider,
         Guid secretKeyId,
         string resourceId,
         string fqdnUrl,
         ExecutionType executionType,
         int maxReplicas,
         int minReplicas,
-        SupersetContainerStatus status,
+        ContainerStatus status,
         ExecutionWindow? executionWindow = null)
     {
         Id = id;
         TenantId = tenantId;
         SecretKeyId = secretKeyId;
-        ProviderType = providerType;
+        CloudProvider = cloudProvider;
         ResourceId = resourceId;
         FqdnUrl = fqdnUrl;
         ExecutionType = executionType;
@@ -180,9 +176,9 @@ internal class SupersetContainer
         _executionWindow = newConfig.ExecutionWindow is null ? null : JsonSerializer.SerializeToElement(newConfig.ExecutionWindow);
     }
     
-    public void UpdateProviderInfo(ProviderType providerType, string resourceId, string fqdnUrl)
+    public void UpdateProviderInfo(CloudProvider cloudProvider, string resourceId, string fqdnUrl)
     {
-        ProviderType = providerType;
+        CloudProvider = cloudProvider;
         ResourceId = resourceId;
         FqdnUrl = fqdnUrl;
     }

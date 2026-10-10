@@ -15,6 +15,7 @@ using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 
+
 namespace FieldService.SignalR;
 
 public static class SignalRModule
@@ -55,7 +56,7 @@ public static class SignalRModule
         
         services.Configure<SignalROptions>(configuration.GetSection(SignalROptions.SectionName));
         services.AddScoped<ISignalRConnectionEventProducer, BrokerSignalRConnectionEventProducer>();
-        services.AddScoped<ISignalRMessageSender, SignalRMessageSender>();
+        services.AddScoped<IMessageSender, SignalRMessageSender>();
         services.AddScoped<ISignalRConnectionManager, SignalRConnectionManager>();
         services.AddScoped<IDomainRoomRepository, DomainRoomRepository>();
         services.AddScoped<IDomainRoomManager, DomainRoomManager>();

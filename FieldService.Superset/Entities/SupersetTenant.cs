@@ -20,7 +20,8 @@ internal class SupersetTenant
     public static string MockedDataSchemaPrefix = "superset_mocked_data";
     public static string SupersetSecretKeyPrefix = "superset_secret_key";
     public static string ConnectionStringPrefix = "superset_connection_string";
-    public static string Database(Guid tenantId) => $"{DatabasePrefix}_{tenantId.ToString().ToLower()}";
+
+    public static string Database(Guid tenantId) => $"{DatabasePrefix}_{tenantId:N}";
     public static string SecretKeyName(Guid tenantId) => $"{SupersetSecretKeyPrefix}_{tenantId.ToString().ToLower()}";
     public static string ConnectionStringName(Guid tenantId) => $"{ConnectionStringPrefix}_{tenantId.ToString().ToLower()}";
     
@@ -34,12 +35,9 @@ internal class SupersetTenant
     [NotMapped]
     public string FqdnUrl => Container.FqdnUrl;
     public DateTimeOffset StatusUpdatedAt { get; private set; }
-    [NotMapped] public string DatabaseAppName => $"{DatabasePrefix}_{TenantId.ToString().ToLower()}";
-    [NotMapped] public string DataSchemaName => $"{DataSchemaPrefix}_{TenantId.ToString().ToLower()}";
-    [NotMapped] public string MetadataSchemaName => $"{MetadataSchemaPrefix}_{TenantId.ToString().ToLower()}";
-    [NotMapped] public string MockedDataSchemaName => $"{MockedDataSchemaPrefix}_{TenantId.ToString().ToLower()}";
-    [NotMapped] public string SupersetSecretKeyName => $"{SupersetSecretKeyPrefix}_{TenantId.ToString().ToLower()}";
-    [NotMapped] public string SupersetConnectionStringName => $"{ConnectionStringPrefix}_{TenantId.ToString().ToLower()}";
+    [NotMapped] public string DatabaseAppName => Database(TenantId);
+    [NotMapped] public string SupersetSecretKeyName => SecretKeyName(TenantId);
+    [NotMapped] public string SupersetConnectionStringName => ConnectionStringName(TenantId);
 
     protected SupersetTenant() { }
 

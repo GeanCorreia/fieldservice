@@ -4,6 +4,7 @@ using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
 using FieldService.Shared.Message;
+using FieldService.Shared.Types;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
@@ -122,21 +123,21 @@ internal class CreateSupersetTenantContainerJobConsumer : IQueueConsumer<CreateS
         var supersetContainer = new SupersetContainer(
             id: containerId,
             tenantId: payload.TenantId,
-            providerType: ProviderType.Azure,
+            cloudProvider: CloudProvider.Azure,
             secretKeyId: supersetDeploymentFlow.SecretKeyId.Value,
             resourceId: deploymentResult.ResourceId,
             fqdnUrl: deploymentResult.FqdnUrl,
             executionType: supersetDeploymentFlow.Configuration.ExecutionType,
             maxReplicas: supersetDeploymentFlow.Configuration.MaxReplicas,
             minReplicas: supersetDeploymentFlow.Configuration.MinReplicas,
-            status: SupersetContainerStatus.Active,
+            status: ContainerStatus.Active,
             executionWindow: supersetDeploymentFlow.Configuration.ExecutionWindow);
 
         var mustPersistContainer = previousContainer is null
                                    || previousContainer.SecretKeyId != supersetContainer.SecretKeyId
                                    || !string.Equals(previousContainer.ResourceId, supersetContainer.ResourceId, StringComparison.Ordinal)
                                    || !string.Equals(previousContainer.FqdnUrl, supersetContainer.FqdnUrl, StringComparison.Ordinal)
-                                   || previousContainer.Status != SupersetContainerStatus.Active
+                                   || previousContainer.Status != ContainerStatus.Active
                                    || !previousContainer.Configuration.Equals(supersetContainer.Configuration);
 
         var mustPersistFlow = !supersetDeploymentFlow.ContainerCreatedAt.HasValue

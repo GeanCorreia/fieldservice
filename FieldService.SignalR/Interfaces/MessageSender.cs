@@ -2,7 +2,7 @@ using FieldService.Shared.Message;
 
 namespace FieldService.SignalR.Interfaces;
 
-public interface ISignalRMessageSender
+public interface IMessageSender
 {
     Task SendSessionAsync<TPayload>(Guid sessionId, IMessage<TPayload> message, CancellationToken ct = default)
         where TPayload : class, IMessagePayload;

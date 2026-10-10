@@ -1,7 +1,7 @@
 using FieldService.Authentication.Entities;
 using FieldService.Authentication.Interfaces;
 using FieldService.Data.Interfaces;
-using FieldService.Shared.Responses;
+using FieldService.Shared.Types.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace FieldService.Authentication.Data.Repositories;

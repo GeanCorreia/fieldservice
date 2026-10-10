@@ -1,10 +1,11 @@
+using FieldService.Shared.Types;
 using FieldService.Superset.Entities;
 
 namespace FieldService.Superset.Dtos;
 
 
 public record SupersetTenantCreateParams(
-    ProviderType ProviderType,
+    CloudProvider CloudProvider,
     SupersetContainerConfiguration configuration,
     Guid? DedicatedDbConnectionStringId = null
     );

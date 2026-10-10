@@ -22,7 +22,7 @@ internal sealed class SupersetContainerConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.SecretKeyId)
             .IsRequired();
 
-        builder.Property(x => x.ProviderType)
+        builder.Property(x => x.CloudProvider)
             .HasConversion<int>()
             .IsRequired();
         
