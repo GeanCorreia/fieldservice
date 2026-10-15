@@ -29,7 +29,9 @@ internal class GetSupersetUserHandler : IRequestHandler<GetSupersetUserQuery, Su
         _supersetSecurityApi = supersetSecurityApi ?? throw new ArgumentNullException(nameof(supersetSecurityApi));
     }
 
-    public async Task<SupersetUserDetailDto> Handle(GetSupersetUserQuery request, CancellationToken cancellationToken)
+    public async Task<SupersetUserDetailDto> Handle(
+        GetSupersetUserQuery request, 
+        CancellationToken cancellationToken)
     {
         var tenantSuperset = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
         if (tenantSuperset == null)

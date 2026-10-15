@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using FieldService.Form.Dtos;
 using FieldService.Form.Enums;
-using FieldService.Form.Interfaces;
 using FieldService.Shared.Message;
 using FieldService.Shared.Types;
 
@@ -9,7 +9,7 @@ namespace FieldService.Form.Messages;
 public record FormMessagePayload(
     Guid TenantId,
     FormOperation Operation,
-    FormInfo FormInfo) : AbstractMessagePayload<FormMessagePayload>;
+    FormInfoDto FormInfoDto) : AbstractMessagePayload<FormMessagePayload>;
 
 public record FormMessage: AbstractMessage<FormMessagePayload>
 {

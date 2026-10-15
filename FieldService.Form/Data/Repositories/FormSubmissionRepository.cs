@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FieldService.Data.Interfaces;
+using FieldService.Form.Dtos;
 using FieldService.Form.Entities;
 using FieldService.Form.Extensions;
 using FieldService.Form.Interfaces;
@@ -56,7 +57,7 @@ internal sealed class FormSubmissionRepository(
 
     public async Task<PaginatedResult<FormSubmission>> GetByFilterAsync(
         Guid formId,
-        IEnumerable<FormFieldFilter> filters,
+        IEnumerable<FormFieldData> filters,
         PagedRequest? paginationRequestDto = null,
         CancellationToken cancellationToken = default)
     {
@@ -115,9 +116,40 @@ internal sealed class FormSubmissionRepository(
             items);
     }
 
+    public async Task<PaginatedResult<FormSubmission>> GetAllDeletedAsync(
+        Guid formId, 
+        PagedRequest? paginationRequestDto = null,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateId(formId, nameof(formId));
+
+        var normalizedPagination = NormalizePagination(paginationRequestDto);
+        
+        var query = dbContext.FormSubmissions
+            .AsNoTracking()
+            .Where(x => x.FormId == formId && x.IsDelete);
+        
+        var totalCount = await query.LongCountAsync(cancellationToken);
+        var totalPages = CalculateTotalPages(totalCount, normalizedPagination.PageSize);
+        var page = ClampPage(normalizedPagination.Page, totalPages);
+
+        var orderedQuery = normalizedPagination.IsDescending
+            ? query.OrderByDescending(x => x.LastModifiedAt)
+            : query.OrderBy(x => x.LastModifiedAt);
+
+        var items = await orderedQuery
+            .Skip((page - 1) * normalizedPagination.PageSize)
+            .Take(normalizedPagination.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PaginatedResult<FormSubmission>(
+            new Pagination(page, normalizedPagination.PageSize, totalCount, totalPages),
+            items);
+    }
+
     private IQueryable<FormSubmission> BuildFilteredQuery(
         Guid formId,
-        IEnumerable<FormFieldFilter> filters)
+        IEnumerable<FormFieldData> filters)
     {
         var activeFilters = filters
             .Where(f => !string.IsNullOrWhiteSpace(f.FieldName))
@@ -148,15 +180,18 @@ internal sealed class FormSubmissionRepository(
             var pathSegments = fieldName.ToPathSegments();
             var pathExpression = pathSegments.ToPostgresTextArrayExpression();
             var valueParameterName = $"value{i}";
-
-            var expectedText = GetComparableText(filter.FieldValue);
+            
+            if(filter.Value == null)
+                continue;
+            
+            var expectedText = GetComparableText(filter.Value);
             if (string.IsNullOrWhiteSpace(expectedText))
                 continue;
 
             sql.Append($" AND (\"DataJson\" #>> {pathExpression}) ");
-            if (IsStringLike(filter.FieldValue))
+            if (IsStringLike(filter.Value))
             {
-                // String filters must behave like SQL LIKE '%value%'.
+                
                 sql.Append($"ILIKE ('%' || @{valueParameterName} || '%')");
             }
             else
@@ -226,4 +261,19 @@ internal sealed class FormSubmissionRepository(
             },
             _ => Convert.ToString(value)?.Trim()
         };
+
+    public async ValueTask DisposeAsync()
+    {
+        switch (unitOfWork)
+        {
+            case IAsyncDisposable asyncDisposable:
+                await asyncDisposable.DisposeAsync();
+                break;
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
+        }
+
+        await dbContext.DisposeAsync();
+    }
 }

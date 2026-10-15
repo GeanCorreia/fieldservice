@@ -24,11 +24,10 @@ public static class FormModule
 		services.AddScoped<IFormTenantService, FormTenantService>();
 		services.AddScoped<IFormTenantRepository>(sp => sp.GetRequiredService<IFormTenantService>());
 
-		services.AddScoped<FormSubmissionRepository>();
+		services.AddScoped<IFormSubmissionRepositoryFactory, FormSubmissionRepositoryFactory>();
 		services.AddScoped<BrokerFormSubmissionBrokerProducer>();
 		services.AddScoped<IFormSubmissionService, FormSubmissionService>();
-		services.AddScoped<IFormSubmissionRepository>(sp => sp.GetRequiredService<IFormSubmissionService>());
-		services.AddScoped<IFormFilterService, FormFilterService>();
+		services.AddScoped<IFormFilterService, FormIoFilterService>();
 
 		return services;
 	}

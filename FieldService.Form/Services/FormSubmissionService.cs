@@ -1,5 +1,4 @@
 using System.Text.Json;
-using FieldService.Form.Data.Repositories;
 using FieldService.Form.Entities;
 using FieldService.Form.Interfaces;
 using FieldService.Form.Broker;
@@ -10,15 +9,17 @@ using FieldService.Shared.Types.Http;
 namespace FieldService.Form.Services;
 
 internal sealed class FormSubmissionService(
-    FormSubmissionRepository repository,
+    IFormSubmissionRepositoryFactory repositoryFactory,
     IFormService formService,
-    BrokerFormSubmissionBrokerProducer brokerProducer) : IFormSubmissionService
+    BrokerFormSubmissionBrokerProducer brokerProducer,
+    IFormFilterService formFilterService) : IFormSubmissionService
 {
-    private readonly FormSubmissionRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+    private readonly IFormSubmissionRepositoryFactory _repositoryFactory = repositoryFactory ?? throw new ArgumentNullException(nameof(repositoryFactory));
     private readonly IFormService _formService = formService ?? throw new ArgumentNullException(nameof(formService));
     private readonly BrokerFormSubmissionBrokerProducer _brokerProducer = brokerProducer ?? throw new ArgumentNullException(nameof(brokerProducer));
+    private readonly IFormFilterService _formFilterService = formFilterService ?? throw new ArgumentNullException(nameof(formFilterService));
 
-    public async Task<FormSubmission> CreateAsync(
+    public async Task CreateAsync(
         Guid tenantId,
         Guid formId,
         Guid userId,
@@ -29,175 +30,171 @@ internal sealed class FormSubmissionService(
         ValidateId(formId, nameof(formId));
         ValidateId(userId, nameof(userId));
 
-        var form = await EnsureActiveFormAsync(formId, cancellationToken);
+        await using var repository = await _repositoryFactory.CreateAsync(tenantId, cancellationToken);
+        var form = await EnsureActiveFormAsync(tenantId, formId, cancellationToken);
 
         var submission = FormSubmission.CreateRegister(formId, dataJson);
-        await _repository.SaveAsync(submission, cancellationToken);
+        await repository.SaveAsync(submission, cancellationToken);
 
         await PublishCrudEventAsync(tenantId, form.Slug, submission.Id, FormOperation.Create, cancellationToken);
-
-        return submission;
     }
 
-    public async Task<FormSubmission> UpdateAsync(
+    public async Task UpdateAsync(
+        Guid tenantId,
         Guid submissionId,
         Guid userId,
         JsonElement dataJson,
         CancellationToken cancellationToken = default)
     {
+        ValidateId(tenantId, nameof(tenantId));
         ValidateId(submissionId, nameof(submissionId));
         ValidateId(userId, nameof(userId));
 
-        var submission = await _repository.GetByIdAsync(submissionId, cancellationToken)
+        await using var repository = await _repositoryFactory.CreateAsync(tenantId, cancellationToken);
+        
+        var submission = await repository.GetByIdAsync(submissionId, cancellationToken)
             ?? throw new KeyNotFoundException($"Form submission '{submissionId}' not found.");
 
-        var form = await EnsureActiveFormAsync(submission.FormId, cancellationToken);
-
+        var form = await EnsureActiveFormAsync(tenantId, submission.FormId, cancellationToken);
         submission.UpdateData(dataJson);
-        await _repository.SaveAsync(submission, cancellationToken);
+        await repository.SaveAsync(submission, cancellationToken);
 
         await PublishCrudEventAsync(form.TenantId, form.Slug, submission.Id, FormOperation.Update, cancellationToken);
-
-        return submission;
+        
     }
 
     public async Task DeleteAsync(
+        Guid tenantId,
         Guid submissionId,
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        ValidateId(tenantId, nameof(tenantId));
         ValidateId(submissionId, nameof(submissionId));
         ValidateId(userId, nameof(userId));
 
-        var submission = await _repository.GetByIdAsync(submissionId, cancellationToken)
+        
+        await using var repository = await _repositoryFactory.CreateAsync(tenantId, cancellationToken);
+        
+
+        var submission = await repository.GetByIdAsync(submissionId, cancellationToken)
             ?? throw new KeyNotFoundException($"Form submission '{submissionId}' not found.");
 
-        var form = await EnsureActiveFormAsync(submission.FormId, cancellationToken);
+        var form = await EnsureActiveFormAsync(tenantId, submission.FormId, cancellationToken);
 
         submission.MarkAsDeleted(userId);
-        await _repository.SaveAsync(submission, cancellationToken);
+        await repository.SaveAsync(submission, cancellationToken);
 
-        await PublishCrudEventAsync(form.TenantId, form.Slug, submission.Id, FormOperation.Delete, cancellationToken);
-    }
-
-    public async Task ReadAsync(
-        Guid submissionId,
-        Guid userId,
-        CancellationToken cancellationToken = default)
-    {
-        ValidateId(submissionId, nameof(submissionId));
-        ValidateId(userId, nameof(userId));
-
-        var submission = await _repository.GetByIdIncludingDeletedAsync(submissionId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Form submission '{submissionId}' not found.");
-
-        if (!submission.IsDelete)
-            return;
-
-        var form = await EnsureActiveFormAsync(submission.FormId, cancellationToken);
-
-        submission.UndoDeletion();
-        await _repository.SaveAsync(submission, cancellationToken);
-
-        // Restore keeps current broker contract by emitting Update.
-        await PublishCrudEventAsync(form.TenantId, form.Slug, submission.Id, FormOperation.Update, cancellationToken);
-    }
-
-    public async Task<FormSubmission?> GetByIdAsync(
-        Guid id,
-        CancellationToken cancellationToken = default)
-    {
-        ValidateId(id, nameof(id));
-
-        var submission = await _repository.GetByIdAsync(id, cancellationToken);
-        if (submission is null)
-            return null;
-
-        _ = await EnsureActiveFormAsync(submission.FormId, cancellationToken);
-        return submission;
-    }
-
-    public async Task<FormSubmission?> GetByIdIncludingDeletedAsync(
-        Guid id,
-        CancellationToken cancellationToken = default)
-    {
-        ValidateId(id, nameof(id));
-
-        var submission = await _repository.GetByIdIncludingDeletedAsync(id, cancellationToken);
-        if (submission is null)
-            return null;
-
-        _ = await EnsureActiveFormAsync(submission.FormId, cancellationToken);
-        return submission;
-    }
-
-    public async Task SaveAsync(
-        FormSubmission formSubmission,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(formSubmission);
-
-        _ = await EnsureActiveFormAsync(formSubmission.FormId, cancellationToken);
-        await _repository.SaveAsync(formSubmission, cancellationToken);
-    }
-
-    public async Task<PaginatedResult<FormSubmission>> GetFilteredAsync(
-        FormGridFilterRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ValidateId(request.FormId, nameof(request.FormId));
-
-        var filters = NormalizeFilters(request.Filters).ToArray();
-
-        _ = await EnsureActiveFormAsync(request.FormId, cancellationToken);
-
-        if (filters.Length == 0)
-        {
-            return await _repository.GetAllAsync(
-                request.FormId,
-                request.PagedRequest,
-                cancellationToken);
-        }
-
-        return await _repository.GetByFilterAsync(
-            request.FormId,
-            filters,
-            request.PagedRequest,
+        await PublishCrudEventAsync(
+            form.TenantId, 
+            form.Slug, 
+            submission.Id, 
+            FormOperation.Delete, 
             cancellationToken);
     }
 
-    public async Task<PaginatedResult<FormSubmission>> GetByFilterAsync(
-        Guid formId,
-        IEnumerable<FormFieldFilter> filters,
-        PagedRequest? paginationRequestDto = null,
+    
+    public async Task<FormSubmission?> GetByIdAsync(
+        Guid tenantId,
+        Guid id,
         CancellationToken cancellationToken = default)
     {
-        ValidateId(formId, nameof(formId));
-        ArgumentNullException.ThrowIfNull(filters);
+        ValidateId(tenantId, nameof(tenantId));
+        ValidateId(id, nameof(id));
 
-        _ = await EnsureActiveFormAsync(formId, cancellationToken);
-        return await _repository.GetByFilterAsync(formId, filters, paginationRequestDto, cancellationToken);
+        await using var repository = await _repositoryFactory.CreateAsync(tenantId, cancellationToken);
+
+        var submission = await repository.GetByIdAsync(id, cancellationToken);
+        if (submission is null)
+            return null;
+
+        _ = await EnsureActiveFormAsync(tenantId, submission.FormId, cancellationToken);
+        return submission;
     }
 
-    public async Task<PaginatedResult<FormSubmission>> GetAllAsync(
-        Guid formId,
-        PagedRequest? paginationRequestDto = null,
+    public async Task<FormGridDataDto> GetAllDeletedAsync(
+        Guid tenantId, 
+        Guid formId, 
         CancellationToken cancellationToken = default)
     {
+        ValidateId(tenantId, nameof(tenantId));
         ValidateId(formId, nameof(formId));
-
-        _ = await EnsureActiveFormAsync(formId, cancellationToken);
-        return await _repository.GetAllAsync(formId, paginationRequestDto, cancellationToken);
+        
+        await using var repository = await _repositoryFactory.CreateAsync(tenantId, cancellationToken);
+        var form = await EnsureActiveFormAsync(tenantId, formId, cancellationToken);
+        
+        var pagedSubmissions = await repository.GetAllDeletedAsync(
+            formId, 
+            cancellationToken: cancellationToken);
+        
+        return await _formFilterService.MapToFormGridDataAsync(
+            formId, 
+            tenantId, 
+            pagedSubmissions, 
+            cancellationToken);
+        
     }
 
-    private async Task<FormDto> EnsureActiveFormAsync(Guid formId, CancellationToken cancellationToken)
+    public async Task<FormGridDataDto> GetFormGridData(
+        FormGridFilterRequest request, 
+        CancellationToken cancellationToken)
     {
-        var form = await _formService.GetFormDtoAsync(formId, cancellationToken);
+        ValidateId(request.TenantId, nameof(request.TenantId));
+        ValidateId(request.FormId, nameof(request.FormId));
+        
+        await using var repository = await _repositoryFactory.CreateAsync(request.TenantId, cancellationToken);
+        var form = await EnsureActiveFormAsync(request.TenantId, request.FormId, cancellationToken);
+        var pagedSubmissions = await repository.GetAllAsync(
+            request.FormId, 
+            request.PagedRequest,
+            cancellationToken: cancellationToken);
+        
+        return await _formFilterService.MapToFormGridDataAsync(
+            request.FormId, 
+            request.TenantId, 
+            pagedSubmissions, 
+            cancellationToken);
+    }
+    
+    public async Task<FormGridDataDto> GetFilteredFormGridData(
+        FormGridFilterRequest request, 
+        CancellationToken cancellationToken)
+    {
+        ValidateId(request.TenantId, nameof(request.TenantId));
+        ValidateId(request.FormId, nameof(request.FormId));
+        await using var repository = await _repositoryFactory.CreateAsync(request.TenantId, cancellationToken);
+        
+        var form = await EnsureActiveFormAsync(request.TenantId, request.FormId, cancellationToken);
+        
+        var pagedSubmissions = await repository.GetByFilterAsync(
+            request.FormId,
+            request.Filters,
+            request.PagedRequest,
+            cancellationToken: cancellationToken);
+        
+        return await _formFilterService.MapToFormGridDataAsync(
+            request.FormId, 
+            request.TenantId, 
+            pagedSubmissions, 
+            cancellationToken);
+    }
+
+    private async Task<FormDto> EnsureActiveFormAsync(
+        Guid tenantId,
+        Guid formId,
+        CancellationToken cancellationToken)
+    {
+        var form = await _formService.GetFormDtoAsync(formId, tenantId, cancellationToken);
         if (form is null)
         {
             throw new KeyNotFoundException($"Form '{formId}' not found.");
         }
+
+        if (form.TenantId != tenantId)
+        {
+            throw new KeyNotFoundException($"Form '{formId}' not found for tenant '{tenantId}'.");
+        }
+
         return form;
     }
 
@@ -217,9 +214,9 @@ internal sealed class FormSubmissionService(
         await _brokerProducer.PublishAsync(payload, cancellationToken);
     }
 
-    private static IEnumerable<FormFieldFilter> NormalizeFilters(IEnumerable<FormFieldData> filters)
+    private static IEnumerable<FormFieldData> NormalizeFilters(IEnumerable<FormFieldData> filters)
     {
-        foreach (var filter in filters ?? [])
+        foreach (var filter in filters)
         {
             if (string.IsNullOrWhiteSpace(filter.FieldName))
                 continue;
@@ -227,7 +224,7 @@ internal sealed class FormSubmissionService(
             if (filter.Value is string stringValue && string.IsNullOrWhiteSpace(stringValue))
                 continue;
 
-            yield return new FormFieldFilter(
+            yield return new FormFieldData(
                 filter.FieldName.Trim(),
                 filter.Value!);
         }

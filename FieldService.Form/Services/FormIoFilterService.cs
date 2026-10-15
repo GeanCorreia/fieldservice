@@ -1,26 +1,31 @@
-using FieldService.Form.Extensions;
-using FieldService.Form.Interfaces;
-using Microsoft.Extensions.Caching.Hybrid;
-
 namespace FieldService.Form.Services;
 
-internal class FormFilterService : IFormFilterService
+using System.Text.Json;
+using FieldService.Form.Dtos;
+using FieldService.Form.Entities;
+using FieldService.Form.Extensions;
+using FieldService.Form.Interfaces;
+using FieldService.Shared.Types.Http;
+using Microsoft.Extensions.Caching.Hybrid;
+
+internal class FormIoFilterService : IFormFilterService
 {
+    private readonly IFormSubmissionRepositoryFactory _repositoryFactory;
     private readonly IFormService _formService;
-    private readonly IFormSubmissionService _formSubmissionService;
     private readonly HybridCache _cache;
+
     private readonly TimeSpan _cacheTtl = TimeSpan.FromMinutes(10);
     
     private const string FormPrefix = "form:";
     private const string FormFilterByIdPrefix = FormPrefix + "form-filter:id:";
 
-    public FormFilterService(
+    public FormIoFilterService(
         IFormService formService,
-        IFormSubmissionService formSubmissionService,
+        IFormSubmissionRepositoryFactory repositoryFactory,
         HybridCache cache)
     {
         _formService = formService ?? throw new ArgumentNullException(nameof(formService));
-        _formSubmissionService = formSubmissionService ?? throw new ArgumentNullException(nameof(formSubmissionService));
+        _repositoryFactory = repositoryFactory ?? throw new ArgumentNullException(nameof(repositoryFactory));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
     }
 
@@ -30,43 +35,52 @@ internal class FormFilterService : IFormFilterService
         LocalCacheExpiration = _cacheTtl
     };
     
-    
-    public async Task<FormGridFilter?> GetFilterFieldsAsync(Guid formId, CancellationToken cancellationToken)
+    public async Task<FormGridDataDto> MapToFormGridDataAsync(
+        Guid formId,
+        Guid tenantId,
+        PaginatedResult<FormSubmission> pagedSubmissions,
+        CancellationToken cancellationToken)
+    {
+
+        var filterFields = await GetFilterFieldsAsync(formId, tenantId, cancellationToken);
+        if (filterFields == null)
+        {
+            throw new InvalidOperationException($"Não foi possível carregar as definições de filtro do formulário '{formId}'.");
+        }
+        
+        var rows = pagedSubmissions.Data.Select(submission => new FormGridRow(
+            SubmissionId: submission.Id,
+            ModifiedAt: submission.LastModifiedAt,
+            Fields: BuildRowFields(submission.DataJson, filterFields.Fields)
+        )).ToList();
+        
+        var pagination = new Pagination(
+            Page: pagedSubmissions.Pagination.Page,
+            PageSize: pagedSubmissions.Pagination.PageSize,
+            TotalRecords: pagedSubmissions.Pagination.TotalRecords,
+            TotalPages: pagedSubmissions.Pagination.TotalPages
+        );
+        
+        var pagedRows = new PaginatedResult<FormGridRow>(
+            Pagination: pagination,
+            Data: rows
+        );
+
+        return new FormGridDataDto(formId, pagedRows);
+    }
+
+    private async Task<FormGridFilter?> GetFilterFieldsAsync(Guid formId, Guid tenantId, CancellationToken cancellationToken)
     {
         return await _cache.GetOrCreateAsync(
             GetFormFilterByIdKey(formId),
-            async ct => await FactoryGetFilterFieldsAsync(formId, ct),
+            async ct => await FactoryGetFilterFieldsAsync(formId, tenantId, ct),
             CacheOptions,
             cancellationToken: cancellationToken);
     }
 
-    public async Task<FormGridData> GetFilteredDataAsync(FormGridFilterRequest request, CancellationToken cancellationToken)
+    private async Task<FormGridFilter?> FactoryGetFilterFieldsAsync(Guid formId, Guid tenantId, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-
-        var filterDefinition = await GetFilterFieldsAsync(request.FormId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Form '{request.FormId}' not found.");
-
-        var submissions = await _formSubmissionService.GetFilteredAsync(request, cancellationToken);
-
-        var rows = submissions.Data
-            .Select(submission => new FormGridRow(
-                submission.Id,
-                submission.LastModifiedAt,
-                BuildRowFields(submission.DataJson, filterDefinition.Fields)))
-            .ToList();
-
-        return new FormGridData(
-            request.FormId,
-            new FieldService.Shared.Types.Http.PaginatedResult<FormGridRow>(
-                submissions.Pagination,
-                rows));
-    }
-
-
-    private async Task<FormGridFilter?> FactoryGetFilterFieldsAsync(Guid formId, CancellationToken cancellationToken)
-    {
-        var form = await _formService.GetFormDtoAsync(formId, cancellationToken);
+        var form = await _formService.GetFormDtoAsync(formId, tenantId, cancellationToken);
         if (form == null)
         {
             return null;
@@ -75,21 +89,22 @@ internal class FormFilterService : IFormFilterService
         return form.Filter();
     }
 
-                    private static Dictionary<string, object?> BuildRowFields(
-                        System.Text.Json.JsonElement dataJson,
-                        IEnumerable<FormField> fields)
-                    {
-                        var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, object?> BuildRowFields(
+        JsonElement dataJson,
+        IEnumerable<FormField> fields)
+    {
+        var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
-                        foreach (var field in fields)
-                        {
-                            result[field.FieldName] = dataJson.TryGetValueByPath(field.FieldName, out var value)
-                                ? value.ToObjectValue()
-                                : null;
-                        }
+        foreach (var field in fields)
+        {
+            result[field.FieldName] = dataJson.TryGetValueByPath(field.FieldName, out var value)
+                ? value.ToObjectValue()
+                : null;
+        }
 
-                        return result;
-                    }
-
+        return result;
+    }
     private static string GetFormFilterByIdKey(Guid formId) => FormFilterByIdPrefix + formId;
+
+ 
 }

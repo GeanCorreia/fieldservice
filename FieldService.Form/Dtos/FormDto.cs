@@ -1,14 +1,18 @@
 using System.Text.Json;
+using FieldService.Shared.Dtos;
+using FieldService.Shared.Types;
 
 namespace FieldService.Form.Dtos;
 
-public record FormDto
+public record FormDto : AbstractDto
 {
+    private readonly bool _isActive;
+
     public Guid Id { get; init; }
     public Guid TenantId { get; init; }
     public string Slug { get; init; }
     public string Title { get; init; }
-    public bool IsActive { get; init; }
+    public override bool IsActive => _isActive;
     public string? Description { get; init; }
     public JsonElement SchemaJson { get; init; }
 
@@ -26,10 +30,14 @@ public record FormDto
         Slug = slug;
         Title = title;
         SchemaJson = schemaJson;
-        IsActive = isActive;
+        _isActive = isActive;
         Description = description;
         
     }
+
+    public override SchemaVersion Version => new(1, 0, 0);
+    public override string ResourceName => nameof(FormDto);
+    public override string? ResourceId => Id.ToString();
     
     
 }

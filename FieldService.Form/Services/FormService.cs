@@ -4,7 +4,9 @@ using FieldService.Form.Dtos;
 using FieldService.Form.Enums;
 using FieldService.Form.Interfaces;
 using FieldService.Form.Messages;
+using FieldService.Http.Cqrs.Queries.GetUserTenant;
 using FieldService.SignalR.Interfaces;
+using MediatR;
 using Microsoft.Extensions.Caching.Hybrid;
 
 namespace FieldService.Form.Services;
@@ -14,7 +16,8 @@ internal sealed class FormService(
     HybridCache cache,
     FormRepository repository,
     IMessageSender messageSender,
-    IUnitOfWork unitOfWork) : IFormService
+    IUnitOfWork unitOfWork,
+    IMediator mediator) : IFormService
 {
     private const string FormPrefix = "form:";
     private const string FormDtoByIdPrefix = FormPrefix + "id:";
@@ -25,7 +28,7 @@ internal sealed class FormService(
     private readonly IMessageSender _messageSender = messageSender ?? throw new ArgumentNullException(nameof(messageSender));
     private readonly HybridCache _cache = cache ?? throw new ArgumentNullException(nameof(cache));
     private readonly FormRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-    
+    private readonly IMediator _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
     
     private readonly TimeSpan _cacheTtl = TimeSpan.FromMinutes(10);
 
@@ -34,15 +37,17 @@ internal sealed class FormService(
         Expiration = _cacheTtl,
         LocalCacheExpiration = _cacheTtl
     };
-
+    
+   
     public async Task<FormDto?> GetFormDtoAsync(
         Guid formId,
+        Guid tenantId,
         CancellationToken cancellationToken = default)
     {
         if (formId == default)
             throw new ArgumentException("FormId is required.", nameof(formId));
 
-        return await _cache.GetOrCreateAsync<FormDto?>(
+        var form = await _cache.GetOrCreateAsync<FormDto?>(
             GetFormDtoByIdKey(formId),
             async ct =>
             {
@@ -51,6 +56,18 @@ internal sealed class FormService(
             },
             CacheOptions,
             cancellationToken: cancellationToken);
+        
+        if (form is null)
+        {
+            throw new KeyNotFoundException($"Form '{formId}' not found.");
+        }
+        
+        if (form.TenantId != tenantId)
+        {
+            throw new KeyNotFoundException($"Form '{formId}' not found for tenant '{tenantId}'.");
+        }
+
+        return form;
     }
 
     public async Task<IEnumerable<FormDto>> GetFormsAsync(
@@ -65,12 +82,12 @@ internal sealed class FormService(
             return [];
 
         var forms = await Task.WhenAll(
-            formIds.Select(formId => GetFormDtoAsync(formId, cancellationToken)));
+            formIds.Select(formId => GetFormDtoAsync(formId, tenantId, cancellationToken)));
 
         return forms.Where(form => form is not null)!;
     }
 
-    public async Task<IEnumerable<FormInfo>> GetFormInfosByTenantAsync(
+    public async Task<IEnumerable<FormInfoDto>> GetFormInfosByTenantAsync(
         Guid tenantId, 
         CancellationToken cancellationToken = default)
     {
@@ -78,7 +95,10 @@ internal sealed class FormService(
             throw new ArgumentException("TenantId is required.", nameof(tenantId));
 
         var forms = await GetFormsAsync(tenantId, cancellationToken);
-        return forms.Select(form => new FormInfo(form.Id, form.Title, form.Description)).ToList();
+        
+        forms = forms.Where(f => f.IsActive);
+        
+        return forms.Select(form => new FormInfoDto(form.Id, form.Title, form.Description)).ToList();
     }
     
     private FormMessage CreateFormMessage(
@@ -88,7 +108,7 @@ internal sealed class FormService(
         var messagePayload = new FormMessagePayload(
             form.TenantId,
             operation,
-            new FormInfo(form.Id, form.Title, form.Description)
+            new FormInfoDto(form.Id, form.Title, form.Description)
         );
             
         return new FormMessage(messagePayload);
@@ -99,6 +119,12 @@ internal sealed class FormService(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        var user = await _mediator.Send(new GetUserTenantQuery(userId, form.TenantId), cancellationToken);
+
+        if (user == null)
+        {
+            throw new UnauthorizedAccessException();
+        }
         
         var domainForm = Entities.Form.Create( 
             tenantId: form.TenantId,
@@ -162,6 +188,13 @@ internal sealed class FormService(
         var form = await _repository.GetFormAsync(formId, cancellationToken);
         if(form == null)
             throw new KeyNotFoundException($"Form with id '{formId}' not found.");
+        
+        var user = await _mediator.Send(new GetUserTenantQuery(userId, form.TenantId), cancellationToken);
+
+        if (user == null)
+        {
+            throw new UnauthorizedAccessException();
+        }
         form.DeleteForm(userId);
         await _repository.SaveFormAsync(form, cancellationToken);
         
@@ -200,10 +233,19 @@ internal sealed class FormService(
         Guid userId,
         CancellationToken cancellationToken)
     {
+        var user = await _mediator.Send(new GetUserTenantQuery(userId, form.TenantId), cancellationToken);
+        
         var domainForm = await _repository.GetFormAsync(form.Id, cancellationToken);
         
         if (domainForm is null)
             throw new KeyNotFoundException($"Form with id '{form.Id}' not found.");
+        
+        
+
+        if (user == null)
+        {
+            throw new UnauthorizedAccessException();
+        }
 
         var updates = new Dictionary<string, object>();
 

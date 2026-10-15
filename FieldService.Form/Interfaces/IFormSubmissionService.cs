@@ -1,35 +1,50 @@
 using System.Text.Json;
+using FieldService.Form.Dtos;
 using FieldService.Form.Entities;
-using FieldService.Shared.Types.Http;
 
 namespace FieldService.Form.Interfaces;
 
-internal interface IFormSubmissionService : IFormSubmissionRepository
+
+internal interface IFormSubmissionService
 {
-    Task<FormSubmission> CreateAsync(
+    
+    Task CreateAsync(
         Guid tenantId,
         Guid formId,
         Guid userId,
         JsonElement dataJson,
         CancellationToken cancellationToken = default);
 
-    Task<FormSubmission> UpdateAsync(
+    Task UpdateAsync(
+        Guid tenantId,
         Guid submissionId,
         Guid userId,
         JsonElement dataJson,
         CancellationToken cancellationToken = default);
 
     Task DeleteAsync(
+        Guid tenantId,
         Guid submissionId,
         Guid userId,
         CancellationToken cancellationToken = default);
-
-    Task<PaginatedResult<FormSubmission>> GetFilteredAsync(
+    
+    Task<FormSubmission?> GetByIdAsync(
+        Guid tenantId,
+        Guid id,
+        CancellationToken cancellationToken = default);
+    
+    Task<FormGridDataDto> GetAllDeletedAsync(
+        Guid tenantId,
+        Guid formId,
+        CancellationToken cancellationToken = default);
+    
+    Task<FormGridDataDto> GetFilteredFormGridData(
         FormGridFilterRequest request,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken);
+    
+    Task<FormGridDataDto> GetFormGridData(
+        FormGridFilterRequest request, 
+        CancellationToken cancellationToken);
 
-    Task ReadAsync(
-        Guid submissionId,
-        Guid userId,
-        CancellationToken cancellationToken = default);
+    
 }

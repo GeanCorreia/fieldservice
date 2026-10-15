@@ -2,21 +2,17 @@ using FieldService.Form.Dtos;
 
 namespace FieldService.Form.Interfaces;
 
-public record FormInfo(
-    Guid FormId,
-    string Title,
-    string? Description
-);
 
 
 internal interface IFormService 
 {
-    Task<IEnumerable<FormInfo>> GetFormInfosByTenantAsync(
+    Task<IEnumerable<FormInfoDto>> GetFormInfosByTenantAsync(
         Guid tenantId,
         CancellationToken cancellationToken);
     
     Task<FormDto?> GetFormDtoAsync(
         Guid formId, 
+        Guid tenantId,
         CancellationToken cancellationToken);
     
     Task<IEnumerable<FormDto>> GetFormsAsync(
