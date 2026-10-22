@@ -4,6 +4,7 @@ using FieldService.Authorization;
 using FieldService.Cache;
 using FieldService.Data;
 using FieldService.DocumentSupportManagement;
+using FieldService.Form;
 using FieldService.Http;
 using FieldService.Notification;
 using FieldService.Observability;
@@ -53,6 +54,8 @@ builder.Services.AddSecretKeyModule(builder.Configuration);
 builder.Services.AddHttpModule();
 builder.Services.AddNotificationModule(builder.Configuration, builder.Environment);
 builder.Services.AddSupersetModule(builder.Configuration);
+builder.Services.AddFormModule(builder.Configuration);
+
 
 builder.UseHttpPipeline();
 var app = builder.Build();

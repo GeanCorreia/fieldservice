@@ -1,16 +1,17 @@
-﻿using FieldService.Form.Broker;
+﻿using FieldService.Data;
+using FieldService.Form.Broker;
 using FieldService.Form.Data;
 using FieldService.Form.Data.Repositories;
 using FieldService.Form.Interfaces;
 using FieldService.Form.Services;
-
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FieldService.Form;
 
 public static class FormModule
 {
-	public static IServiceCollection AddFormModule(this IServiceCollection services)
+	public static IServiceCollection AddFormModule(this IServiceCollection services, IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
@@ -28,6 +29,8 @@ public static class FormModule
 		services.AddScoped<BrokerFormSubmissionBrokerProducer>();
 		services.AddScoped<IFormSubmissionService, FormSubmissionService>();
 		services.AddScoped<IFormFilterService, FormIoFilterService>();
+		
+		services.AddSqlModule<FormDbContext>(configuration);
 
 		return services;
 	}
