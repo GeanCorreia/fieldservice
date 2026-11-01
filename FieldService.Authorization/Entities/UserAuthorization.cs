@@ -1,3 +1,4 @@
+using FieldService.Authentication.Events;
 using FieldService.Authorization.Events;
 using FieldService.Authorization.Types;
 using FieldService.Shared.Types;
@@ -6,37 +7,121 @@ namespace FieldService.Authorization.Entities;
 
 public class UserAuthorization
 {
-    public Guid Id { get;}
-    public Guid UserId { get; }
-    public Guid TenantId { get; }
+    
+    public Guid UserId => _tenantEvents.FirstOrDefault()?.UserId ??
+                          _roleEvents.FirstOrDefault()?.UserId ??
+                          _permissionEvents.FirstOrDefault()?.UserId ??
+                          throw new InvalidOperationException("UserId could not be determined from events.");
+    
+    public Guid TenantId => _tenantEvents.FirstOrDefault()?.TenantId ??
+                             _roleEvents.FirstOrDefault()?.TenantId ??
+                             _permissionEvents.FirstOrDefault()?.TenantId ??
+                             throw new InvalidOperationException("TenantId could not be determined from events.");
+    
+    public string TenantName => _tenantEvents.FirstOrDefault()?.TenantName ??
+                                throw new InvalidOperationException("TenantName could not be determined from events.");
     
     private ICollection<PermissionEvent> _permissionEvents;
     private ICollection<RoleEvent> _roleEvents;
     private ICollection<UserSuspensionEvent> _suspensionEvents;
+    private ICollection<UserTenantEvent> _tenantEvents;
 
     public UserAuthorization(
         ICollection<PermissionEvent> permissionEvents, 
         ICollection<RoleEvent> roleEvents, 
         ICollection<UserSuspensionEvent> suspensionEvents, 
-        Guid id, 
-        Guid userId, 
-        Guid tenantId)
+        ICollection<UserTenantEvent> tenantEvents)
     {
-        _permissionEvents = permissionEvents;
-        _roleEvents = roleEvents;
-        _suspensionEvents = suspensionEvents;
-        Id = id;
-        UserId = userId;
-        TenantId = tenantId;
+        _permissionEvents = permissionEvents ?? throw new ArgumentNullException(nameof(permissionEvents));
+        _roleEvents = roleEvents ?? throw new ArgumentNullException(nameof(roleEvents));
+        _suspensionEvents = suspensionEvents ?? throw new ArgumentNullException(nameof(suspensionEvents));
+        _tenantEvents = tenantEvents ?? throw new ArgumentNullException(nameof(tenantEvents));
+        
+        ValidateEventsConsistency();
+        ValidateTenantEventActiveStatus();
     }
 
+    
+
+    private void ValidateEventsConsistency()
+    {
+        if (!_roleEvents.Any())
+        {
+            throw new InvalidOperationException(
+                "At least one role event is required.");
+        }
+
+        if (!_tenantEvents.Any())
+        {
+            throw new InvalidOperationException(
+                "At least one tenant event is required.");
+        }
+
+        var eventOrigins = _permissionEvents
+            .Select(e => (e.UserId, e.TenantId))
+            .Concat(_roleEvents.Select(e => (e.UserId, e.TenantId)))
+            .Concat(_suspensionEvents.Select(e => (e.UserId, e.TenantId)))
+            .Concat(_tenantEvents.Select(e => (e.UserId, e.TenantId)))
+            .ToList();
+
+
+        var (expectedUserId, expectedTenantId) = eventOrigins.First();
+
+        var hasMismatch = eventOrigins.Any(origin =>
+            origin.UserId != expectedUserId || origin.TenantId != expectedTenantId);
+
+        if (hasMismatch)
+        {
+            throw new InvalidOperationException(
+                "All authorization events must belong to the same UserId and TenantId.");
+        }
+    }
+    
+    private void ValidateTenantEventActiveStatus()
+    {
+        var activeTenantEvent = _tenantEvents
+            .Where(e => e.Status == TenantMembershipStatus.Active)
+            .OrderByDescending(e => e.CreatedAt)
+            .FirstOrDefault();
+
+        if (activeTenantEvent == null)
+        {
+            throw new InvalidOperationException(
+                "At least one active tenant event is required.");
+        }
+    }
+
+    private void ValidateRoleEventActiveStatus()
+    {
+        var activeRoleEvent = _roleEvents
+            .OrderByDescending(e => e.CreatedAt)
+            .FirstOrDefault();
+
+        if (activeRoleEvent == null)
+        {
+            throw new InvalidOperationException(
+                "At least one role event is required.");
+        }
+    }
+    
     public Role Role => _roleEvents
         .OrderByDescending(e => e.CreatedAt)
-        .FirstOrDefault()!.Role; 
-        
+        .FirstOrDefault()?.Role ??
+        throw new InvalidOperationException("Role could not be determined from events.");
+    
     public void AddRole(Role role, DateTimeOffset createdAt, Guid createdBy)
     {
-        if (Role == role)
+        if (IsRevoked(createdAt))
+        {
+            throw new InvalidOperationException("Cannot add role to a revoked user.");
+        }
+
+        var latestRole = _roleEvents
+            .OrderByDescending(e => e.CreatedAt)
+            .Select(e => (Role?)e.Role)
+            .FirstOrDefault();
+
+        if (latestRole.HasValue && latestRole.Value == role)
         {
             return;
         }
@@ -79,6 +164,10 @@ public class UserAuthorization
         DateTimeOffset createdAt, 
         Guid createdBy)
     {
+        if (IsRevoked(createdAt))
+        {
+            throw new InvalidOperationException("Cannot add permission to a revoked user.");
+        }
         if (Permissions.Contains(permission))
         {
             return;
@@ -94,6 +183,11 @@ public class UserAuthorization
 
     public void RemovePermission(Permission permission, DateTimeOffset createdAt, Guid createdBy)
     {
+        if (IsRevoked(createdAt))
+        {
+            throw new InvalidOperationException("Cannot add permission to a revoked user.");
+        }
+        
         if (!Permissions.Contains(permission))
             return;
         var newEvent = PermissionEvent.CreatePermissionRevokedEvent(
@@ -104,7 +198,7 @@ public class UserAuthorization
             permission);
         _permissionEvents.Add(newEvent);
     }
-
+    
     public IReadOnlyCollection<UserSuspensionDetails> GetActiveSuspensions(DateTimeOffset atTime)
     {
         var activeSuspensions = new List<UserSuspensionDetails>();
@@ -134,11 +228,24 @@ public class UserAuthorization
 
         return activeSuspensions.AsReadOnly();
     }
+    
+    public bool IsRevoked(DateTimeOffset atTime)
+    {
+        return _tenantEvents
+            .Where(e => e.CreatedAt <= atTime)
+            .OrderByDescending(e => e.CreatedAt)
+            .FirstOrDefault()?.Status == TenantMembershipStatus.Revoked;
+    }
+    
+    public bool IsSuspended(DateTimeOffset atTime)
+    {
+        var activeSuspensions = GetActiveSuspensions(atTime);
+        return activeSuspensions.Any();
+    }
 
     public bool IsActive(DateTimeOffset activatedAt)
     {
-        var activeSuspensions = GetActiveSuspensions(activatedAt);
-        return !activeSuspensions.Any();
+        return IsRevoked(activatedAt) == false && IsSuspended(activatedAt) == false;
     }
 
     public void Deactivate(Guid createdBy, SuspensionSource source, DateTimeOffset startedAt, DateTimeOffset? endedAt = null)
@@ -192,13 +299,15 @@ public class UserAuthorization
         var roleHistory = BuildRoleHistory();
         var permissionHistory = BuildPermissionHistory();
         var suspensionHistory = BuildSuspensionHistory();
+        var tenantMembership = BuildTenantMembershipHistory();
 
         return new HistoryUserAuthorizationContext(
             UserId,
             TenantId,
             roleHistory,
             permissionHistory,
-            suspensionHistory);
+            suspensionHistory,
+            tenantMembership);
     }
 
     internal IEnumerable<RoleEvent> GetRoleEvents() => _roleEvents;
@@ -296,6 +405,27 @@ public class UserAuthorization
         }
 
         return suspensionHistory;
+    }
+
+    private IEnumerable<Interval> BuildTenantMembershipHistory()
+    {
+        var sortedEvents = _tenantEvents
+            .OrderBy(e => e.CreatedAt)
+            .ToList();
+
+        var history = new List<Interval>();
+
+        for (var i = 0; i < sortedEvents.Count; i++)
+        {
+            var currentEvent = sortedEvents[i];
+            var endDate = i + 1 < sortedEvents.Count
+                ? sortedEvents[i + 1].CreatedAt
+                : (DateTimeOffset?)null;
+
+            history.Add(new Interval(currentEvent.CreatedAt, endDate));
+        }
+
+        return history;
     }
     
 }

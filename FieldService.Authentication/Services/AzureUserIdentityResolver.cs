@@ -1,10 +1,6 @@
-using System.IdentityModel.Tokens.Jwt;
 using FieldService.Authentication.Interfaces;
 using FieldService.Authentication.Types;
-using FieldService.Shared.Interfaces;
 using FieldService.Shared.Types;
-using System.Security.Claims;
-using FieldService.Authentication.Dtos;
 using FieldService.Shared.Services;
 using Microsoft.AspNetCore.Http;
 
@@ -14,7 +10,7 @@ internal class AzureUserIdentityResolver : IUserIdentityResolver
 {
     private readonly IInternalUserAuthenticationService _internalUserAuthenticationService;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private const AuthenticationProvider _authenticationProvider = AuthenticationProvider.AzureAdB2C;
+    private const AuthenticationProvider _authenticationProvider = AuthenticationProvider.AzureAd;
 
 
     public AzureUserIdentityResolver(
@@ -29,9 +25,14 @@ internal class AzureUserIdentityResolver : IUserIdentityResolver
     public async Task ResolveUserAsync(CancellationToken cancellationToken = default)
     {
         var principal = GetHttpContext().User;
-        var userCacheModel = await GetUserTenantsAuthenticationType(principal);
+        var sub = ClaimsResolver.GetSubjectId(principal);
+        var userId = await _internalUserAuthenticationService.GetUserIdAsync(
+            sub,
+            _authenticationProvider,
+            cancellationToken);
         
-        if (userCacheModel == null)
+        
+        if (userId == null)
         {
             throw new UnauthorizedAccessException("User not found.");
         }
@@ -40,25 +41,13 @@ internal class AzureUserIdentityResolver : IUserIdentityResolver
         
         ClaimsResolver.UpsertClaim(identity, 
             ClaimsExtensions.UserId, 
-            userCacheModel.UserId.ToString());
+            userId.Value.ToString());
         
-        ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.UserId, userCacheModel.UserId.ToString());
+        ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.UserId, userId.Value.ToString());
         ClaimsResolver.UpsertClaim(identity,ClaimsExtensions.Provider,_authenticationProvider.ToString() );
     }
 
-    private async Task<UserAuthenticationDto?> GetUserTenantsAuthenticationType(ClaimsPrincipal principal)
-    {
-        
-        var sub = ClaimsResolver.GetSubjectId(principal);
-
-        var userAuthenticationTenants = await _internalUserAuthenticationService.GetUserAsync(
-            sub,
-            AuthenticationProvider.AzureAdB2C,
-            CancellationToken.None);
-        
-        return userAuthenticationTenants;
-    }
-
+    
     private HttpContext GetHttpContext() =>
         _httpContextAccessor.HttpContext ?? throw new InvalidOperationException("HttpContext is not available.");
 

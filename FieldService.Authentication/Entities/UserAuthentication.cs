@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-using FieldService.Authentication.Events;
 using FieldService.Authentication.Types;
 
 namespace FieldService.Authentication.Entities;
@@ -9,24 +7,7 @@ public class UserAuthentication
     public Guid UserId { get; private set; }
     public string ExternalId { get; private set; }
     
-    private ICollection<UserTenantEvent> _events = new List<UserTenantEvent>();
-    public IReadOnlyCollection<UserTenantAuthentication> Tenants => _events
-        .GroupBy(e => e.TenantId)
-        .Select(g => new 
-        {
-            TenantId = g.Key,
-            LatestEvent = g.OrderByDescending(e => e.CreatedAt).First()
-        })
-        .Where(x => x.LatestEvent.Status == TenantMembershipStatus.Active)
-        .OrderByDescending(x => x.LatestEvent.CreatedAt)
-        .Select(x => new UserTenantAuthentication(
-            UserId,
-            x.TenantId,
-            x.LatestEvent.TenantName
-        ))
-        .ToList()
-        .AsReadOnly();
-
+    
     public AuthenticationProvider Provider { get; private set; }
 
     protected UserAuthentication() { }
@@ -34,8 +15,7 @@ public class UserAuthentication
     public UserAuthentication(
         Guid userId, 
         string externalId, 
-        AuthenticationProvider provider,
-        ICollection<UserTenantAuthentication> tenants)
+        AuthenticationProvider provider)
     {
         if (userId == default)
             throw new ArgumentException("UserId is required.", nameof(userId));
@@ -47,11 +27,6 @@ public class UserAuthentication
         UserId = userId;
         ExternalId = externalId;
         Provider = provider;
-        _events = tenants.Select(t => UserTenantEvent.Active(
-                userId,
-                t.TenantId,
-                t.Name,
-                userId))
-            .ToList();
+        
     }
 }

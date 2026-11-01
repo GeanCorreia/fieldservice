@@ -1,7 +1,6 @@
 using FieldService.Authentication.Data;
 using FieldService.Authentication.Data.Repositories;
 using FieldService.Authentication.Interfaces;
-using FieldService.Authentication.Mappers;
 using FieldService.Authentication.Services;
 using FieldService.Authentication.Types;
 using FieldService.Data;
@@ -31,23 +30,14 @@ public static class AuthenticationModule
         services.AddHttpContextAccessor();
         services.AddSingleton(authenticationOptions);
         services.AddScoped<IIdentityProvider, AzureEntraIdentityProvider>();
-        services.AddSingleton<IUserAuthenticationMapper, UserAuthenticationMapper>();
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IUserAuthenticationRepository, UserAuthenticationRepository>();
         services.AddScoped<IInternalUserAuthenticationService, InternalUserAuthenticationService>();
-        services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<ISessionManager, SessionManager>();
-        if (environment?.IsDevelopment() == true)
-        {
-            services.AddScoped<IUserIdentityResolver, DevelopmentEnvironmentUserIdentityResolver>();
-        }
-        else
-        {
-            services.AddScoped<IUserIdentityResolver, AzureUserIdentityResolver>();
-        }
+        services.AddScoped<IUserIdentityResolver, AzureUserIdentityResolver>();
         services.AddScoped<ISessionResolver, SessionResolver>();
-        services.AddMicrosoftIdentityWebApiAuthentication(configuration, configSectionName: "AzureAdB2C");
+        services.AddMicrosoftIdentityWebApiAuthentication(configuration, configSectionName: "AzureAd");
         
         services.AddMicrosoftGraph();
         services.AddInMemoryTokenCaches();

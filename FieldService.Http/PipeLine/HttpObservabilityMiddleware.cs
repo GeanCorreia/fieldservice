@@ -24,7 +24,7 @@ public sealed class HttpObservabilityMiddleware(
         ObservabilityExecutionContext.Timestamp = DateTimeOffset.UtcNow;
         ObservabilityExecutionContext.IpAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
         ObservabilityExecutionContext.UserAgent = httpContext.Request.Headers.UserAgent.ToString();
-        ObservabilityExecutionContext.UserId = ClaimsResolver.GetUserId(principal);
+        ObservabilityExecutionContext.UserId = ClaimsResolver.GetOptionalGuid(principal, ClaimsExtensions.UserId);
         ObservabilityExecutionContext.TenantId = ClaimsResolver.GetOptionalGuid(principal, ClaimsExtensions.TenantId);
         ObservabilityExecutionContext.SessionId = ClaimsResolver.GetOptionalGuid(principal, ClaimsExtensions.SessionId);
 

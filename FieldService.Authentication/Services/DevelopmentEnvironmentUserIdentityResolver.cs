@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using FieldService.Authentication.Dtos;
 using FieldService.Authentication.Interfaces;
 using FieldService.Authentication.Types;
 using FieldService.Shared.Services;
@@ -14,7 +13,8 @@ internal sealed class DevelopmentEnvironmentUserIdentityResolver : IUserIdentity
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IInternalUserAuthenticationService _internalUserAuthenticationService;
     private const string _sub = "development-user";
-    private const AuthenticationProvider _authenticationProvider = AuthenticationProvider.AzureAdB2C;
+    private const string _mockedUser = "85015d33-b139-44ec-8b71-c4d6fcf3e32e";
+    private const AuthenticationProvider _authenticationProvider = AuthenticationProvider.AzureAd;
     
     public DevelopmentEnvironmentUserIdentityResolver(
         IHttpContextAccessor httpContextAccessor,
@@ -29,13 +29,7 @@ internal sealed class DevelopmentEnvironmentUserIdentityResolver : IUserIdentity
     public async Task ResolveUserAsync(CancellationToken cancellationToken = default)
     {
         
-        var userCacheModel = await GetUserTenantsAuthenticationType();
-    
-        if (userCacheModel == null)
-        {
-            throw new UnauthorizedAccessException("User not found.");
-        }
-
+        
         var httpContext = GetHttpContext();
         
         var existingIdentity = httpContext.User.Identity as ClaimsIdentity;
@@ -51,25 +45,13 @@ internal sealed class DevelopmentEnvironmentUserIdentityResolver : IUserIdentity
                 roleType: ClaimTypes.Role);
         }
         
-        ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.UserId, userCacheModel.UserId.ToString());
+        ClaimsResolver.UpsertClaim(identity, ClaimsExtensions.UserId, _mockedUser);
         ClaimsResolver.UpsertClaim(identity,ClaimsExtensions.Provider,_authenticationProvider.ToString() );
         ClaimsResolver.UpsertClaim(identity, JwtRegisteredClaimNames.Sub, _sub );
         ClaimsResolver.UpsertClaim(identity, JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"));
         ClaimsResolver.UpsertClaim(identity, JwtRegisteredClaimNames.Exp, DateTimeOffset.UtcNow.AddHours(12).ToUnixTimeSeconds().ToString());
         
         httpContext.User = new ClaimsPrincipal(identity);
-    }
-
-    private async Task<UserAuthenticationDto?> GetUserTenantsAuthenticationType()
-    {
-        
-
-        var userAuthenticationTenants = await _internalUserAuthenticationService.GetUserAsync(
-            _sub,
-            _authenticationProvider,
-            CancellationToken.None);
-        
-        return userAuthenticationTenants;
     }
 
     private HttpContext GetHttpContext() =>

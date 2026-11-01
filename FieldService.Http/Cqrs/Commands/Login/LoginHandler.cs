@@ -3,7 +3,7 @@ using FieldService.Authentication.Entities;
 using FieldService.Authentication.Interfaces;
 using FieldService.Authentication.Types;
 using FieldService.Data.Interfaces;
-using FieldService.Observability.Types;
+using FieldService.Http.Cqrs.Queries.GetUser;
 using FieldService.Shared.Services;
 using FieldService.Shared.Types;
 using MediatR;
@@ -15,20 +15,20 @@ public class LoginHandler : IRequestHandler<LoginCommand, Guid>
 {
     private readonly ISessionService _sessionService;
     private readonly ILogger<LoginHandler> _logger;
-    private readonly IAuthenticationService _authenticationService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMediator _mediator;
     
     public LoginHandler(
         ILogger<LoginHandler> logger, 
         ISessionService sessionService,
-        IAuthenticationService authenticationService,
-        IUnitOfWork unitOfWork
+        IUnitOfWork unitOfWork,
+        IMediator mediator
     )
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sessionService = sessionService ?? throw new ArgumentNullException(nameof(sessionService));
-        _authenticationService = authenticationService ?? throw new ArgumentNullException(nameof(authenticationService));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
     }
 
     public async Task<Guid> Handle(
@@ -48,11 +48,7 @@ public class LoginHandler : IRequestHandler<LoginCommand, Guid>
                 ClaimsResolver.GetProvider(request.User));
 
 
-            var user = await _authenticationService
-                .GetUserAsync(
-                    userId,
-                    cancellationToken);
-
+            var user = await _mediator.Send(new GetUserQuery(userId), cancellationToken);
 
             if (user == null)
             {

@@ -33,7 +33,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Folder Include="Dtos\" />
+      <Folder Include="Events\" />
       <Folder Include="Logs\" />
+      <Folder Include="Mappers\" />
     </ItemGroup>
 
 </Project>

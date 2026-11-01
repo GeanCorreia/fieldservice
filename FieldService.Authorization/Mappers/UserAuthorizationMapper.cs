@@ -1,20 +1,15 @@
-using FieldService.Authorization.Dtos;
 using FieldService.Authorization.Entities;
-using FieldService.Authorization.Interfaces;
-using FieldService.Shared.Interfaces;
+using FieldService.Shared.Types;
 
 namespace FieldService.Authorization.Mappers;
 
-public class UserAuthorizationMapper : IUserAuthorizationMapper
+public static class UserAuthorizationMapper
 {
-    private readonly IDateTimeService _dateTimeService;
 
-    public UserAuthorizationMapper(IDateTimeService dateTimeService)
-    {
-        _dateTimeService = dateTimeService ?? throw new ArgumentNullException(nameof(dateTimeService));
-    }
 
-    public UserAuthorizationDto Map(IEnumerable<UserAuthorization> userAuthorizations)
+   
+
+    public static UserDto Map(IEnumerable<UserAuthorization> userAuthorizations)
     {
         var now = DateTimeOffset.UtcNow;
         
@@ -34,12 +29,13 @@ public class UserAuthorizationMapper : IUserAuthorizationMapper
         
         var uniqueTenantsAuthorizations = authorizationsList.DistinctBy(u => u.TenantId);
     
-        var tenants = new List<TenantAuthorizationDto>();
+        var tenants = new List<TenantDto>();
     
         foreach (var userAuthorization in uniqueTenantsAuthorizations)
         {
-            var tenant = new TenantAuthorizationDto(
+            var tenant = new TenantDto(
                 userAuthorization.TenantId,
+                userAuthorization.TenantName,
                 userAuthorization.Role,
                 userAuthorization.Permissions.ToList(),
                 userAuthorization.IsActive(now)
@@ -47,10 +43,9 @@ public class UserAuthorizationMapper : IUserAuthorizationMapper
             tenants.Add(tenant);
         }
     
-        return new UserAuthorizationDto(
+        return new UserDto(
             userId,
-            tenants,
-            now
+            tenants
         );
     }
 }

@@ -2,7 +2,7 @@ using FieldService.Authentication.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace FieldService.Authentication.Data.Configurations;
+namespace FieldService.Authorization.Data.Configurations;
 
 internal sealed class UserTenantEventConfiguration : IEntityTypeConfiguration<UserTenantEvent>
 {
