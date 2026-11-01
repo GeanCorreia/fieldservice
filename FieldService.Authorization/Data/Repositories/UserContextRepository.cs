@@ -1,3 +1,4 @@
+using FieldService.Authentication.Events;
 using FieldService.Authorization.Entities;
 using FieldService.Authorization.Events;
 using FieldService.Authorization.Interfaces;
@@ -14,8 +15,12 @@ internal sealed class UserContextRepository(
     {
         if (userId == default)
             throw new ArgumentException("UserId is required.", nameof(userId));
-      
 
+        var tenantEvents = await dbContext.UserTenantEvents
+            .Where(e => e.UserId == userId)
+            .OrderBy(e => e.CreatedAt)
+            .ToListAsync(ct);
+        
         var roleEvents = await dbContext.RoleEvents
             .Where(e => e.UserId == userId)
             .OrderBy(e => e.CreatedAt)
@@ -31,14 +36,15 @@ internal sealed class UserContextRepository(
             .OrderBy(e => e.CreatedAt)
             .ToListAsync(ct);
 
-        if (roleEvents.Count == 0 && permissionEvents.Count == 0 && suspensionEvents.Count == 0)
-            return null;
+        if (roleEvents.Count == 0 && permissionEvents.Count == 0 && suspensionEvents.Count == 0 && tenantEvents.Count == 0)
+            return Enumerable.Empty<UserAuthorization>();
 
         var contextId = GenerateContextId(userId);
 
         var tenantIds = roleEvents.Select(e => e.TenantId)
             .Concat(permissionEvents.Select(e => e.TenantId))
             .Concat(suspensionEvents.Select(e => e.TenantId))
+            .Concat(tenantEvents.Select(e => e.TenantId))
             .Distinct()
             .ToList();
 
@@ -49,9 +55,6 @@ internal sealed class UserContextRepository(
             var tenantRoleEvents = roleEvents
                 .Where(e => e.TenantId == tenantId)
                 .ToList();
-            
-            if (tenantRoleEvents.Count == 0)
-                continue;
 
             var tenantPermissionEvents = permissionEvents
                 .Where(e => e.TenantId == tenantId)
@@ -61,16 +64,18 @@ internal sealed class UserContextRepository(
                 .Where(e => e.TenantId == tenantId)
                 .ToList();
 
+            var tenantTenantEvents = tenantEvents
+                .Where(e => e.TenantId == tenantId)
+                .ToList();
+
             userContexts.Add(new UserAuthorization(
                 tenantPermissionEvents,
                 tenantRoleEvents,
                 tenantSuspensionEvents,
-                contextId,
-                userId,
-                tenantId));
+                tenantTenantEvents));
         }
 
-        return userContexts.Count == 0 ? null : userContexts;
+        return userContexts.Count == 0 ? Enumerable.Empty<UserAuthorization>() : userContexts;
     }
 
     public async Task SaveUserContext(UserAuthorization user, CancellationToken ct = default)

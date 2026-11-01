@@ -91,13 +91,12 @@ public static class HttpModule
         app.UseRouting();
         app.UseCors("SignalRCorsPolicy");
         app.UseMiddleware<RequestIdMiddleware>();
-        
-        if (!environment.IsDevelopment())
-            app.UseAuthentication();
-        
+        app.UseAuthentication();
         app.UseMiddleware<HttpAuthenticationMiddleware>();
+        app.UseMiddleware<HttpSessionMiddleware>();
         app.UseMiddleware<HttpObservabilityMiddleware>();
         app.UseAuthorization();
+        
         
         app.MapControllers();
         return app;

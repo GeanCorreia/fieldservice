@@ -24,7 +24,6 @@ public static class AuthorizationModule
 
         services.AddSqlModule<AuthorizationDbContext>(configuration);
         services.AddScoped<IUserContextRepository, UserContextRepository>();
-        services.AddScoped<IUserAuthorizationMapper, UserAuthorizationMapper>();
         services.AddScoped<IAuthorizationService, AuthorizationService>();
  
 

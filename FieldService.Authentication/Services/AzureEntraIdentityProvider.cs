@@ -22,9 +22,9 @@ internal sealed class AzureEntraIdentityProvider : IIdentityProvider
         IConfiguration configuration)
     {
         _graphClient = graphClient ?? throw new ArgumentNullException(nameof(graphClient));
-        _b2cDomain = configuration.GetSection("AzureAdB2C")["Domain"] 
+        _b2cDomain = configuration.GetSection("AzureAd")["Domain"] 
                      ?? throw new InvalidOperationException(
-                         "Configuration not found: AzureAdB2C.Domain.");
+                         "Configuration not found: AzureAd.Domain.");
     }
 
     public async Task<string> CreateUserAsync(

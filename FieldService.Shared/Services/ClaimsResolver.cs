@@ -40,12 +40,45 @@ public static class ClaimsResolver
 
     public static string GetSubjectId(ClaimsPrincipal principal)
     {
-        var subjectId = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        if (subjectId == null)
-        { 
+        if (IsAzureAdPrincipal(principal))
+        {
+            return GetAzureAdOid(principal);
+        }
+
+        var subjectId = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                        ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrWhiteSpace(subjectId))
+        {
             throw new InvalidOperationException("Subject not found in claims.");
         }
+
         return subjectId;
+    }
+
+    private static string GetAzureAdOid(ClaimsPrincipal principal)
+    {
+        var oid = principal.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
+                  ?? principal.FindFirst("oid")?.Value;
+
+        if (string.IsNullOrWhiteSpace(oid))
+        {
+            throw new InvalidOperationException("Azure AD object identifier not found in claims.");
+        }
+
+        return oid;
+    }
+
+    private static bool IsAzureAdPrincipal(ClaimsPrincipal principal)
+    {
+        var issuer = principal.FindFirst(JwtRegisteredClaimNames.Iss)?.Value;
+
+        return principal.HasClaim(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier")
+               || principal.HasClaim(c => c.Type == "oid")
+               || principal.HasClaim(c => c.Type == "http://schemas.microsoft.com/identity/claims/tenantid")
+               || (!string.IsNullOrWhiteSpace(issuer)
+                   && (issuer.Contains("login.microsoftonline.com", StringComparison.OrdinalIgnoreCase)
+                       || issuer.Contains("sts.windows.net", StringComparison.OrdinalIgnoreCase)));
     }
 
     public static string GetProvider(ClaimsPrincipal principal)
@@ -60,9 +93,12 @@ public static class ClaimsResolver
 
     public static string GetJwtId(ClaimsPrincipal principal)
     {
-        var jwtId = principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+        var jwtId = principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value
+                    ?? principal.FindFirst("jti")?.Value
+                    // Azure AD v1 tokens frequently expose 'uti' instead of 'jti'.
+                    ?? principal.FindFirst("uti")?.Value;
 
-        if (jwtId == null)
+        if (string.IsNullOrWhiteSpace(jwtId))
         {
             throw new InvalidOperationException("JWT not found.");
         }

@@ -9,4 +9,6 @@ public record HistoryUserAuthorizationContext(
     Guid TenantId,
     Dictionary<Role,IEnumerable<Interval>>Role,
     Dictionary<Permission,IEnumerable<Interval>>Permission,
-    IEnumerable<UserSuspensionDetails>Suspension);
+    IEnumerable<UserSuspensionDetails>Suspension,
+    IEnumerable<Interval> TenantMembership);
+    

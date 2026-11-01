@@ -1,3 +1,4 @@
+using FieldService.Authentication.Events;
 using FieldService.Authorization.Events;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,7 @@ public sealed class AuthorizationDbContext(DbContextOptions<AuthorizationDbConte
     public DbSet<RoleEvent> RoleEvents => Set<RoleEvent>();
     public DbSet<PermissionEvent> PermissionEvents => Set<PermissionEvent>();
     public DbSet<UserSuspensionEvent> SuspensionEvents => Set<UserSuspensionEvent>();
-
+    public DbSet<UserTenantEvent> UserTenantEvents => Set<UserTenantEvent>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AuthorizationDbContext).Assembly);

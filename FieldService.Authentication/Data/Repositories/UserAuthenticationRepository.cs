@@ -15,7 +15,6 @@ internal sealed class UserAuthenticationRepository(
         ArgumentNullException.ThrowIfNull(userAuthentication);
 
         var existing = await dbContext.UserAuthentications
-            .Include("_events")
             .FirstOrDefaultAsync(
                 x => x.UserId == userAuthentication.UserId,
                 ct);
@@ -38,7 +37,6 @@ internal sealed class UserAuthenticationRepository(
             throw new ArgumentException("UserId is required.", nameof(userId));
 
         return await dbContext.UserAuthentications
-            .Include("_events")
             .FirstOrDefaultAsync(x => x.UserId == userId, ct);
     }
 
@@ -53,7 +51,6 @@ internal sealed class UserAuthenticationRepository(
             throw new ArgumentException("Provider is required.", nameof(provider));
 
         return await dbContext.UserAuthentications
-            .Include("_events")
             .FirstOrDefaultAsync(
                 x => x.ExternalId == externalId &&
                      x.Provider == provider,

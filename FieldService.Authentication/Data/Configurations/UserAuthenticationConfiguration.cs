@@ -1,5 +1,4 @@
 using FieldService.Authentication.Entities;
-using FieldService.Authentication.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -26,17 +25,6 @@ internal sealed class UserAuthenticationConfiguration : IEntityTypeConfiguration
             .HasColumnName("Provider")
             .HasConversion<int>()
             .IsRequired();
-
-        builder.Ignore(x => x.Tenants);
-
-        builder.HasMany<UserTenantEvent>("_events")
-            .WithOne()
-            .HasForeignKey(x => x.UserId)
-            .HasPrincipalKey(x => x.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Navigation("_events")
-            .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(x => new { x.ExternalId, x.Provider })
             .HasDatabaseName("idx_UserAuthentication_ExternalId_Provider")

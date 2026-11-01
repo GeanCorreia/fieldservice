@@ -55,7 +55,7 @@ public class AuthenticationController : ControllerBase
         var userDto = await _mediator.Send(query, cancellationToken);
         if (userDto == null)
         {
-            return NotFound();
+            return Unauthorized();
         }
         return Ok(new UserLoginDto(userDto.Tenants));
     }
