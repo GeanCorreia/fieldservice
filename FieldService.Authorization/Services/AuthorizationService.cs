@@ -84,5 +84,16 @@ internal sealed class AuthorizationService : FieldService.Authorization.Interfac
         return userAuthorization;
     }
 
+    public async Task RemoveUserFromCacheAsync(Guid userId, CancellationToken ct = default)
+    {
+        if (userId == default)
+            throw new ArgumentException("UserId is required.", nameof(userId));
+
+        ct.ThrowIfCancellationRequested();
+
+        var userKey = UserKey(userId);
+        await _hybridCache.RemoveAsync(userKey, ct);
+    }
+
     private static string UserKey(Guid userId) => $"{UserContextPrefix}{userId:N}";
 }

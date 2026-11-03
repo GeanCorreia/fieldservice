@@ -24,11 +24,6 @@ internal sealed class UserTenantEventConfiguration : IEntityTypeConfiguration<Us
             .HasColumnName("TenantId")
             .IsRequired();
 
-        builder.Property(x => x.TenantName)
-            .HasColumnName("TenantName")
-            .HasMaxLength(256)
-            .IsRequired();
-
         builder.Property(x => x.CreatedAt)
             .HasColumnName("CreatedAt")
             .IsRequired();

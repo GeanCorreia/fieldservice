@@ -18,9 +18,6 @@ public class UserAuthorization
                              _permissionEvents.FirstOrDefault()?.TenantId ??
                              throw new InvalidOperationException("TenantId could not be determined from events.");
     
-    public string TenantName => _tenantEvents.FirstOrDefault()?.TenantName ??
-                                throw new InvalidOperationException("TenantName could not be determined from events.");
-    
     private ICollection<PermissionEvent> _permissionEvents;
     private ICollection<RoleEvent> _roleEvents;
     private ICollection<UserSuspensionEvent> _suspensionEvents;
@@ -39,6 +36,52 @@ public class UserAuthorization
         
         ValidateEventsConsistency();
         ValidateTenantEventActiveStatus();
+    }
+
+    public static UserAuthorization Create(
+        Guid userId,
+        Guid tenantId,
+        Role role,
+        IEnumerable<Permission> permissions,
+        Guid createdBy,
+        DateTimeOffset? createdAt = null)
+    {
+        ArgumentNullException.ThrowIfNull(permissions);
+
+        if (userId == default)
+            throw new ArgumentException("UserId is required.", nameof(userId));
+
+        if (tenantId == default)
+            throw new ArgumentException("TenantId is required.", nameof(tenantId));
+
+        var effectiveCreatedAt = createdAt ?? DateTimeOffset.UtcNow;
+        var effectiveCreatedBy = createdBy == default ? userId : createdBy;
+
+        var tenantEvents = new List<UserTenantEvent>
+        {
+            UserTenantEvent.Active(userId, tenantId, effectiveCreatedBy, createdAt: effectiveCreatedAt)
+        };
+
+        var roleEvents = new List<RoleEvent>
+        {
+            RoleEvent.CreateRoleAssignmentEvent(effectiveCreatedAt, effectiveCreatedBy, userId, tenantId, role)
+        };
+
+        var permissionEvents = permissions
+            .Distinct()
+            .Select(permission => PermissionEvent.CreatePermissionGrantedEvent(
+                effectiveCreatedAt,
+                effectiveCreatedBy,
+                userId,
+                tenantId,
+                permission))
+            .ToList();
+
+        return new UserAuthorization(
+            permissionEvents,
+            roleEvents,
+            new List<UserSuspensionEvent>(),
+            tenantEvents);
     }
 
     
@@ -248,15 +291,49 @@ public class UserAuthorization
         return IsRevoked(activatedAt) == false && IsSuspended(activatedAt) == false;
     }
 
-    public void Deactivate(Guid createdBy, SuspensionSource source, DateTimeOffset startedAt, DateTimeOffset? endedAt = null)
+    public void RevokeTenantMembership(DateTimeOffset createdAt, Guid createdBy)
+    {
+        if (IsRevoked(createdAt))
+            return;
+
+        var tenantEvent = UserTenantEvent.Revoked(
+            UserId,
+            TenantId,
+            createdBy,
+            createdAt);
+
+        _tenantEvents.Add(tenantEvent);
+    }
+
+    public void CancelTenantRevocation(DateTimeOffset createdAt, Guid createdBy)
+    {
+        if (!IsRevoked(createdAt))
+            return;
+
+        var tenantEvent = UserTenantEvent.Active(
+            UserId,
+            TenantId,
+            createdBy,
+            createdAt: createdAt);
+
+        _tenantEvents.Add(tenantEvent);
+    }
+
+    public void Deactivate(
+        Guid createdBy,
+        SuspensionSource source,
+        DateTimeOffset startedAt,
+        DateTimeOffset? endedAt = null,
+        DateTimeOffset? createdAt = null)
     {
         UserSuspensionEvent suspensionEvent;
+        var effectiveCreatedAt = createdAt ?? DateTimeOffset.UtcNow;
         
         if (endedAt.HasValue)
         {
             suspensionEvent = UserSuspensionEvent.CreateTemporaryUserSuspensionEvent(
                 createdBy,
-                DateTimeOffset.UtcNow,
+                effectiveCreatedAt,
                 UserId,
                 TenantId,
                 source,
@@ -267,7 +344,7 @@ public class UserAuthorization
         {
             suspensionEvent = UserSuspensionEvent.CreateIndefiniteUserSuspensionEvent(
                 createdBy,
-                DateTimeOffset.UtcNow,
+                effectiveCreatedAt,
                 UserId,
                 TenantId,
                 source);
@@ -315,6 +392,8 @@ public class UserAuthorization
     internal IEnumerable<PermissionEvent> GetPermissionEvents() => _permissionEvents;
     
     internal IEnumerable<UserSuspensionEvent> GetSuspensionEvents() => _suspensionEvents;
+
+    internal IEnumerable<UserTenantEvent> GetTenantEvents() => _tenantEvents;
 
     private Dictionary<Role, IEnumerable<Interval>> BuildRoleHistory()
     {

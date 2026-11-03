@@ -15,6 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\FieldService.AccountManagement\FieldService.AccountManagement.csproj" />
       <ProjectReference Include="..\FieldService.Audit\FieldService.Audit.csproj" />
       <ProjectReference Include="..\FieldService.Authentication\FieldService.Authentication.csproj" />
       <ProjectReference Include="..\FieldService.Authorization\FieldService.Authorization.csproj" />

@@ -97,6 +97,11 @@ internal sealed class UserContextRepository(
             .Where(e => e.UserId == user.UserId && e.TenantId == user.TenantId)
             .Select(e => e.Id)
             .ToHashSetAsync(ct);
+
+        var existingTenantEvents = await dbContext.UserTenantEvents
+            .Where(e => e.UserId == user.UserId && e.TenantId == user.TenantId)
+            .Select(e => e.Id)
+            .ToHashSetAsync(ct);
         
         var newRoleEvents = user.GetRoleEvents()
             .Where(e => !existingRoleEvents.Contains(e.Id))
@@ -118,6 +123,13 @@ internal sealed class UserContextRepository(
         
         if (newSuspensionEvents.Count > 0)
             await dbContext.SuspensionEvents.AddRangeAsync(newSuspensionEvents, ct);
+
+        var newTenantEvents = user.GetTenantEvents()
+            .Where(e => !existingTenantEvents.Contains(e.Id))
+            .ToList();
+
+        if (newTenantEvents.Count > 0)
+            await dbContext.UserTenantEvents.AddRangeAsync(newTenantEvents, ct);
 
         await unitOfWork.PersistChangesAsync(ct);
     }

@@ -4,7 +4,7 @@ using FieldService.Shared.Types;
 namespace FieldService.Http.Dtos;
 
 public record UserAuthenticationDto(
-    IEnumerable<TenantDto> UserAuthenticationType
+    IEnumerable<UserAuthorizationTenantDto> UserAuthenticationType
     ) : AbstractDto
 {
     public override SchemaVersion Version => new(2, 2, 0);

@@ -1,4 +1,5 @@
 using FieldService.Broker;
+using FieldService.AccountManagement;
 using FieldService.Authentication;
 using FieldService.Authorization;
 using FieldService.Cache;
@@ -42,6 +43,7 @@ builder.Services.AddSharedModule(builder.Configuration);
 builder.Services.AddAuthenticationModule(builder.Configuration, builder.Environment);
 builder.Services.AddAuthorizationModule(builder.Configuration);
 builder.Services.AddDataModule(builder.Configuration, builder.Environment);
+builder.Services.AddAccountManagementModule(builder.Configuration);
 builder.Services.AddBrokerModule(builder.Configuration, builder.Environment);
 builder.Services.AddCacheModule(builder.Configuration);
 builder.Services.AddAuditModule(builder.Configuration);

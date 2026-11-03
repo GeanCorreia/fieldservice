@@ -31,6 +31,12 @@ internal sealed class RoleAuthorizationHandler(
             return;
         }
         
+        if(tenant.Role == Role.Admin)
+        {
+            context.Succeed(requirement);
+            return;
+        }
+        
         if (RoleRequirementValidator.SatisfiesRole(tenant.Role, requirement.Role))
         {
             context.Succeed(requirement);

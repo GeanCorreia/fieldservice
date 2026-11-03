@@ -11,4 +11,7 @@ public interface IAuthorizationService
     Task<UserDto?> GetUserAsync(
         Guid userId, 
         CancellationToken ct = default);
+    Task RemoveUserFromCacheAsync(
+        Guid userId, 
+        CancellationToken ct = default);
 }

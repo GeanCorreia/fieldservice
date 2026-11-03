@@ -33,8 +33,6 @@ public static class DataModule
         var connectionString = configuration.GetConnectionString("DefaultConnection")
                                ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is not configured.");
 
-        services.AddDbContext<FieldServiceDbContext>(options => configureProvider(options, connectionString));
-
         return services;
     }
 }

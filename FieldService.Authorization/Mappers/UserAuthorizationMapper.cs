@@ -29,13 +29,13 @@ public static class UserAuthorizationMapper
         
         var uniqueTenantsAuthorizations = authorizationsList.DistinctBy(u => u.TenantId);
     
-        var tenants = new List<TenantDto>();
+        var tenants = new List<UserAuthorizationTenantDto>();
     
         foreach (var userAuthorization in uniqueTenantsAuthorizations)
         {
-            var tenant = new TenantDto(
+            var tenant = new UserAuthorizationTenantDto(
                 userAuthorization.TenantId,
-                userAuthorization.TenantName,
+                string.Empty,
                 userAuthorization.Role,
                 userAuthorization.Permissions.ToList(),
                 userAuthorization.IsActive(now)

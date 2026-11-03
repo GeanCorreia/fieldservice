@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\FieldService.AccountManagement\FieldService.AccountManagement.csproj" />
         <ProjectReference Include="..\FieldService.Audit\FieldService.Audit.csproj" />
         <ProjectReference Include="..\FieldService.Authorization\FieldService.Authorization.csproj" />
         <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />

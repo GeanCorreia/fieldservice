@@ -22,6 +22,7 @@ public class GetUserTenantHandler : IRequestHandler<GetUserTenantQuery, UserTena
             return null;
         }
         
+        
         var tenant = user.Tenants.FirstOrDefault(t => t.TenantId == request.TenantId);
 
         if (tenant == null)

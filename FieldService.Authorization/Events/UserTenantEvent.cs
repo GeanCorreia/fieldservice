@@ -13,7 +13,6 @@ public class UserTenantEvent
     public Guid CreatedBy { get; }
     public Guid UserId { get; }
     public Guid TenantId { get; }
-    public string TenantName { get; }
     public TenantMembershipStatus Status { get; }
     public DateTimeOffset? EndedAt { get; }
     
@@ -24,7 +23,6 @@ public class UserTenantEvent
         Guid createdBy,
         Guid userId,
         Guid tenantId,
-        string tenantName,
         TenantMembershipStatus status,
         DateTimeOffset? endedAt = null,
         Guid? id = null)
@@ -34,7 +32,6 @@ public class UserTenantEvent
         CreatedBy = createdBy;
         UserId = userId;
         TenantId = tenantId;
-        TenantName = tenantName;
         Status = status;
         EndedAt = endedAt;
     }
@@ -42,17 +39,16 @@ public class UserTenantEvent
     public static UserTenantEvent Active(
         Guid userId,
         Guid tenantId,
-        string tenantName,
         Guid createdBy,
-        DateTimeOffset? endedAt = null
+        DateTimeOffset? endedAt = null,
+        DateTimeOffset? createdAt = null
     )
     {
         return new UserTenantEvent(
-            DateTimeOffset.UtcNow,
+            createdAt ?? DateTimeOffset.UtcNow,
             createdBy,
             userId,
             tenantId,
-            tenantName,
             TenantMembershipStatus.Active,
             endedAt
         );
@@ -61,16 +57,15 @@ public class UserTenantEvent
     public static UserTenantEvent Revoked(
         Guid userId,
         Guid tenantId,
-        string tenantName,
-        Guid createdBy
+        Guid createdBy,
+        DateTimeOffset? createdAt = null
     )
     {
         return new UserTenantEvent(
-            DateTimeOffset.UtcNow,
+            createdAt ?? DateTimeOffset.UtcNow,
             createdBy,
             userId,
             tenantId,
-            tenantName,
             TenantMembershipStatus.Revoked
         );
     }

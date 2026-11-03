@@ -1,8 +1,6 @@
-using FieldService.Shared.Types;
-
 namespace FieldService.Shared.Types;
 
-public record TenantDto(
+public record UserAuthorizationTenantDto(
     Guid TenantId,
     string TenantName,
     Role Role,
@@ -12,10 +10,10 @@ public record TenantDto(
 
 public record UserTenantDto(
     Guid Id,
-    TenantDto TenantDto
+    UserAuthorizationTenantDto TenantDto
 );
 
 public record UserDto(
     Guid Id,
-    IReadOnlyList<TenantDto> Tenants
+    IReadOnlyList<UserAuthorizationTenantDto> Tenants
 );

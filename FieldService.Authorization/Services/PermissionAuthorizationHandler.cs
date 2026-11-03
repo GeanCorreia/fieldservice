@@ -28,6 +28,12 @@ internal sealed class PermissionAuthorizationHandler(
             context.Fail();
             return;
         }
+        
+        if(tenant.Role == Role.Admin)
+        {
+            context.Succeed(requirement);
+            return;
+        }
 
         if (tenant.Permissions.Contains(requirement.Permission))
         {
