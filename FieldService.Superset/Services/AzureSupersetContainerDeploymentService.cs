@@ -1,12 +1,8 @@
-using Azure;
-using Azure.Core;
-using Azure.Identity;
-using Azure.ResourceManager;
 using Azure.ResourceManager.AppContainers;
 using Azure.ResourceManager.AppContainers.Models;
-using Azure.ResourceManager.Resources;
 using FieldService.Superset.Interfaces;
-using FieldService.Shared.Configuration;
+using FieldService.Cloud.Entities;
+using FieldService.Cloud.Interfaces;
 using FieldService.Superset.Configuration;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Exceptions;
@@ -20,13 +16,12 @@ namespace FieldService.Superset.Services;
 
 internal class AzureSupersetContainerDeploymentService : ISupersetContainerDeploymentService
 {
-    private readonly ISupersetContainerConfigurationService _supersetContainerConfigurationService;
+    private readonly IAzureContainerConfigurationService _containerConfigurationService;
     private readonly SupersetContainerAllowedOriginsCors _supersetContainerAllowedOriginsCors;
     private readonly ISupersetApi _supersetApi;
     private readonly ISupersetSecretService _supersetSecretService;
-    private readonly ArmClient _armClient;
+    private readonly IAzureContainerService _containers;
     private readonly SupersetOptions _supersetOptions;
-    private readonly AzureIdentityOptions _azureIdentityOptions;
     private readonly ISupersetTenantInstanceProcessingLock _supersetInstanceLock;
     private readonly ILogger<AzureSupersetContainerDeploymentService> _logger;
     private readonly ISupersetAuthService _supersetAuthService;
@@ -34,42 +29,41 @@ internal class AzureSupersetContainerDeploymentService : ISupersetContainerDeplo
     private readonly string _masterPassword;
 
     public AzureSupersetContainerDeploymentService(
-        ISupersetContainerConfigurationService supersetContainerConfigurationService,
+        IAzureContainerConfigurationService containerConfigurationService,
         ISupersetApi supersetApi,
         ISupersetSecretService supersetSecretService,
         IOptions<SupersetOptions> supersetOptions,
-        IOptions<AzureIdentityOptions> azureIdentityOptions,
+        IAzureContainerService containers,
         ISupersetTenantInstanceProcessingLock supersetInstanceLock,
         ILogger<AzureSupersetContainerDeploymentService> logger,
         ISupersetAuthService supersetAuthService,
         SupersetContainerAllowedOriginsCors supersetContainerAllowedOriginsCors)
     {
-   
-        _supersetContainerConfigurationService = supersetContainerConfigurationService ?? throw new ArgumentNullException(nameof(supersetContainerConfigurationService));
+
+        _containerConfigurationService = containerConfigurationService ?? throw new ArgumentNullException(nameof(containerConfigurationService));
         _supersetApi = supersetApi ?? throw new ArgumentNullException(nameof(supersetApi));
         _supersetSecretService = supersetSecretService ?? throw new ArgumentNullException(nameof(supersetSecretService));
-        _supersetContainerAllowedOriginsCors = supersetContainerAllowedOriginsCors ?? 
+        _supersetContainerAllowedOriginsCors = supersetContainerAllowedOriginsCors ??
                                                throw new ArgumentNullException(nameof(supersetContainerAllowedOriginsCors));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _supersetAuthService = supersetAuthService ?? throw new ArgumentNullException(nameof(supersetAuthService));
-        _armClient = new ArmClient(new DefaultAzureCredential());
+        _containers = containers ?? throw new ArgumentNullException(nameof(containers));
         _supersetOptions = (supersetOptions ?? throw new ArgumentNullException(nameof(supersetOptions))).Value;
         _masterUsername = _supersetOptions.Username;
         _masterPassword = _supersetOptions.Password;
-        _azureIdentityOptions = (azureIdentityOptions ?? throw new ArgumentNullException(nameof(azureIdentityOptions))).Value;
         _supersetInstanceLock = supersetInstanceLock ?? throw new ArgumentNullException(nameof(supersetInstanceLock));
     }
 
     public async Task<SupersetContainerDeploymentResult> CreateInstanceAsync(
         Guid tenantId,
-        SupersetContainerConfiguration configuration,
+        ContainerConfiguration configuration,
         Guid connectionStringId,
         Guid secretKeyId,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var resourceName = SupersetContainer.ResourceName(tenantId);
+        var resourceName = SupersetTenant.ContainerResourceName(tenantId);
 
         var lockAcquired = await _supersetInstanceLock.AcquireLock(tenantId, cancellationToken);
         if (!lockAcquired)
@@ -77,27 +71,25 @@ internal class AzureSupersetContainerDeploymentService : ISupersetContainerDeplo
             throw new InvalidOperationException($"Could not acquire lock for tenant {tenantId}. " +
                                                 $"Another instance creation process might be running.");
         }
-        
+
         try
         {
             var connectionString = await _supersetSecretService.GetDatabaseConnectionString(connectionStringId, cancellationToken);
-            
+
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new InvalidOperationException($"Connection string with ID '{connectionStringId}' not found or is empty.");
             }
-            
-           
+
+
             var secretKey = await _supersetSecretService.GetSupersetSecretApiKey(secretKeyId, cancellationToken);
-            
+
             if (string.IsNullOrWhiteSpace(secretKey))
             {
                 throw new InvalidOperationException($"Secret key with ID '{secretKeyId}' not found or is empty.");
             }
 
-            var resourceGroup = GetResourceGroup();
-            var containerAppCollection = resourceGroup.GetContainerApps();
-            var existingContainerApp = await GetContainerAppByNameAsync(containerAppCollection, resourceName, cancellationToken);
+            var existingContainerApp = await _containers.FindByNameAsync(resourceName, cancellationToken);
 
             if (existingContainerApp is not null)
             {
@@ -124,33 +116,8 @@ internal class AzureSupersetContainerDeploymentService : ISupersetContainerDeplo
         }
         finally
         {
-            await _supersetInstanceLock.ReleaseLock(tenantId, cancellationToken);
+            await _supersetInstanceLock.ReleaseLock(tenantId, CancellationToken.None);
         }
-    }
-
-    private ResourceGroupResource GetResourceGroup()
-    {
-        var resourceGroupResourceId = ResourceGroupResource.CreateResourceIdentifier(
-            _azureIdentityOptions.AzureSubscriptionId,
-            _azureIdentityOptions.AzureResourceGroupName);
-
-        return _armClient.GetResourceGroupResource(resourceGroupResourceId);
-    }
-
-    private static async Task<ContainerAppResource?> GetContainerAppByNameAsync(
-        ContainerAppCollection containerAppCollection,
-        string resourceName,
-        CancellationToken cancellationToken)
-    {
-        await foreach (var containerApp in containerAppCollection.GetAllAsync(cancellationToken: cancellationToken))
-        {
-            if (string.Equals(containerApp.Data.Name, resourceName, StringComparison.OrdinalIgnoreCase))
-            {
-                return containerApp;
-            }
-        }
-
-        return null;
     }
 
     private async Task<SupersetContainerDeploymentResult> CreateSupersetContainerAsync(
@@ -159,15 +126,12 @@ internal class AzureSupersetContainerDeploymentService : ISupersetContainerDeplo
         string secretKey,
         string connectionString,
         string tenantDatabaseName,
-        SupersetContainerConfiguration configuration,
+        ContainerConfiguration configuration,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(secretKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
-
-        var resourceGroup = GetResourceGroup();
-        var containerAppCollection = resourceGroup.GetContainerApps();
 
         var container = new ContainerAppContainer
         {
@@ -203,45 +167,26 @@ internal class AzureSupersetContainerDeploymentService : ISupersetContainerDeplo
                 new ContainerAppEnvironmentVariable { Name = "SUPERSET_MOCKED_SCHEMA_ROLE_NAME", Value = "Scope_MockedData" }
             }
         };
-        
+
         foreach (var envVar in _supersetContainerAllowedOriginsCors.Get())
         {
             container.Env.Add(envVar);
         }
-        
-        var containerAppProps = new ContainerAppData(_azureIdentityOptions.AzureLocation)
-        {
-            EnvironmentId = new ResourceIdentifier(_azureIdentityOptions.AzureContainerAppEnvironmentId),
-            Configuration = new ContainerAppConfiguration
-            {
-                Ingress = new ContainerAppIngressConfiguration
-                {
-                    External = true,
-                    TargetPort = _supersetOptions.Provisioning.ContainerPort,
-                    Transport = ContainerAppIngressTransportMethod.Auto
-                }
-            },
-            Template = new ContainerAppTemplate
-            {
-                Scale = ((AzureContainerAppScale)_supersetContainerConfigurationService.CreateScaleConfiguration(
-                        configuration)).Value,
-                Containers = { container }
-            }
-        };
 
-        var armOperation = await containerAppCollection.CreateOrUpdateAsync(
-            WaitUntil.Completed,
+        var createdContainerApp = await _containers.CreateAsync(
             resourceName,
-            containerAppProps,
+            container,
+            _containerConfigurationService.CreateScaleConfiguration(
+                configuration, _supersetOptions.Provisioning.KedaCronTimezone),
+            _supersetOptions.Provisioning.ContainerPort,
             cancellationToken);
 
-        var createdContainerApp = armOperation.Value;
         var resourceId = createdContainerApp.Id.ToString();
         var fqdnUrl = await ResolveFqdnUrlAsync(createdContainerApp, cancellationToken);
 
         return new SupersetContainerDeploymentResult(resourceId, fqdnUrl);
     }
-    
+
     private string BuildBootstrapCommand()
     {
         return SupersetContainerBootstrapScript.BuildBootstrapCommand(
@@ -259,20 +204,11 @@ internal class AzureSupersetContainerDeploymentService : ISupersetContainerDeplo
         ContainerAppResource containerAppResource,
         CancellationToken cancellationToken)
     {
-        for (var attempt = 1; attempt <= _supersetOptions.Provisioning.StartupHealthCheckMaxAttempts; attempt++)
-        {
-            var response = await containerAppResource.GetAsync(cancellationToken);
-            var fqdn = response.Value.Data.Configuration?.Ingress?.Fqdn;
-
-            if (!string.IsNullOrWhiteSpace(fqdn))
-            {
-                return NormalizeBaseUrl(fqdn);
-            }
-
-            await Task.Delay(TimeSpan.FromSeconds(_supersetOptions.Provisioning.StartupHealthCheckDelaySeconds), cancellationToken);
-        }
-
-        throw new TimeoutException("Timed out while waiting for the Superset Container App ingress FQDN to be assigned.");
+        return await _containers.ResolveFqdnUrlAsync(
+            containerAppResource,
+            _supersetOptions.Provisioning.StartupHealthCheckMaxAttempts,
+            TimeSpan.FromSeconds(_supersetOptions.Provisioning.StartupHealthCheckDelaySeconds),
+            cancellationToken);
     }
 
     private async Task WaitForSupersetReadinessAsync(
@@ -294,7 +230,7 @@ internal class AzureSupersetContainerDeploymentService : ISupersetContainerDeplo
             {
                 lastException = ex;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 lastException = ex;
             }
@@ -308,14 +244,4 @@ internal class AzureSupersetContainerDeploymentService : ISupersetContainerDeplo
     }
 
 
-    private static string NormalizeBaseUrl(string fqdn)
-    {
-        if (fqdn.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            fqdn.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            return fqdn;
-        }
-
-        return $"https://{fqdn}";
-    }
 }

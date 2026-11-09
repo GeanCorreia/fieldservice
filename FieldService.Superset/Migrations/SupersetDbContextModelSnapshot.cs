@@ -23,10 +23,13 @@ namespace FieldService.Superset.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("FieldService.Superset.Entities.SupersetContainer", b =>
+            modelBuilder.Entity("FieldService.Cloud.Entities.Container", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
+
+                    b.Property<int>("CloudProvider")
+                        .HasColumnType("integer");
 
                     b.Property<int>("ExecutionType")
                         .HasColumnType("integer");
@@ -42,8 +45,10 @@ namespace FieldService.Superset.Migrations
                     b.Property<int>("MinReplicas")
                         .HasColumnType("integer");
 
-                    b.Property<int>("ProviderType")
-                        .HasColumnType("integer");
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
 
                     b.Property<string>("ResourceId")
                         .IsRequired()
@@ -68,7 +73,13 @@ namespace FieldService.Superset.Migrations
                     b.HasIndex("ResourceId")
                         .IsUnique();
 
-                    b.ToTable("SupersetContainer", (string)null);
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Container", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 
             modelBuilder.Entity("FieldService.Superset.Entities.SupersetContainerDeploymentFlow", b =>
@@ -152,7 +163,7 @@ namespace FieldService.Superset.Migrations
 
             modelBuilder.Entity("FieldService.Superset.Entities.SupersetTenant", b =>
                 {
-                    b.HasOne("FieldService.Superset.Entities.SupersetContainer", "Container")
+                    b.HasOne("FieldService.Cloud.Entities.Container", "Container")
                         .WithMany()
                         .HasForeignKey("ContainerId")
                         .OnDelete(DeleteBehavior.Restrict)

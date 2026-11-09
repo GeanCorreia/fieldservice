@@ -1,21 +1,21 @@
 using Azure.ResourceManager.AppContainers.Models;
-using FieldService.Http.Configuration;
+using FieldService.Shared.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace FieldService.Superset.Proxy;
 
 internal class SupersetContainerAllowedOriginsCors
 {
-    private readonly HttpOptions _httpOptions;
+    private readonly ApplicationAccountOptions _applicationAccountOptions;
 
-    public SupersetContainerAllowedOriginsCors(IOptions<HttpOptions> httpOptions)
+    public SupersetContainerAllowedOriginsCors(IOptions<ApplicationAccountOptions> applicationAccountOptions)
     {
-        _httpOptions = httpOptions.Value;
+        _applicationAccountOptions = applicationAccountOptions.Value;
     }
 
     public List<ContainerAppEnvironmentVariable> Get()
     {
-        var frameAncestors = string.Join(" ", _httpOptions.AllowedOrigins);
+        var frameAncestors = string.Join(" ", _applicationAccountOptions.AllowedFrameAncestors);
 
         return new List<ContainerAppEnvironmentVariable>
         {

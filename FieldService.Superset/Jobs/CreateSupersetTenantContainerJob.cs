@@ -1,4 +1,7 @@
 using FieldService.Data.Interfaces;
+using FieldService.Cloud.Entities;
+using FieldService.Cloud.Interfaces;
+using FieldService.Superset.Data;
 using FieldService.Queue.Attributes;
 using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
@@ -26,7 +29,7 @@ internal record CreateSupersetTenantContainerJob : Job<CreateSupersetTenantConta
         : base(payload, new JobContext(
                 JobType,
                 payload.TenantId,
-                SupersetContainerDeploymentFlow.SupersetContainerDeploymentFlowContext(payload.FlowId)
+                SupersetTenantFlow.SupersetTenantFlowContext(payload.FlowId)
             )
         )
     {
@@ -36,18 +39,18 @@ internal record CreateSupersetTenantContainerJob : Job<CreateSupersetTenantConta
 internal class CreateSupersetTenantContainerJobConsumer : IQueueConsumer<CreateSupersetTenantContainerJobPayload>
 {
     private readonly ISupersetTenantService _supersetTenantService;
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly ISqlUnitOfWork<SupersetDbContext> _unitOfWork;
     private readonly ISupersetTenantFlowRepository _repository;
     private readonly ISupersetContainerDeploymentService _supersetContainerDeploymentService;
-    private readonly ISupersetContainerRepository _supersetContainerRepository;
+    private readonly IContainerRepository _supersetContainerRepository;
     private readonly ILogger<CreateSupersetTenantContainerJobConsumer> _logger;
 
     public CreateSupersetTenantContainerJobConsumer(
         ISupersetTenantService supersetTenantService,
-        IUnitOfWork unitOfWork,
+        ISqlUnitOfWork<SupersetDbContext> unitOfWork,
         ISupersetTenantFlowRepository repository,
         ISupersetContainerDeploymentService supersetContainerDeploymentService,
-        ISupersetContainerRepository supersetContainerRepository,
+        IContainerRepository supersetContainerRepository,
         ILogger<CreateSupersetTenantContainerJobConsumer> logger)
     {
         _supersetTenantService = supersetTenantService ?? throw new ArgumentNullException(nameof(supersetTenantService));
@@ -97,8 +100,9 @@ internal class CreateSupersetTenantContainerJobConsumer : IQueueConsumer<CreateS
         
         
         
-        var previousContainer = await _supersetContainerRepository.GetSupersetContainerByTenantIdAsync(payload.TenantId, ct);
-        var containerId = previousContainer?.Id ?? payload.TenantId;
+        var resourceName = SupersetTenant.ContainerResourceName(payload.TenantId);
+        var previousContainer = await _supersetContainerRepository.GetByTenantAndNameAsync(payload.TenantId, resourceName, ct);
+        var containerId = previousContainer?.Id ?? Guid.NewGuid();
 
         SupersetContainerDeploymentResult deploymentResult;
         try
@@ -120,9 +124,10 @@ internal class CreateSupersetTenantContainerJobConsumer : IQueueConsumer<CreateS
             deploymentResult = new SupersetContainerDeploymentResult(ex.ResourceId, ex.FqdnUrl);
         }
 
-        var supersetContainer = new SupersetContainer(
+        var supersetContainer = new Container(
             id: containerId,
             tenantId: payload.TenantId,
+            resourceName: resourceName,
             cloudProvider: CloudProvider.Azure,
             secretKeyId: supersetDeploymentFlow.SecretKeyId.Value,
             resourceId: deploymentResult.ResourceId,
@@ -147,32 +152,25 @@ internal class CreateSupersetTenantContainerJobConsumer : IQueueConsumer<CreateS
         if (!mustPersistContainer && !mustPersistFlow)
             return;
         
-        if (mustPersistFlow)
-        {
-            supersetDeploymentFlow.MarkContainerCreated(
-                supersetContainer.Id);
-        }
+        // Cloud persistence must complete before recording its ID in the Superset checkpoint.
+        if (mustPersistContainer)
+            await _supersetContainerRepository.SaveAsync(supersetContainer, ct);
+
+        if (!mustPersistFlow)
+            return;
+
+        supersetDeploymentFlow.MarkContainerCreated(supersetContainer.Id);
         
         await _unitOfWork.BeginAsync(ct);
 
         try
         {
-            
-            if (mustPersistContainer)
-            {
-                await _supersetContainerRepository.SaveSupersetContainerAsync(supersetContainer, ct);
-            }
-
-            if (mustPersistFlow)
-            {
-                await _repository.SaveAsync(supersetDeploymentFlow, ct);
-            }
-            
+            await _repository.SaveAsync(supersetDeploymentFlow, ct);
             await _unitOfWork.CommitAsync(ct);
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(ct);
+            await _unitOfWork.RollbackAsync(CancellationToken.None);
             throw;
         }
         

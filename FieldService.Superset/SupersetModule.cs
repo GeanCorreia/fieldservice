@@ -71,17 +71,14 @@ public static class SupersetModule
         services.AddScoped<ISupersetRoleServices, SupersetRoleServices>();
         services.AddScoped<ISupersetResourceServices, SupersetResourceServices>();
         services.AddScoped<ISupersetSecretService, SupersetSecretService>();
-        services.AddScoped<ISupersetContainerConfigurationService, AzureSupersetContainerConfigurationService>();
         services.AddScoped<ISupersetContainerDeploymentService, AzureSupersetContainerDeploymentService>();
         services.AddScoped<ISupersetTenantInstanceLifecycleService, AzureSupersetTenantInstanceLifecycleService>();
-        services.AddScoped<ISupersetTenantInstanceProcessingLock, SupersetTenantInstanceProcessingLock>();
         services.AddScoped<ISupersetTenantService, SupersetTenantService>();
         services.AddScoped<SupersetContainerAllowedOriginsCors>();
         services.AddScoped<SupersetTenantDynamicTransformProvider>();
         services.AddSqlModule<SupersetDbContext>(configuration);
         services.AddScoped<ISupersetRepository, SupersetRepository>();
         services.AddScoped<ISupersetTenantFlowRepository, SupersetTenantFlowRepository>();
-        services.AddScoped<ISupersetContainerRepository, SupersetContainerRepository>();
         
         return services;
     }

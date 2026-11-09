@@ -4,6 +4,7 @@ using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
 using FieldService.Shared.Message;
+using FieldService.Shared.Enums;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Interfaces;
 using Hangfire;
@@ -23,7 +24,7 @@ internal record CreateSupersetDataInfraJob : Job<CreateSupersetDataInfraJobPaylo
         : base(payload, new JobContext(
             JobType,
             payload.TenantId,
-            SupersetContainerDeploymentFlow.SupersetContainerDeploymentFlowContext(payload.FlowId)
+            SupersetTenantFlow.SupersetTenantFlowContext(payload.FlowId)
             )
         )
     {
@@ -62,12 +63,12 @@ internal class CreateSupersetDataInfraJobConsumer : IQueueConsumer<CreateSuperse
             throw new InvalidOperationException($"No Superset tenant creation process found for tenant {job.Payload.TenantId}.");
         }
         
-        if(supersetDeploymentFlow.Status == SupersetTenantDeployStatus.Cancelled)
+        if(supersetDeploymentFlow.Status == FlowStatus.Cancelled)
         {
             throw new InvalidOperationException($"Superset tenant creation process for tenant {job.Payload.TenantId} has been cancelled.");
         }
         
-        if(supersetDeploymentFlow.Status == SupersetTenantDeployStatus.Completed)
+        if(supersetDeploymentFlow.Status == FlowStatus.Completed)
         {
             return;
         }
@@ -97,10 +98,9 @@ internal class CreateSupersetDataInfraJobConsumer : IQueueConsumer<CreateSuperse
                                                 $"Another instance creation process might be running.");
         }
         
-        await _unitOfWork.BeginAsync(cancellationToken);
-
         try
         {
+            await _unitOfWork.BeginAsync(cancellationToken);
 
             var connectionStringId = await _supersetDataBaseService.CreateSupersetDataInfra(
                 tenantId,
@@ -114,13 +114,13 @@ internal class CreateSupersetDataInfraJobConsumer : IQueueConsumer<CreateSuperse
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(cancellationToken);
+            await _unitOfWork.RollbackAsync(CancellationToken.None);
             throw;
         }
         finally
         {
            
-            await _supersetInstanceLock.ReleaseLock(tenantId, cancellationToken);
+            await _supersetInstanceLock.ReleaseLock(tenantId, CancellationToken.None);
         }
         
         

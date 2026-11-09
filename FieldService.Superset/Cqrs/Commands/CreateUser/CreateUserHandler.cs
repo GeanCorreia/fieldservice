@@ -1,4 +1,3 @@
-using FieldService.Http.Cqrs.Queries.GetUserTenant;
 using FieldService.Superset.Attributes;
 using FieldService.Superset.Cqrs.Queries.GetSupersetUser;
 using FieldService.Superset.Dtos.SupersetApiRequestDto;
@@ -34,15 +33,7 @@ internal class CreateUserHandler : IRequestHandler<CreateUserCommand>
 
     public async Task Handle(CreateUserCommand request, CancellationToken cancellationToken)
     {
-        var user = await _mediator.Send(new GetUserTenantQuery(request.UserId, request.TenantId), cancellationToken);
-        if (user == null)
-        {
-            throw new UnauthorizedAccessException();
-        }
-        if (user.TenantDto.TenantId != request.TenantId)
-        {
-            throw new UnauthorizedAccessException();
-        }
+        
         var tenantConfig = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
         if (tenantConfig == null)
         {

@@ -34,7 +34,6 @@ internal class FormTenant
 
     public static string DatabaseSchema => "form";
     public static string DatabaseSchemaName => DatabaseSchema;
-    
     public static string DatabaseName(Guid tenantId) => $"db_tenant_{tenantId:N}";
     
 

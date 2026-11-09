@@ -1,18 +1,22 @@
-using FieldService.Data.Interfaces;
+using Azure;
+using FieldService.Cloud.Entities;
+using FieldService.Cloud.Interfaces;
 using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
 using FieldService.Shared.Message;
+using FieldService.Superset.Configuration;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
 using Hangfire;
+using Microsoft.Extensions.Options;
 
 namespace FieldService.Superset.Jobs;
 
 internal record UpdateSupersetTenantContainerJobPayload(
     Guid TenantId,
-    SupersetContainerConfiguration Configuration) :
+    ContainerConfiguration Configuration) :
     AbstractMessagePayload<UpdateSupersetTenantContainerJobPayload>;
 
 internal record UpdateSupersetTenantContainerJob : Job<UpdateSupersetTenantContainerJobPayload>
@@ -28,21 +32,21 @@ internal record UpdateSupersetTenantContainerJob : Job<UpdateSupersetTenantConta
 internal class UpdateSupersetTenantContainerJobHandler : IQueueConsumer<UpdateSupersetTenantContainerJobPayload>
 {
     private readonly ISupersetTenantInstanceProcessingLock _supersetTenantInstanceProcessingLock;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ISupersetContainerConfigurationService _supersetContainerConfigurationService;
-    private readonly ISupersetContainerRepository _supersetContainerRepository;
+    private readonly IAzureContainerConfigurationService _containerConfigurationService;
+    private readonly IContainerRepository _supersetContainerRepository;
+    private readonly SupersetOptions _options;
     
     
     public UpdateSupersetTenantContainerJobHandler(
         ISupersetTenantInstanceProcessingLock supersetTenantInstanceProcessingLock,
-        IUnitOfWork unitOfWork,
-        ISupersetContainerConfigurationService supersetContainerConfigurationService,
-        ISupersetContainerRepository supersetContainerRepository)
+        IAzureContainerConfigurationService containerConfigurationService,
+        IContainerRepository supersetContainerRepository,
+        IOptions<SupersetOptions> options)
     {
         _supersetTenantInstanceProcessingLock = supersetTenantInstanceProcessingLock ?? throw new ArgumentNullException(nameof(supersetTenantInstanceProcessingLock));
-        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
-        _supersetContainerConfigurationService = supersetContainerConfigurationService ?? throw new ArgumentNullException(nameof(supersetContainerConfigurationService));
+        _containerConfigurationService = containerConfigurationService ?? throw new ArgumentNullException(nameof(containerConfigurationService));
         _supersetContainerRepository = supersetContainerRepository ?? throw new ArgumentNullException(nameof(supersetContainerRepository));
+        _options = (options ?? throw new ArgumentNullException(nameof(options))).Value;
         
     }
 
@@ -54,7 +58,8 @@ internal class UpdateSupersetTenantContainerJobHandler : IQueueConsumer<UpdateSu
         var tenantId = job.Payload.TenantId;
         var configuration = job.Payload.Configuration;
 
-        var container = await _supersetContainerRepository.GetSupersetContainerByTenantIdAsync(tenantId, ct);
+        var container = await _supersetContainerRepository.GetByTenantAndNameAsync(
+            tenantId, SupersetTenant.ContainerResourceName(tenantId), ct);
         if (container == null)
             throw new SupersetContainerNotFoundException(tenantId);
         
@@ -63,9 +68,13 @@ internal class UpdateSupersetTenantContainerJobHandler : IQueueConsumer<UpdateSu
 
         try
         {
-            await _supersetContainerConfigurationService.ApplyContainerConfigurationAsync(
+            if (string.IsNullOrWhiteSpace(container.ResourceId))
+                throw new ResourceIdNotFoundException(container.ResourceId);
+
+            await _containerConfigurationService.ApplyAsync(
                 container.ResourceId,
                 configuration,
+                _options.Provisioning.KedaCronTimezone,
                 ct);
 
             var currentConfiguration = container.Configuration;
@@ -73,16 +82,15 @@ internal class UpdateSupersetTenantContainerJobHandler : IQueueConsumer<UpdateSu
                 return;
 
             container.UpdateConfiguration(configuration);
-            await _supersetContainerRepository.SaveSupersetContainerAsync(container, ct);
+            await _supersetContainerRepository.SaveAsync(container, ct);
         }
-        catch 
+        catch (RequestFailedException ex) when (ex.Status == 404)
         {
-            await _unitOfWork.RollbackAsync(ct);
-            throw;
+            throw new ResourceIdNotFoundException(container.ResourceId);
         }
         finally
         {
-            await _supersetTenantInstanceProcessingLock.ReleaseLock(tenantId, ct);
+            await _supersetTenantInstanceProcessingLock.ReleaseLock(tenantId, CancellationToken.None);
         }
 
 

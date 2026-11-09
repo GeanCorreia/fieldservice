@@ -1,4 +1,5 @@
 using FieldService.Data.Interfaces;
+using FieldService.Shared.Enums;
 using FieldService.Superset.Data;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Interfaces;
@@ -10,7 +11,7 @@ internal sealed class SupersetTenantFlowRepository(
     SupersetDbContext dbContext,
     ISqlUnitOfWork<SupersetDbContext> unitOfWork) : ISupersetTenantFlowRepository
 {
-    public async Task<SupersetContainerDeploymentFlow?> GetByIdAsync(
+    public async Task<SupersetTenantFlow?> GetByIdAsync(
         Guid creationId,
         CancellationToken cancellationToken)
     {
@@ -22,8 +23,8 @@ internal sealed class SupersetTenantFlowRepository(
             .FirstOrDefaultAsync(x => x.Id == creationId, cancellationToken);
     }
 
-    public async Task<IEnumerable<SupersetContainerDeploymentFlow>> GetByStatusAsync(
-        SupersetTenantDeployStatus status,
+    public async Task<IEnumerable<SupersetTenantFlow>> GetByStatusAsync(
+        FlowStatus status,
         CancellationToken cancellationToken)
     {
         var flows = await dbContext.SupersetTenantFlows
@@ -34,24 +35,23 @@ internal sealed class SupersetTenantFlowRepository(
     }
 
     public async Task SaveAsync(
-        SupersetContainerDeploymentFlow supersetContainerDeploymentFlow,
+        SupersetTenantFlow supersetTenantFlow,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(supersetContainerDeploymentFlow);
+        ArgumentNullException.ThrowIfNull(supersetTenantFlow);
 
         var existing = await dbContext.SupersetTenantFlows
-            .FirstOrDefaultAsync(x => x.Id == supersetContainerDeploymentFlow.Id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == supersetTenantFlow.Id, cancellationToken);
 
         if (existing is null)
         {
-            await dbContext.SupersetTenantFlows.AddAsync(supersetContainerDeploymentFlow, cancellationToken);
+            await dbContext.SupersetTenantFlows.AddAsync(supersetTenantFlow, cancellationToken);
         }
         else
         {
-            dbContext.Entry(existing).CurrentValues.SetValues(supersetContainerDeploymentFlow);
+            dbContext.Entry(existing).CurrentValues.SetValues(supersetTenantFlow);
         }
 
         await unitOfWork.PersistChangesAsync(cancellationToken);
     }
 }
-

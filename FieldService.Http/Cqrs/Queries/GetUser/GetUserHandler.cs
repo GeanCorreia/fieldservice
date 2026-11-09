@@ -23,14 +23,12 @@ public class GetUserHandler : IRequestHandler<GetUserQuery, UserDto?>
     {
         var userId = request.UserId;
 
-        var emptyTenantNameUser = await _authorizationService.GetUserAsync(userId, cancellationToken);
+        var user = await _authorizationService.GetUserAsync(userId, cancellationToken);
         
-        if(emptyTenantNameUser == null)
-        {
+        if (user is null)
             return null;
-        }
         
-        var tenantIds = emptyTenantNameUser.Tenants
+        var tenantIds = user.Tenants
             .Select(t => t.TenantId)
             .Distinct()
             .ToList();
@@ -42,15 +40,24 @@ public class GetUserHandler : IRequestHandler<GetUserQuery, UserDto?>
             .GroupBy(t => t.Id)
             .ToDictionary(g => g.Key, g => g.First().Name);
 
-        var userWithTenantNames = emptyTenantNameUser.Tenants
-            .Select(t => new UserAuthorizationTenantDto(
-                t.TenantId,
-                tenantNameById.TryGetValue(t.TenantId, out var name) ? name : string.Empty,
-                t.Role,
-                t.Permissions,
-                t.IsActive))
-            .ToList();
+        var userWithTenantNames = new List<UserAuthorizationTenantDto>();
+        foreach (var tenant in user.Tenants)
+        {
+            if (!tenantNameById.TryGetValue(tenant.TenantId, out var name) ||
+                string.IsNullOrWhiteSpace(name))
+                continue;
 
-        return new UserDto(emptyTenantNameUser.Id, userWithTenantNames);
+            userWithTenantNames.Add(new UserAuthorizationTenantDto(
+                tenant.TenantId,
+                name,
+                tenant.Role,
+                tenant.Permissions,
+                tenant.IsActive));
+        }
+        
+        if(userWithTenantNames.Count == 0)
+            return null;
+
+        return new UserDto(user.Id, userWithTenantNames);
     }
 }

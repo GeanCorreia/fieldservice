@@ -4,7 +4,6 @@ using FieldService.Form.Dtos;
 using FieldService.Form.Enums;
 using FieldService.Form.Interfaces;
 using FieldService.Form.Messages;
-using FieldService.Http.Cqrs.Queries.GetUserTenant;
 using FieldService.SignalR.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -119,13 +118,6 @@ internal sealed class FormService(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var user = await _mediator.Send(new GetUserTenantQuery(userId, form.TenantId), cancellationToken);
-
-        if (user == null)
-        {
-            throw new UnauthorizedAccessException();
-        }
-        
         var domainForm = Entities.Form.Create( 
             tenantId: form.TenantId,
             userId: userId,
@@ -189,12 +181,7 @@ internal sealed class FormService(
         if(form == null)
             throw new KeyNotFoundException($"Form with id '{formId}' not found.");
         
-        var user = await _mediator.Send(new GetUserTenantQuery(userId, form.TenantId), cancellationToken);
-
-        if (user == null)
-        {
-            throw new UnauthorizedAccessException();
-        }
+        
         form.DeleteForm(userId);
         await _repository.SaveFormAsync(form, cancellationToken);
         
@@ -233,20 +220,13 @@ internal sealed class FormService(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var user = await _mediator.Send(new GetUserTenantQuery(userId, form.TenantId), cancellationToken);
+        
         
         var domainForm = await _repository.GetFormAsync(form.Id, cancellationToken);
         
         if (domainForm is null)
             throw new KeyNotFoundException($"Form with id '{form.Id}' not found.");
         
-        
-
-        if (user == null)
-        {
-            throw new UnauthorizedAccessException();
-        }
-
         var updates = new Dictionary<string, object>();
 
         if (form.Title != domainForm.Title)

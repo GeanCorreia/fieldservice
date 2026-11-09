@@ -1,8 +1,8 @@
 using System.Data.Common;
 using Dapper;
 using FieldService.Data.Interfaces;
-using FieldService.SecretKey.Cqrs.Queries.GetSecretKeyById;
-using FieldService.SecretKey.Entities;
+using FieldService.Cloud.Cqrs.Queries.GetSecretKeyById;
+using FieldService.Cloud.Entities;
 using FieldService.Superset.Broker;
 using FieldService.Superset.Configuration;
 using FieldService.Superset.Dtos;
@@ -76,7 +76,7 @@ internal class CreateSupersetTenantHandler : IRequestHandler<CreateSupersetTenan
             throw new InvalidOperationException($"Tenant with ID {request.TenantId} already exists.");
         }
         
-        var flow = SupersetContainerDeploymentFlow.Create(request.Configuration, request.TenantId, request.DedicatedHostConnectionStringId);
+        var flow = SupersetTenantFlow.Create(request.Configuration, request.TenantId, request.DedicatedHostConnectionStringId);
         var payload = new CreateSupersetTenantContainerJobPayload(flow.Id, request.TenantId);
         var job = new CreateSupersetTenantContainerJob(payload);
         _createSupersetTenantContainerJobProducer.Publish(job);

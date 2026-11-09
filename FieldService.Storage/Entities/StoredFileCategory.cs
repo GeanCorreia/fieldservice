@@ -83,6 +83,7 @@ public class StoredFileCategory
     
     private bool HasAccess(Role userRole, IEnumerable<Permission> userPermissions)
     {
+
         if( MinimumRequiredRole.HasValue && !RoleRequirementValidator.SatisfiesRole(userRole, MinimumRequiredRole.Value ))
         {
             return false;
@@ -103,8 +104,12 @@ public class StoredFileCategory
     public void ValidateAccess(UserTenantDto userTenantDto)
     {
         ArgumentNullException.ThrowIfNull(userTenantDto);
+        
+        if(userTenantDto.TenantDto == null || userTenantDto.TenantDto.TenantId != TenantId)
+        {
+            throw new UnauthorizedAccessException("User does not belong to the tenant associated with this stored file category.");
+        }
 
-        var tenantDetail = userTenantDto.TenantDto;
         var userRole = userTenantDto.TenantDto.Role;
         var userPermissions = userTenantDto.TenantDto.Permissions;
         

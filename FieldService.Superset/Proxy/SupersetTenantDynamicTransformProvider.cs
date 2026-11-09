@@ -1,9 +1,7 @@
-using FieldService.Http.Cqrs.Queries.GetUserTenant;
 using FieldService.Shared.Services;
 using FieldService.Superset.Attributes;
 using FieldService.Superset.Configuration;
 using FieldService.Superset.Cqrs.Queries.GetSupersetUser;
-using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
 using FieldService.Superset.Utils;
 using MediatR;

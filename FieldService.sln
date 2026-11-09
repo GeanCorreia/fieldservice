@@ -42,7 +42,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.DocumentSuppor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Superset", "FieldService.Superset\FieldService.Superset.csproj", "{596E6113-3AEC-4335-A351-BB5FE534870D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.SecretKey", "FieldService.SecretKey\FieldService.SecretKey.csproj", "{D37C2C99-551A-4D7A-9B26-FB438B137C6F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.Cloud", "FieldService.Cloud\FieldService.Cloud.csproj", "{D37C2C99-551A-4D7A-9B26-FB438B137C6F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldService.UHM", "FieldService.UHM\FieldService.UHM.csproj", "{5ABBF388-E039-4BBD-BC52-2CA9C8C05EDB}"
 EndProject

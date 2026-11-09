@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
-using FieldService.SecretKey.Cqrs.Commands.CreateSecretKey;
-using FieldService.SecretKey.Cqrs.Queries.GetSecretKeyById;
-using FieldService.SecretKey.Dtos;
-using FieldService.SecretKey.Entities;
+using FieldService.Cloud.Cqrs.Commands.CreateSecretKey;
+using FieldService.Cloud.Cqrs.Queries.GetSecretKeyById;
+using FieldService.Cloud.Dtos;
+using FieldService.Cloud.Entities;
 using FieldService.Shared.Services;
 using FieldService.Superset.Configuration;
 using FieldService.Superset.Dtos;

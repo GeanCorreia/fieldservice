@@ -3,6 +3,8 @@ using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
 using FieldService.Shared.Message;
+using FieldService.Shared.Enums;
+using FieldService.Cloud.Interfaces;
 using FieldService.Superset.Broker;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Exceptions;
@@ -31,7 +33,7 @@ internal record CreateSupersetTenantConfigJob : Job<PersistSupersetTenantConfigP
         : base(payload, new JobContext(
                 JobType,
                 payload.TenantId,
-                SupersetContainerDeploymentFlow.SupersetContainerDeploymentFlowContext(payload.DeploymentFlowId)
+                SupersetTenantFlow.SupersetTenantFlowContext(payload.DeploymentFlowId)
             )
         )
     {
@@ -50,14 +52,14 @@ internal sealed class PersistSupersetTenantConfigProducerWithRequest :
 [DisableRetry]
 internal class PersistSupersetTenantConfigJobConsumer : IQueueConsumer<PersistSupersetTenantConfigPayload>
 {
-    private readonly ISupersetContainerRepository _supersetContainerRepository;
+    private readonly IContainerRepository _supersetContainerRepository;
     private readonly ISupersetTenantFlowRepository _supersetTenantFlowRepository;
     private readonly ISupersetTenantService _supersetTenantService;
     private readonly ILogger<PersistSupersetTenantConfigJobConsumer> _logger;
     private readonly SupersetTenantDeploymentBrokerProducer _supersetTenantDeploymentBrokerProducer;
     
     public PersistSupersetTenantConfigJobConsumer(
-        ISupersetContainerRepository supersetContainerRepository,
+        IContainerRepository supersetContainerRepository,
         ISupersetTenantFlowRepository supersetTenantFlowRepository,
         ISupersetTenantService supersetTenantService, 
         ILogger<PersistSupersetTenantConfigJobConsumer> logger,
@@ -90,7 +92,7 @@ internal class PersistSupersetTenantConfigJobConsumer : IQueueConsumer<PersistSu
             throw new InvalidOperationException($"Tenant ID mismatch for creation process. Expected: {supersetDeploymentFlow.TenantId}, Actual: {job.Payload.TenantId}.");
 
         
-        if(supersetDeploymentFlow.Status != SupersetTenantDeployStatus.Completed)
+        if(supersetDeploymentFlow.Status != FlowStatus.Completed)
         {
             throw new InvalidOperationException($"Superset tenant flow '{payload.DeploymentFlowId}' is not completed. Current status: {supersetDeploymentFlow.Status}");
         }
@@ -103,8 +105,7 @@ internal class PersistSupersetTenantConfigJobConsumer : IQueueConsumer<PersistSu
         }
 
         var container =
-            await _supersetContainerRepository.GetSupersetContainerByIdAsync(supersetDeploymentFlow.ContainerId
-                .Value);
+            await _supersetContainerRepository.GetByIdAsync(supersetDeploymentFlow.ContainerId.Value, ct);
 
         if (container == null)
         {

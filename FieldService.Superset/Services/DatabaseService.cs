@@ -9,7 +9,7 @@ namespace FieldService.Superset.Services;
 
 public class DatabaseService : IDatabaseService
 {
-    private const string PostgreSqlAdminDatabase = "postgres";
+    private const string PostgresSqlAdminDatabase = "postgres";
     private const string SqlServerAdminDatabase = "master";
 
     private readonly DbConnectionStringBuilder _baseConnectionString;
@@ -161,7 +161,7 @@ public class DatabaseService : IDatabaseService
         {
             case DatabaseProviderType.PostgreSql:
                 connectionStringBuilder["Database"] = string.IsNullOrWhiteSpace(databaseName)
-                    ? PostgreSqlAdminDatabase
+                    ? PostgresSqlAdminDatabase
                     : databaseName;
                 break;
 

@@ -1,4 +1,5 @@
 using FieldService.Superset.Entities;
+using FieldService.Cloud.Entities;
 using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -90,7 +91,7 @@ internal class SupersetTenantService : ISupersetTenantService
 
     public async Task<SupersetTenantInstance?> GetSupersetTenantInstance(
         Guid tenantId,
-        SupersetContainerInstanceStatus? status,
+        ContainerInstanceStatus? status,
         CancellationToken cancellationToken = default)
     {
         
@@ -118,7 +119,7 @@ internal class SupersetTenantService : ISupersetTenantService
             return instanceFromAzure.Status == status.Value ? instanceFromAzure : null;
         }
         
-        foreach (var currentStatus in Enum.GetValues<SupersetContainerInstanceStatus>())
+        foreach (var currentStatus in Enum.GetValues<ContainerInstanceStatus>())
         {
             var instance = await _cache.GetOrCreateAsync(
                 SupersetCache.GetTenantInstanceCacheKey(tenantId, currentStatus),
@@ -172,7 +173,7 @@ internal class SupersetTenantService : ISupersetTenantService
         if (!instance)
             return null;
         
-        return SupersetTenantInstance.Create(supersetTenant, SupersetContainerInstanceStatus.Running);
+        return SupersetTenantInstance.Create(supersetTenant, ContainerInstanceStatus.Running);
     }
 
   private async Task RemoveTenantConfigCacheAsync(
@@ -192,7 +193,7 @@ internal class SupersetTenantService : ISupersetTenantService
         Guid tenantId,
         CancellationToken cancellationToken)
     {
-        var removeTasks = Enum.GetValues<SupersetContainerInstanceStatus>()
+        var removeTasks = Enum.GetValues<ContainerInstanceStatus>()
             .Select(status => _cache.RemoveAsync(SupersetCache.GetTenantInstanceCacheKey(tenantId, status), cancellationToken).AsTask());
 
         await Task.WhenAll(removeTasks);

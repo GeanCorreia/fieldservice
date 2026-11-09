@@ -1,24 +1,13 @@
 using System.Text.Json.Serialization;
+using FieldService.Cloud.Entities;
 
 namespace FieldService.Superset.Entities;
-
-internal enum SupersetContainerInstanceStatus
-{
-
-    Provisioning = 1,
-    Running = 2,
-    Failed = 3,
-    Stopped = 4,
-    Unknown = 5,
-    Deleting = 6,
-    Canceled = 7
-}
 
 internal class SupersetTenantInstance
 {
     public Guid TenantId { get; init; }
     [JsonInclude]
-    public SupersetContainerInstanceStatus Status { get; private set; }
+    public ContainerInstanceStatus Status { get; private set; }
     [JsonInclude]
     public SupersetTenant Tenant { get; private set; } = default!;
 
@@ -30,7 +19,7 @@ internal class SupersetTenantInstance
     private SupersetTenantInstance(
         Guid tenantId,
         SupersetTenant tenant,
-        SupersetContainerInstanceStatus status)
+        ContainerInstanceStatus status)
     {
         TenantId = tenantId;
         Tenant = tenant;
@@ -39,7 +28,7 @@ internal class SupersetTenantInstance
 
     public static SupersetTenantInstance Create(
         SupersetTenant tenant,
-        SupersetContainerInstanceStatus status)
+        ContainerInstanceStatus status)
     {
         return new SupersetTenantInstance(
             tenantId: tenant.TenantId,

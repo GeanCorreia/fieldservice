@@ -1,4 +1,3 @@
-using FieldService.Http.Cqrs.Queries.GetUserTenant;
 using FieldService.Superset.Configuration;
 using FieldService.Superset.Dtos;
 using FieldService.Superset.Dtos.SupersetApiRequestDto;
@@ -57,11 +56,6 @@ internal class GetGuestTokenHandler : IRequestHandler<GetGuestTokenQuery, GuestT
         {
             throw new InvalidOperationException("Resources cannot be empty");
         }
-        var user = await _mediator.Send(new GetUserTenantQuery(request.UserId, request.TenantId), cancellationToken);
-        if (user == null)
-        {
-            throw new UnauthorizedAccessException("User not found");
-        }
         
         var tenantId = request.IsApplicationResource ? _supersetOptions.ApplicationSupersetTenantId : request.TenantId; 
 
@@ -81,7 +75,7 @@ internal class GetGuestTokenHandler : IRequestHandler<GetGuestTokenQuery, GuestT
             throw new SupersetTenantNotFoundException(tenantId);
         }
    
-        var userName = SupersetUsernameResolver.ResolveUsername(user);
+        var userName = SupersetUsernameResolver.ResolveUsername(request.UserId, request.TenantId);
         
         var resources = request.Resources.Select(r => new SupersetResourceApiPayload(
             r.Type.ToString().ToLowerInvariant(),
@@ -92,7 +86,7 @@ internal class GetGuestTokenHandler : IRequestHandler<GetGuestTokenQuery, GuestT
             Resources: resources,
             Rls: rls
         );
-        var adminToken = await _supersetAuthService.GetAdminToken(user.TenantDto.TenantId, cancellationToken);
+        var adminToken = await _supersetAuthService.GetAdminToken(request.TenantId, cancellationToken);
         
         if (string.IsNullOrEmpty(adminToken))
         {

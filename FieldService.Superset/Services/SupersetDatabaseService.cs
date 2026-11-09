@@ -1,9 +1,9 @@
 using System.Data.Common;
 using System.Security.Cryptography;
-using FieldService.SecretKey.Cqrs.Commands.CreateSecretKey;
-using FieldService.SecretKey.Cqrs.Queries.GetSecretKeyById;
-using FieldService.SecretKey.Dtos;
-using FieldService.SecretKey.Entities;
+using FieldService.Cloud.Cqrs.Commands.CreateSecretKey;
+using FieldService.Cloud.Cqrs.Queries.GetSecretKeyById;
+using FieldService.Cloud.Dtos;
+using FieldService.Cloud.Entities;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Interfaces;
 using MediatR;
@@ -21,18 +21,15 @@ internal sealed record SupersetDatabaseParams(
 internal class SupersetDataBaseService : ISupersetDataBaseService
 {
     private readonly DbConnectionStringBuilder _hostConnectionString;
-    private readonly ISupersetTenantInstanceProcessingLock _processingLock;
     private readonly IDatabaseService _databaseService;
     private readonly IMediator _mediator;
     
     public SupersetDataBaseService(
         IDatabaseService databaseService,
-        ISupersetTenantInstanceProcessingLock processingLock,
         IMediator mediator,
         IConfiguration configuration)
     {
         _databaseService = databaseService ?? throw new ArgumentNullException(nameof(databaseService));
-        _processingLock = processingLock ?? throw new ArgumentNullException(nameof(processingLock));
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _hostConnectionString = new DbConnectionStringBuilder
         {
@@ -139,11 +136,6 @@ internal class SupersetDataBaseService : ISupersetDataBaseService
         Guid? customHostConnectionStringId = null,
         CancellationToken cancellationToken = default)
     {
-        if(! await _processingLock.AcquireLock(tenantId, cancellationToken))
-        {
-            throw new InvalidOperationException($"It's not possible to acquire the processing lock for tenant {tenantId}.");
-        }
-        
         DbConnectionStringBuilder? customHostConnectionString = null;
 
         if (customHostConnectionStringId.HasValue)

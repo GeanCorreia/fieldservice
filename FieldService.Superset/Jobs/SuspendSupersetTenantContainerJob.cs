@@ -1,4 +1,5 @@
 using FieldService.Data.Interfaces;
+using FieldService.Cloud.Entities;
 using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
@@ -83,4 +84,3 @@ internal class SuspendSupersetTenantJobProducer :AbstractPublishProducerWithRequ
     {
     }
 }
-

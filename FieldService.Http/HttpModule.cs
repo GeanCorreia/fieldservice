@@ -57,16 +57,7 @@ public static class HttpModule
             };
         });
         
-        services.AddCors(options =>
-        {
-            options.AddPolicy("SignalRCorsPolicy", policy =>
-            {
-                policy.SetIsOriginAllowed(_ => true) 
-                    .AllowAnyHeader()
-                    .AllowAnyMethod()
-                    .AllowCredentials(); 
-            });
-        });
+        services.AddCors();
     }
 
     public static WebApplication UseHttpPipeline(
@@ -89,7 +80,7 @@ public static class HttpModule
         }
 
         app.UseRouting();
-        app.UseCors("SignalRCorsPolicy");
+        app.UseMiddleware<HttpCoreMiddleware>();
         app.UseMiddleware<RequestIdMiddleware>();
         app.UseAuthentication();
         app.UseMiddleware<HttpAuthenticationMiddleware>();

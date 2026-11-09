@@ -1,96 +1,24 @@
-using System.Collections.Concurrent;
+using FieldService.Cloud.Interfaces;
 using FieldService.Superset.Configuration;
 using FieldService.Superset.Interfaces;
-using Medallion.Threading;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace FieldService.Superset.Services;
 
-internal class SupersetTenantInstanceProcessingLock : ISupersetTenantInstanceProcessingLock
+internal class SupersetTenantInstanceProcessingLock(
+    IContainerProcessingLock processingLock,
+    IOptions<SupersetOptions> supersetOptions) : ISupersetTenantInstanceProcessingLock
 {
-    private readonly IDistributedLockProvider _lockProvider;
-    private readonly ConcurrentDictionary<Guid, IDistributedSynchronizationHandle> _instanceLocks = new();
-    private readonly TimeSpan _lockTtl;
-    private readonly TimeSpan _releaseTimeout;
-    
-    public SupersetTenantInstanceProcessingLock(
-        IDistributedLockProvider lockProvider,
-        IConfiguration configuration)
-    {
-        _lockProvider = lockProvider ?? throw new ArgumentNullException(nameof(lockProvider));
-        configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+    private readonly IContainerProcessingLock _processingLock =
+        processingLock ?? throw new ArgumentNullException(nameof(processingLock));
+    private readonly TimeSpan _timeout = TimeSpan.FromMinutes(Math.Max(1,
+        (supersetOptions ?? throw new ArgumentNullException(nameof(supersetOptions))).Value.LockTtlMinutes));
 
-        var supersetOptions = configuration.GetSection("Superset").Get<SupersetOptions>()
-            ?? new SupersetOptions();
+    public Task<bool> AcquireLock(Guid tenantId, CancellationToken ct = default) =>
+        _processingLock.AcquireAsync(GetLockKey(tenantId), _timeout, ct);
 
-        _lockTtl = TimeSpan.FromMinutes(Math.Max(1, supersetOptions.LockTtlMinutes));
-        _releaseTimeout = _lockTtl;
-    }
-    
-    public async Task<bool> AcquireLock(Guid tenantId, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        return await TryAcquireAsync(tenantId, ct, storeHandle: true);
-    }
-
-    public async Task<bool> ReleaseLock(Guid tenantId, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        return await ReleaseAsync(tenantId, ct);
-    }
-    
-    private async Task<bool> TryAcquireAsync(
-        Guid tenantId,
-        CancellationToken ct,
-        bool storeHandle)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        var handle = await _lockProvider.TryAcquireLockAsync(GetLockKey(tenantId), _lockTtl, ct);
-        if (handle is null)
-        {
-            return false;
-        }
-
-        if (storeHandle)
-        {
-            _instanceLocks[tenantId] = handle;
-        }
-
-        return true;
-    }
-
-    private async Task<bool> ReleaseAsync(Guid tenantId, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        if (!_instanceLocks.TryRemove(tenantId, out var handle))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var timeoutCts = new CancellationTokenSource(_releaseTimeout);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
-            _ = linkedCts.Token;
-
-            if (handle is IAsyncDisposable asyncDisposable)
-            {
-                await asyncDisposable.DisposeAsync();
-            }
-            else
-            {
-                handle.Dispose();
-            }
-
-            return true;
-        }
-        catch (ObjectDisposedException)
-        {
-            return false;
-        }
-    }
+    public Task<bool> ReleaseLock(Guid tenantId, CancellationToken ct = default) =>
+        _processingLock.ReleaseAsync(GetLockKey(tenantId), ct);
 
     private static string GetLockKey(Guid tenantId) => $"SupersetTenantInstance:{tenantId}";
 }

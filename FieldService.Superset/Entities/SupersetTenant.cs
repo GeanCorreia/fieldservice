@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using FieldService.Cloud.Entities;
 using FiledService.Shared.Attributes;
 
 namespace FieldService.Superset.Entities;
@@ -24,11 +25,12 @@ internal class SupersetTenant
     public static string Database(Guid tenantId) => $"{DatabasePrefix}_{tenantId:N}";
     public static string SecretKeyName(Guid tenantId) => $"{SupersetSecretKeyPrefix}_{tenantId.ToString().ToLower()}";
     public static string ConnectionStringName(Guid tenantId) => $"{ConnectionStringPrefix}_{tenantId.ToString().ToLower()}";
+    public static string ContainerResourceName(Guid tenantId) => $"superset_{tenantId:N}";
     
     public Guid Id { get; init; }
     public Guid TenantId { get; init; }
     public Guid ContainerId { get; private set; }
-    public SupersetContainer Container { get; private set; }
+    public Container Container { get; private set; }
     public Guid ConnectionStringId { get; set; }
     public SupersetTenantStatus Status { get; private set; }
     
@@ -44,7 +46,7 @@ internal class SupersetTenant
     private SupersetTenant(
         Guid id, 
         Guid tenantId, 
-        SupersetContainer container, 
+        Container container,
         Guid connectionStringId,
         DateTimeOffset statusUpdatedAt,
         SupersetTenantStatus status)
@@ -61,7 +63,7 @@ internal class SupersetTenant
 
     public static SupersetTenant Create(
         Guid tenantId, 
-        SupersetContainer supersetContainer, 
+        Container supersetContainer,
         Guid connectionStringId)
     {
         return new SupersetTenant(
@@ -76,7 +78,7 @@ internal class SupersetTenant
     
     
     public void UpdateContainer(
-        SupersetContainer supersetContainer)
+        Container supersetContainer)
     {
        Container = supersetContainer;
        ContainerId = supersetContainer.Id;
@@ -117,8 +119,6 @@ internal class SupersetTenant
 
 
         
-
-
 
 
 

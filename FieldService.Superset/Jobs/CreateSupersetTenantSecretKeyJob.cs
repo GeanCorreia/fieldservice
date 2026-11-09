@@ -4,6 +4,7 @@ using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
 using FieldService.Shared.Configuration;
+using FieldService.Shared.Enums;
 using FieldService.Shared.Message;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Interfaces;
@@ -24,7 +25,7 @@ internal record CreateSupersetTenantSecretKeyJob : Job<CreateSupersetTenantSecre
         : base(payload, new JobContext(
                 JobType,
                 payload.TenantId,
-                SupersetContainerDeploymentFlow.SupersetContainerDeploymentFlowContext(payload.CreationId)
+                SupersetTenantFlow.SupersetTenantFlowContext(payload.CreationId)
             )
         )
     {
@@ -62,7 +63,7 @@ internal sealed class CreateSupersetTenantSecretKeyJobConsumer : IQueueConsumer<
         if (flow.TenantId != job.Payload.TenantId)
             throw new InvalidOperationException($"Tenant ID mismatch for creation process. Expected: {flow.TenantId}, Actual: {job.Payload.TenantId}.");
 
-        if (flow.Status == SupersetTenantDeployStatus.Cancelled)
+        if (flow.Status == FlowStatus.Cancelled)
             throw new InvalidOperationException($"Superset tenant creation process for tenant {job.Payload.TenantId} has been cancelled.");
 
         if (flow.SecretKeyId.HasValue)

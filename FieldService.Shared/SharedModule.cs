@@ -15,6 +15,7 @@ public static class SharedModule
         ArgumentNullException.ThrowIfNull(configuration);
         
         services.Configure<AzureIdentityOptions>(configuration.GetSection(AzureIdentityOptions.SectionName));
+        services.Configure<ApplicationAccountOptions>(configuration.GetSection(ApplicationAccountOptions.SectionName));
 
         services.AddSingleton<IDateTimeService, DateTimeService>();
         
@@ -28,6 +29,7 @@ public static class SharedModule
         });
 
         services.AddScoped<EncryptionService>();
+        services.AddScoped<UserApplicationProvider>();
         services.AddValidatorsFromAssemblies(assemblies);
         
         return services;

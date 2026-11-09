@@ -1,5 +1,6 @@
 using FieldService.Superset.Dtos;
 using FieldService.Superset.Entities;
+using FieldService.Cloud.Entities;
 
 namespace FieldService.Superset.Interfaces;
 
@@ -10,7 +11,7 @@ internal interface ISupersetTenantService : ISupersetRepository
         CancellationToken cancellationToken = default);
     Task<SupersetTenantInstance?> GetSupersetTenantInstance(
         Guid tenantId, 
-        SupersetContainerInstanceStatus? status = SupersetContainerInstanceStatus.Running,
+        ContainerInstanceStatus? status = ContainerInstanceStatus.Running,
         CancellationToken cancellationToken = default);
     
     Task EnsureSupersetContainerActiveAsync(

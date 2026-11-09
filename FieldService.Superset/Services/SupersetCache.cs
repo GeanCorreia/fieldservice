@@ -1,4 +1,4 @@
-using FieldService.Superset.Entities;
+using FieldService.Cloud.Entities;
 using Microsoft.Extensions.Caching.Hybrid;
 
 namespace FieldService.Superset.Services;
@@ -23,9 +23,8 @@ internal static class SupersetCache
     public static string GetTenantConfigByResourceIdCacheKey(string resourceId) =>
         $"superset:tenant-config:resource-id:{NormalizeResourceId(resourceId)}";
 
-    public static string GetTenantInstanceCacheKey(Guid tenantId, SupersetContainerInstanceStatus status) =>
+    public static string GetTenantInstanceCacheKey(Guid tenantId, ContainerInstanceStatus status) =>
         $"superset:tenant-instance:tenant-id:{tenantId:N}:status:{status}";
 
     public static string NormalizeResourceId(string resourceId) => resourceId.Trim().ToLowerInvariant();
 }
-

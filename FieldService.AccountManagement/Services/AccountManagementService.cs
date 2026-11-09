@@ -23,6 +23,11 @@ internal sealed class AccountManagementService(
         LocalCacheExpiration = CacheTtl
     };
 
+    private static readonly HybridCacheEntryOptions CacheReadOnlyOptions = new()
+    {
+        Flags = HybridCacheEntryFlags.DisableLocalCacheWrite | HybridCacheEntryFlags.DisableDistributedCacheWrite
+    };
+
     /// <summary>
     /// Invalida entidades, listas e projeções relacionadas do tenant.
     /// </summary>
@@ -54,7 +59,7 @@ internal sealed class AccountManagementService(
 
     public Task<TenantReferenceDto?> GetTenantReferenceByIdAsync(Guid tenantId, CancellationToken cancellationToken)
     {
-        return GetOrCreateAsync(
+        var reference = GetOrCreateAsync(
             TenantReferenceKey(tenantId),
             tenantId,
             async ct =>
@@ -63,6 +68,8 @@ internal sealed class AccountManagementService(
                 return reference is null ? null : new TenantReferenceDto(reference.TenantId, reference.Name);
             },
             cancellationToken);
+
+        return reference;
     }
 
     public async Task<IEnumerable<TenantReferenceDto>> GetTenantReferencesByTenantIdsAsync(
@@ -76,23 +83,44 @@ internal sealed class AccountManagementService(
             .ToArray();
 
         if (ids.Length == 0)
-            return [];
+            return Enumerable.Empty<TenantReferenceDto>();
 
         var cacheKey = TenantReferencesByIdsKey(ids);
         var tags = ids.Select(TenantTag).ToArray();
 
-        return await cache.GetOrCreateAsync(
+        var references = await cache.GetOrCreateAsync<List<TenantReferenceDto>?>(
             cacheKey,
-            async ct =>
-            {
-                var refs = await repository.GetTenantReferencesAsync(ids, ct);
-                return refs
-                    .Select(r => new TenantReferenceDto(r.TenantId, r.Name))
-                    .ToList();
-            },
-            CacheOptions,
-            tags,
+            _ => ValueTask.FromResult<List<TenantReferenceDto>?>(null),
+            CacheReadOnlyOptions,
             cancellationToken: cancellationToken);
+
+        if (HasAllNamedTenantReferences(references, ids))
+            return references!;
+
+        await cache.RemoveAsync(cacheKey, cancellationToken);
+        var tenantReferences = await repository.GetTenantReferencesAsync(ids, cancellationToken);
+        references = tenantReferences
+            .Select(r => new TenantReferenceDto(r.TenantId, r.Name))
+            .ToList();
+
+        if (HasAllNamedTenantReferences(references, ids))
+            await cache.SetAsync(cacheKey, references, CacheOptions, tags, cancellationToken);
+
+        return references;
+    }
+
+    private static bool HasAllNamedTenantReferences(
+        List<TenantReferenceDto>? references,
+        IReadOnlyCollection<Guid> tenantIds)
+    {
+        if (references is null || references.Count != tenantIds.Count)
+            return false;
+
+        var namedIds = references
+            .Where(reference => !string.IsNullOrWhiteSpace(reference.Name))
+            .Select(reference => reference.Id)
+            .ToHashSet();
+        return namedIds.Count == tenantIds.Count && tenantIds.All(namedIds.Contains);
     }
 
     public async Task<IEnumerable<TeamDto>> GetTeamsByTenantIdAsync(Guid tenantId, CancellationToken cancellationToken)

@@ -1,15 +1,13 @@
 using System.IO.Compression;
 using FieldService.Data.Interfaces;
-using FieldService.Http.Cqrs.Queries.GetUserTenant;
 using FieldService.Queue.Interfaces;
 using FieldService.Queue.Producers;
 using FieldService.Queue.Types;
 using FieldService.Shared.Configuration;
 using FieldService.Shared.Message;
+using FieldService.Shared.Services;
 using FieldService.Storage.Interfaces;
 using FieldService.Storage.Types;
-using FieldService.Superset.Dtos;
-using FieldService.Superset.Entities;
 using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
 using FieldService.Superset.Storage;
@@ -45,6 +43,7 @@ internal class ExportSupersetTenantMigrationFileJobHandler : IQueueConsumer<Supe
     private readonly IMediator _mediator;
     private readonly IStoredFileService _storedFileService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly UserApplicationProvider _userApplicationProvider;
 
 
     
@@ -59,12 +58,14 @@ internal class ExportSupersetTenantMigrationFileJobHandler : IQueueConsumer<Supe
         IStorageService storageService,
         IOptions<ApplicationAccountOptions> applicationAccount,
         IStoredFileService storedFileService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        UserApplicationProvider userApplicationProvider)
     {
         _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
         _applicationAccountOptions = applicationAccount.Value ?? throw new ArgumentNullException(nameof(applicationAccount));
         _supersetResourceServices = supersetResourceServices ?? throw new ArgumentNullException(nameof(supersetResourceServices));
         _storedFileService = storedFileService ?? throw new ArgumentNullException(nameof(storedFileService));
+        _userApplicationProvider = userApplicationProvider ?? throw new ArgumentNullException(nameof(userApplicationProvider));
         _supersetAuthService = supersetAuthService ?? throw new ArgumentNullException(nameof(supersetAuthService));
         _storageService = storageService ?? throw new ArgumentNullException(nameof(storageService));
         _supersetApi = supersetApi ?? throw new ArgumentNullException(nameof(supersetApi));
@@ -165,13 +166,9 @@ internal class ExportSupersetTenantMigrationFileJobHandler : IQueueConsumer<Supe
             }
         }
         masterZipStream.Position = 0;
-        var user = await _mediator.Send(new GetUserTenantQuery(
-            _applicationAccountOptions.ServiceUserId,
-            _applicationAccountOptions.TenantId), ct);
-        if (user == null)
-        {
-            throw new UnauthorizedAccessException("Service user not found or unauthorized.");
-        }
+        
+        var user = _userApplicationProvider.GetApplicationUser();
+        
         var category = await _storedFileService.GetCategoryByIdAsync(
             SupersetYamlMigrationFile.CategoryId,
             user,

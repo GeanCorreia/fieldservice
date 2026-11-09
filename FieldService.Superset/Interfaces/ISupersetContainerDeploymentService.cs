@@ -1,4 +1,4 @@
-using FieldService.Superset.Entities;
+using FieldService.Cloud.Entities;
 
 namespace FieldService.Superset.Interfaces;
 
@@ -10,7 +10,7 @@ internal interface ISupersetContainerDeploymentService
 {
     Task<SupersetContainerDeploymentResult> CreateInstanceAsync(
         Guid tenantId,
-        SupersetContainerConfiguration configuration,
+        ContainerConfiguration configuration,
         Guid connectionStringId,
         Guid secretKeyId,
         CancellationToken cancellationToken = default);

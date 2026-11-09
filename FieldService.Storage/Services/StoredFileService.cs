@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using FieldService.Shared.Dtos;
+using FieldService.Shared.Services;
 using FieldService.Shared.Types;
 using FieldService.Storage.Entities;
 using FieldService.Storage.Interfaces;
@@ -10,6 +11,7 @@ namespace FieldService.Storage.Services;
 
 internal sealed class StoredFileService : IStoredFileService
 {
+    private readonly UserApplicationProvider _userApplicationProvider;
     private readonly ILogger<StoredFileService> _logger;
     private readonly IStoredFileRepository _storedFileRepository;
     private readonly IStorageFallbackService _storageFallbackService;
@@ -24,11 +26,13 @@ internal sealed class StoredFileService : IStoredFileService
     private static string CategoryKey(Guid id) => $"Storage:category:{id:N}";
 
     public StoredFileService(
+        UserApplicationProvider userApplicationProvider,
         ILogger<StoredFileService> logger,
         IStoredFileRepository storedFileRepository,
         IStorageFallbackService storageFallbackService,
         HybridCache hybridCache)
     {
+        _userApplicationProvider = userApplicationProvider ?? throw new ArgumentNullException(nameof(userApplicationProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _storedFileRepository = storedFileRepository ?? throw new ArgumentNullException(nameof(storedFileRepository));
         _storageFallbackService = storageFallbackService ?? throw new ArgumentNullException(nameof(storageFallbackService));
@@ -47,8 +51,8 @@ internal sealed class StoredFileService : IStoredFileService
         var file = await GetByIdInternalAsync(id, ct);
         if (file is null)
             return null;
-
-        file.FileCategory.ValidateAccess(userTenantDto);
+        ValidateAccess(file.FileCategory, userTenantDto);
+        
         return file;
     }
 
@@ -143,7 +147,7 @@ internal sealed class StoredFileService : IStoredFileService
         ArgumentNullException.ThrowIfNull(category);
         ArgumentNullException.ThrowIfNull(userTenantDto);
 
-        category.ValidateAccess(userTenantDto);
+        ValidateAccess(category, userTenantDto);
 
         var repositoryFiles = (await _storedFileRepository.GetByCategoryAsync(category, ct)).ToList();
 
@@ -154,6 +158,8 @@ internal sealed class StoredFileService : IStoredFileService
 
             await Task.WhenAll(cacheTasks);
         }
+        
+        
 
         return repositoryFiles;
     }
@@ -164,7 +170,7 @@ internal sealed class StoredFileService : IStoredFileService
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(storedFile);
-        storedFile.FileCategory.ValidateAccess(userTenantDto);
+        ValidateAccess(storedFile.FileCategory, userTenantDto);
 
         try
         {
@@ -233,8 +239,8 @@ internal sealed class StoredFileService : IStoredFileService
 
         if (category is null)
             return null;
-
-        category.ValidateAccess(userTenantDto);
+        
+        ValidateAccess(category, userTenantDto);
         return category;
     }
 
@@ -518,14 +524,22 @@ internal sealed class StoredFileService : IStoredFileService
             cancellationToken: ct);
     }
 
-    private static IEnumerable<StoredFile> GetUnauthorizedFiles(IEnumerable<(StoredFile file, UserTenantDto user)> files)
+    private void ValidateAccess(StoredFileCategory category, UserTenantDto user)
+    {
+        if (!_userApplicationProvider.IsApplicationUser(user))
+        {
+            category.ValidateAccess(user);
+        }
+    }
+
+    private IEnumerable<StoredFile> GetUnauthorizedFiles(IEnumerable<(StoredFile file, UserTenantDto user)> files)
     {
         var unauthorizedFiles = new List<StoredFile>();
         foreach (var (file, user) in files)
         {
             try
             {
-                file.FileCategory.ValidateAccess(user);
+                ValidateAccess(file.FileCategory, user);
             }
             catch (UnauthorizedAccessException)
             {
@@ -535,14 +549,14 @@ internal sealed class StoredFileService : IStoredFileService
         return unauthorizedFiles;
     }
 
-    private static IEnumerable<StoredFileCategory> GetUnauthorizedCategories(IEnumerable<(StoredFileCategory category, UserTenantDto user)> categories)
+    private IEnumerable<StoredFileCategory> GetUnauthorizedCategories(IEnumerable<(StoredFileCategory category, UserTenantDto user)> categories)
     {
         var unauthorizedCategories = new List<StoredFileCategory>();
         foreach (var (category, user) in categories)
         {
             try
             {
-                category.ValidateAccess(user);
+                ValidateAccess(category, user);
             }
             catch (UnauthorizedAccessException)
             {

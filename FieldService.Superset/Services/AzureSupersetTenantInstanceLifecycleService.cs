@@ -1,9 +1,7 @@
 using System.Diagnostics;
+using FieldService.Cloud.Entities;
+using FieldService.Cloud.Interfaces;
 using Azure;
-using Azure.Core;
-using Azure.Identity;
-using Azure.ResourceManager;
-using Azure.ResourceManager.AppContainers;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Exceptions;
 using FieldService.Superset.Interfaces;
@@ -21,25 +19,26 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
     private readonly ISupersetApi _supersetApi;
     private readonly ISupersetRepository _supersetRepository;
     private readonly HybridCache _cache;
-    private readonly ArmClient _armClient;
+    private readonly IAzureContainerService _containers;
 
     public AzureSupersetTenantInstanceLifecycleService(
         ILogger<AzureSupersetTenantInstanceLifecycleService> logger,
         ISupersetTenantInstanceProcessingLock supersetInstanceLock,
         ISupersetApi supersetApi,
         ISupersetRepository supersetRepository,
-        HybridCache cache)
+        HybridCache cache,
+        IAzureContainerService containers)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _supersetInstanceLock = supersetInstanceLock ?? throw new ArgumentNullException(nameof(supersetInstanceLock));
         _supersetApi = supersetApi ?? throw new ArgumentNullException(nameof(supersetApi));
         _supersetRepository = supersetRepository ?? throw new ArgumentNullException(nameof(supersetRepository));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
-        _armClient = new ArmClient(new DefaultAzureCredential());
+        _containers = containers ?? throw new ArgumentNullException(nameof(containers));
     }
 
     public async Task ScaleUpContainerAsync(
-        Guid tenantId, 
+        Guid tenantId,
         CancellationToken cancellationToken = default)
     {
         var resource = await GetTenantConfigByTenantIdAsync(tenantId, cancellationToken);
@@ -51,12 +50,12 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
         }
 
         var azureResourceId = resource.Container.ResourceId;
-        
+
         if (await IsContainerActiveAsync(azureResourceId, cancellationToken))
         {
             return;
         }
-        
+
         var lockAcquired = await _supersetInstanceLock.AcquireLock(tenantId, cancellationToken);
         if (!lockAcquired)
         {
@@ -65,17 +64,8 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
 
         try
         {
-            var resourceId = new ResourceIdentifier(azureResourceId);
-            var containerAppResource = _armClient.GetContainerAppResource(resourceId);
-            
-            var response = await containerAppResource.GetAsync(cancellationToken);
-            var containerApp = response.Value;
-
-            var scaleTarget = ResolveScaleTarget(resource.Container.ExecutionType, isScaleUp: true);
-            containerApp.Data.Template.Scale.MinReplicas = scaleTarget.MinReplicas;
-            containerApp.Data.Template.Scale.MaxReplicas = scaleTarget.MaxReplicas;
-
-            await containerAppResource.UpdateAsync(WaitUntil.Completed, containerApp.Data, cancellationToken);
+            await _containers.ApplyExecutionScaleAsync(
+                azureResourceId, resource.Container.ExecutionType, isScaleUp: true, cancellationToken);
             await EnsureContainerHealthyAsync(resource.Container.FqdnUrl, cancellationToken);
         }
         catch (Exception ex)
@@ -85,12 +75,12 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
         }
         finally
         {
-            await _supersetInstanceLock.ReleaseLock(tenantId, cancellationToken);
+            await _supersetInstanceLock.ReleaseLock(tenantId, CancellationToken.None);
         }
     }
 
     public async Task ScaleDownToZeroAsync(
-        Guid tenantId, 
+        Guid tenantId,
         CancellationToken cancellationToken = default)
     {
         var resource = await GetTenantConfigByTenantIdAsync(tenantId, cancellationToken);
@@ -102,12 +92,12 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
         }
 
         var azureResourceId = resource.Container.ResourceId;
-        
+
         if (!await IsContainerActiveAsync(azureResourceId, cancellationToken))
         {
             return;
         }
-        
+
         var lockAcquired = await _supersetInstanceLock.AcquireLock(tenantId, cancellationToken);
         if (!lockAcquired)
         {
@@ -116,17 +106,12 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
 
         try
         {
-            var resourceId = new ResourceIdentifier(azureResourceId);
-            var containerAppResource = _armClient.GetContainerAppResource(resourceId);
-            
-            var response = await containerAppResource.GetAsync(cancellationToken);
-            var containerApp = response.Value;
-
-            var scaleTarget = ResolveScaleTarget(resource.Container.ExecutionType, isScaleUp: false);
-            containerApp.Data.Template.Scale.MinReplicas = scaleTarget.MinReplicas;
-            containerApp.Data.Template.Scale.MaxReplicas = scaleTarget.MaxReplicas;
-
-            await containerAppResource.UpdateAsync(WaitUntil.Completed, containerApp.Data, cancellationToken);
+            await _containers.ApplyExecutionScaleAsync(
+                azureResourceId, resource.Container.ExecutionType, isScaleUp: false, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -134,22 +119,19 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
         }
         finally
         {
-            await _supersetInstanceLock.ReleaseLock(tenantId, cancellationToken);
+            await _supersetInstanceLock.ReleaseLock(tenantId, CancellationToken.None);
         }
     }
 
     public async Task<bool> IsContainerActiveAsync(
-        string azureResourceId, 
+        string azureResourceId,
         CancellationToken cancellationToken = default)
     {
-        var containerApp = await GetContainerAppAsync(azureResourceId, cancellationToken);
-        var status = MapSupersetInstanceStatus(containerApp.Data);
-
-        return status == SupersetContainerInstanceStatus.Running;
+        return await _containers.GetStatusAsync(azureResourceId, cancellationToken) == ContainerInstanceStatus.Running;
     }
 
     public async Task<SupersetHealthCheck> HealthCheckAsync(
-        Guid tenantId, 
+        Guid tenantId,
         CancellationToken cancellationToken = default)
     {
         var instance = await GetSupersetTenantInstance(tenantId, cancellationToken);
@@ -173,16 +155,16 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
             isHealthy = true;
             httpStatusCode = 200;
         }
-        catch (ApiException apiEx) 
+        catch (ApiException apiEx)
         {
             isHealthy = false;
             httpStatusCode = (int)apiEx.StatusCode;
             errorMessage = apiEx.Content ?? apiEx.Message;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             isHealthy = false;
-            httpStatusCode = 503; 
+            httpStatusCode = 503;
             errorMessage = ex.Message;
         }
         finally
@@ -210,18 +192,18 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
             try
             {
                 await _supersetApi.GetHealthAsync(new Uri(fqdnUrl), cancellationToken);
-                return; 
+                return;
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 if (attempt == maxAttempts) throw;
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
             }
         }
     }
-    
+
     public async Task<SupersetTenantInstance?> GetSupersetTenantInstance(
-        Guid tenantId, 
+        Guid tenantId,
         CancellationToken cancellationToken = default)
     {
         if (tenantId == default)
@@ -237,8 +219,7 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
 
         try
         {
-            var containerApp = await GetContainerAppAsync(tenantConfig.Container.ResourceId, cancellationToken);
-            var status = MapSupersetInstanceStatus(containerApp.Data);
+            var status = await _containers.GetStatusAsync(tenantConfig.Container.ResourceId, cancellationToken);
 
             return SupersetTenantInstance.Create(tenantConfig, status);
         }
@@ -265,81 +246,4 @@ internal class AzureSupersetTenantInstanceLifecycleService : ISupersetTenantInst
             cancellationToken: cancellationToken);
     }
 
-    private async Task<ContainerAppResource> GetContainerAppAsync(
-        string azureResourceId,
-        CancellationToken cancellationToken)
-    {
-        var resourceId = new ResourceIdentifier(azureResourceId);
-        var containerAppResource = _armClient.GetContainerAppResource(resourceId);
-
-        var response = await containerAppResource.GetAsync(cancellationToken);
-        return response.Value;
-    }
-
-    private static SupersetContainerInstanceStatus MapSupersetInstanceStatus(ContainerAppData containerAppData)
-    {
-        ArgumentNullException.ThrowIfNull(containerAppData);
-
-        var minReplicas = containerAppData.Template?.Scale?.MinReplicas ?? 0;
-        var provisioningState = NormalizeProvisioningState(containerAppData.ProvisioningState.ToString() ?? string.Empty);
-
-        return provisioningState switch
-        {
-            "failed" => SupersetContainerInstanceStatus.Failed,
-            "succeeded" => minReplicas > 0
-                ? SupersetContainerInstanceStatus.Running
-                : SupersetContainerInstanceStatus.Stopped,
-            "provisioning" => SupersetContainerInstanceStatus.Provisioning,
-            "inprogress" => SupersetContainerInstanceStatus.Provisioning,
-            "pending" => SupersetContainerInstanceStatus.Provisioning,
-            "accepted" => SupersetContainerInstanceStatus.Provisioning,
-            "creating" => SupersetContainerInstanceStatus.Provisioning,
-            "updating" => SupersetContainerInstanceStatus.Provisioning,
-            "waiting" => SupersetContainerInstanceStatus.Provisioning,
-            "deleting" => SupersetContainerInstanceStatus.Deleting,
-            "canceled" => SupersetContainerInstanceStatus.Canceled,
-            _ => minReplicas > 0
-                ? SupersetContainerInstanceStatus.Provisioning
-                : SupersetContainerInstanceStatus.Unknown
-        };
-    }
-
-    private static string NormalizeProvisioningState(string provisioningState)
-    {
-        if (string.IsNullOrWhiteSpace(provisioningState))
-        {
-            return string.Empty;
-        }
-
-        return provisioningState
-            .Trim()
-            .Replace("-", string.Empty, StringComparison.Ordinal)
-            .Replace("_", string.Empty, StringComparison.Ordinal)
-            .Replace(" ", string.Empty, StringComparison.Ordinal)
-            .ToLowerInvariant();
-    }
-
-    private static (int MinReplicas, int MaxReplicas) ResolveScaleTarget(
-        ExecutionType executionType,
-        bool isScaleUp)
-    {
-        if (isScaleUp)
-        {
-            return executionType switch
-            {
-                ExecutionType.OnDemand => (0, 1),
-                ExecutionType.Scheduled => (0, 1),
-                _ => (1, 1)
-            };
-        }
-
-        return executionType switch
-        {
-           
-            ExecutionType.OnDemand => (0, 1),
-            ExecutionType.Scheduled => (0, 1),
-            ExecutionType.AlwaysOn => (1, 1),
-            _ => (0, 1)
-        };
-    }
 }

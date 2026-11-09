@@ -1,9 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using FieldService.AccountManagement.Dtos;
 using FieldService.AccountManagement.Events;
 using FieldService.AccountManagement.Interfaces;
-using FieldService.Shared.Types;
 
 namespace FieldService.AccountManagement.Entities;
 

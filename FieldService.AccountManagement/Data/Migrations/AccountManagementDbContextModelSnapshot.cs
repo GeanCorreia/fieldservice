@@ -51,6 +51,18 @@ namespace FieldService.AccountManagement.Migrations
                     b.UseTphMappingStrategy();
                 });
 
+            modelBuilder.Entity("FieldService.AccountManagement.Events.JobTitleDeactivatedEvent", b =>
+                {
+                    b.HasBaseType("FieldService.AccountManagement.Events.TenantEventBase");
+
+                    b.Property<Guid>("JobTitleId")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("uuid")
+                        .HasColumnName("JobTitleId");
+
+                    b.HasDiscriminator().HasValue(21);
+                });
+
             modelBuilder.Entity("FieldService.AccountManagement.Events.JobTitleDescriptionUpdatedEvent", b =>
                 {
                     b.HasBaseType("FieldService.AccountManagement.Events.TenantEventBase");
@@ -236,6 +248,22 @@ namespace FieldService.AccountManagement.Migrations
                     b.HasDiscriminator().HasValue(15);
                 });
 
+            modelBuilder.Entity("FieldService.AccountManagement.Events.TeamDeactivatedEvent", b =>
+                {
+                    b.HasBaseType("FieldService.AccountManagement.Events.TenantEventBase");
+
+                    b.Property<Guid>("TeamId")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("uuid")
+                        .HasColumnName("TeamId");
+
+                    b.HasIndex("TenantId", "TeamId", "CreatedAt")
+                        .HasDatabaseName("IX_TenantEvents_Tenant_Team_Deactivated_CreatedAt")
+                        .HasFilter("\"EventType\" = 17");
+
+                    b.HasDiscriminator().HasValue(17);
+                });
+
             modelBuilder.Entity("FieldService.AccountManagement.Events.TeamDescriptionUpdatedEvent", b =>
                 {
                     b.HasBaseType("FieldService.AccountManagement.Events.TenantEventBase");
@@ -361,6 +389,30 @@ namespace FieldService.AccountManagement.Migrations
                     b.HasDiscriminator().HasValue(2);
                 });
 
+            modelBuilder.Entity("FieldService.AccountManagement.Events.UserAccountDeactivatedEvent", b =>
+                {
+                    b.HasBaseType("FieldService.AccountManagement.Events.TenantEventBase");
+
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserId");
+
+                    b.HasDiscriminator().HasValue(19);
+                });
+
+            modelBuilder.Entity("FieldService.AccountManagement.Events.UserAccountReactivatedEvent", b =>
+                {
+                    b.HasBaseType("FieldService.AccountManagement.Events.TenantEventBase");
+
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserId");
+
+                    b.HasDiscriminator().HasValue(20);
+                });
+
             modelBuilder.Entity("FieldService.AccountManagement.Events.UserAccountRegisteredEvent", b =>
                 {
                     b.HasBaseType("FieldService.AccountManagement.Events.TenantEventBase");
@@ -389,6 +441,44 @@ namespace FieldService.AccountManagement.Migrations
                         .HasDatabaseName("IX_TenantEvents_Tenant_User_Type");
 
                     b.HasDiscriminator().HasValue(13);
+                });
+
+            modelBuilder.Entity("FieldService.AccountManagement.Events.UserJobTitleChangedEvent", b =>
+                {
+                    b.HasBaseType("FieldService.AccountManagement.Events.TenantEventBase");
+
+                    b.Property<Guid>("JobTitleId")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("uuid")
+                        .HasColumnName("JobTitleId");
+
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserId");
+
+                    b.HasDiscriminator().HasValue(18);
+                });
+
+            modelBuilder.Entity("FieldService.AccountManagement.Events.UserTeamTransferredEvent", b =>
+                {
+                    b.HasBaseType("FieldService.AccountManagement.Events.TenantEventBase");
+
+                    b.Property<Guid>("TeamId")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("uuid")
+                        .HasColumnName("TeamId");
+
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("uuid")
+                        .HasColumnName("UserId");
+
+                    b.HasIndex("TenantId", "UserId", "CreatedAt")
+                        .HasDatabaseName("IX_TenantEvents_Tenant_User_TeamTransfer_CreatedAt")
+                        .HasFilter("\"EventType\" = 16");
+
+                    b.HasDiscriminator().HasValue(16);
                 });
 #pragma warning restore 612, 618
         }

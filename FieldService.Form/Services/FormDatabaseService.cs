@@ -3,11 +3,11 @@ using System.Security.Cryptography;
 using System.Text;
 using FieldService.Form.Interfaces;
 using FieldService.Form.Entities;
-using FieldService.SecretKey.Cqrs.Commands.CreateSecretKey;
-using FieldService.SecretKey.Cqrs.Queries.GetSecretKey;
-using FieldService.SecretKey.Cqrs.Queries.GetSecretKeyById;
-using FieldService.SecretKey.Dtos;
-using FieldService.SecretKey.Entities;
+using FieldService.Cloud.Cqrs.Commands.CreateSecretKey;
+using FieldService.Cloud.Cqrs.Queries.GetSecretKey;
+using FieldService.Cloud.Cqrs.Queries.GetSecretKeyById;
+using FieldService.Cloud.Dtos;
+using FieldService.Cloud.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -24,7 +24,7 @@ internal sealed record FormDatabaseParams(
 
 internal sealed class FormDatabaseService : IFormDatabaseService
 {
-    private const string PostgreSqlAdminDatabase = "postgres";
+    private const string PostgresSqlAdminDatabase = "postgres";
 
     private readonly DbConnectionStringBuilder _hostConnectionString;
     private readonly IFormDataDbContextFactory _formDataDbContextFactory;
@@ -402,7 +402,7 @@ internal sealed class FormDatabaseService : IFormDatabaseService
     private DbConnectionStringBuilder CreateAdministrativeConnectionStringBuilder(DbConnectionStringBuilder? connectionStringBuilder = null)
     {
         var builder = CloneConnectionStringBuilder(connectionStringBuilder);
-        builder["Database"] = PostgreSqlAdminDatabase;
+        builder["Database"] = PostgresSqlAdminDatabase;
         return builder;
     }
 

@@ -1,5 +1,3 @@
-using FieldService.Http.Cqrs.Queries.GetUserTenant;
-using FieldService.Queue.Types;
 using FieldService.Shared.Types;
 using FieldService.Superset.Attributes;
 using FieldService.Superset.Cqrs.Commands.UpdateUser;
@@ -45,17 +43,7 @@ internal class CreateDeveloperUserHandler : IRequestHandler<CreateDeveloperUserC
         CreateDeveloperUserCommand request, 
         CancellationToken cancellationToken)
     {
-        var user = await _mediator.Send(new GetUserTenantQuery(
-            request.UserId, 
-            request.TenantId), cancellationToken);
-        if (user == null)
-        {
-            throw new UnauthorizedAccessException();
-        }
-        if (user.TenantDto.TenantId != request.TenantId)
-        {
-            throw new UnauthorizedAccessException();
-        }
+        
         var tenantConfig = await _supersetTenantService.GetSupersetTenantByIdAsync(request.TenantId, cancellationToken);
         if (tenantConfig == null)
         {

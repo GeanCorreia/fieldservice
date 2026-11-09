@@ -357,7 +357,7 @@ var connectionStringId = await formService.CreateFormDataInfraAsync(
 - Role específico por tenant (sem permissões cruzadas)
 
 ### Secret Management
-- Connection strings persistidas via `FieldService.SecretKey` module
+- Connection strings persistidas via `FieldService.Cloud` module
 - Vault backend (Azure Key Vault, AWS Secrets, etc.)
 - Nunca armazenado em logs
 
@@ -421,7 +421,7 @@ var submissions = await tenantDbContext.FormSubmissions.ToListAsync();
 
 ## 🔗 Related Modules
 
-- **FieldService.SecretKey** - Gerenciamento de secrets (connection strings, credentials)
+- **FieldService.Cloud** - Recursos de cloud, incluindo secrets (connection strings, credentials) e abstrações de containers
 - **FieldService.Data** - Contextos SQL/Mongo centrais
 - **FieldService.Broker** - Publicação de eventos (FormProvisioned, etc.)
 
@@ -622,4 +622,3 @@ Erros comuns:
 
 **Última atualização:** Outubro 8, 2026
 **Versão:** 1.0 - OutboxPattern Adaptation
-

@@ -1,0 +1,35 @@
+using FieldService.Cloud.Entities;
+using FieldService.Shared.Dtos;
+using FieldService.Shared.Types;
+
+namespace FieldService.Cloud.Dtos;
+
+public record SecretKeyRequestDto(
+    SecretKeyDto SecretKeyDto) : AbstractDto
+{
+    public override SchemaVersion Version => new(1, 1, 0);
+    public override string ResourceName => "SecretKeyRequestDto";
+    public override string? ResourceId => null;
+    public override bool IsActive => false;
+}
+
+public record SecretKeyDeleteRequestDto(
+    Guid TenantId,
+    Guid SecretName) : AbstractDto
+{
+    public override SchemaVersion Version => new(1, 1, 0);
+    public override string ResourceName => "SecretKeyDeleteRequestDto";
+    public override string? ResourceId => SecretName.ToString();
+    public override bool IsActive => false;
+}
+
+public record SecretKeyUpdateRequestDto(
+    SecretKeyType? Type,
+    string? NewName
+    ) : AbstractDto
+{
+    public override SchemaVersion Version => new(1, 1, 0);
+    public override string ResourceName => "SecretKeyUpdateRequestDto";
+    public override string? ResourceId => null;
+    public override bool IsActive => false;
+}

@@ -20,11 +20,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\FieldService.AccountManagement\FieldService.AccountManagement.csproj" />
     <ProjectReference Include="..\FieldService.Authentication\FieldService.Authentication.csproj" />
     <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />
     <ProjectReference Include="..\FieldService.Cache\FieldService.Cache.csproj" />
     <ProjectReference Include="..\FieldService.Data\FieldService.Data.csproj" />
+    <ProjectReference Include="..\FieldService.Http\FieldService.Http.csproj" />
     <ProjectReference Include="..\FieldService.Observability\FieldService.Observability.csproj" />
+    <ProjectReference Include="..\FieldService.Superset\FieldService.Superset.csproj" />
   </ItemGroup>
 
   <ItemGroup>

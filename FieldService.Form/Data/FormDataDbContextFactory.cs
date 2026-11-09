@@ -1,7 +1,7 @@
 using FieldService.Form.Entities;
 using FieldService.Form.Interfaces;
-using FieldService.SecretKey.Cqrs.Queries.GetSecretKey;
-using FieldService.SecretKey.Entities;
+using FieldService.Cloud.Cqrs.Queries.GetSecretKey;
+using FieldService.Cloud.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 

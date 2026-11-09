@@ -17,7 +17,7 @@ internal record CreateSupersetTenantFlowJob : Job<CreateSupersetTenantFlowJobPay
         : base(payload, new JobContext(
                 JobType,
                 payload.TenantId,
-                SupersetContainerDeploymentFlow.SupersetContainerDeploymentFlowContext(payload.FlowId)
+                SupersetTenantFlow.SupersetTenantFlowContext(payload.FlowId)
             )
         )
     {

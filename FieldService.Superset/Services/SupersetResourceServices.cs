@@ -1,4 +1,3 @@
-using FieldService.Http.Cqrs.Queries.GetUserTenant;
 using FieldService.Superset.Configuration;
 using FieldService.Superset.Cqrs.Queries.GetTenantSupersetUsers;
 using FieldService.Superset.Dtos;
@@ -215,15 +214,6 @@ internal class SupersetResourceServices : ISupersetResourceServices
         CancellationToken cancellationToken)
     {
         
-        var user = await _mediator.Send(
-            new GetUserTenantQuery(userId, tenantId), 
-            cancellationToken);
-
-        if (user == null)
-        {
-            throw new UnauthorizedAccessException("User not found");
-        }
-
         var supersetTenant = await _supersetTenantService
             .GetSupersetTenantByIdAsync(tenantId, cancellationToken);
 
@@ -241,7 +231,7 @@ internal class SupersetResourceServices : ISupersetResourceServices
         var queriesApiResponse = await FetchSafelyAsync(() => _supersetApi.GetSavedQueriesAsync(
             fqdnUrl, 
             bearerToken, 
-            SupersetQueryApiResolver.OwnerFilter(user.Id, tenantId),
+            SupersetQueryApiResolver.OwnerFilter(userId, tenantId),
             cancellationToken));
 
         return queriesApiResponse?.Result.Select(q => q.Map()) ?? Enumerable.Empty<SupersetSavedQueryDto>();

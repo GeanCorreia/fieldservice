@@ -1,4 +1,5 @@
 using FieldService.Data.Interfaces;
+using FieldService.Cloud.Entities;
 using FieldService.Superset.Data;
 using FieldService.Superset.Entities;
 using FieldService.Superset.Interfaces;
@@ -42,21 +43,12 @@ internal sealed class SupersetRepository(
     {
         ArgumentNullException.ThrowIfNull(tenant);
 
-        if (tenant.Container is not null)
-        {
-            var trackedContainer = await dbContext.SupersetContainers
-                .FirstOrDefaultAsync(x => x.Id == tenant.Container.Id, cancellationToken);
-
-            if (trackedContainer is null)
-            {
-                dbContext.Attach(tenant.Container);
-            }
-            else
-            {
-                dbContext.Entry(trackedContainer).CurrentValues.SetValues(tenant.Container);
-                tenant.UpdateContainer(trackedContainer);
-            }
-        }
+        var trackedContainer = dbContext.Set<Container>().Local
+            .SingleOrDefault(x => x.Id == tenant.ContainerId);
+        if (trackedContainer is not null)
+            tenant.UpdateContainer(trackedContainer);
+        else
+            dbContext.Entry(tenant.Container).State = EntityState.Unchanged;
 
         var existing = await dbContext.SupersetTenants
             .FirstOrDefaultAsync(x => x.Id == tenant.Id || x.TenantId == tenant.TenantId, cancellationToken);

@@ -7,8 +7,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Azure.Identity" Version="1.21.0" />
-        <PackageReference Include="Azure.ResourceManager.AppContainers" Version="1.6.0" />
         <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.3" />
         <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.3" />
         <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="9.0.0" />
@@ -20,8 +18,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\FieldService.Broker\FieldService.Broker.csproj" />
-      <ProjectReference Include="..\FieldService.Http\FieldService.Http.csproj" />
-      <ProjectReference Include="..\FieldService.SecretKey\FieldService.SecretKey.csproj" />
+      <ProjectReference Include="..\FieldService.Cloud\FieldService.Cloud.csproj" />
       <ProjectReference Include="..\FieldService.Shared\FieldService.Shared.csproj" />
       <ProjectReference Include="..\FieldService.Storage\FieldService.Storage.csproj" />
     </ItemGroup>

@@ -1,5 +1,64 @@
 Guia de Reconfiguração do Container Superset e MCP
 
+`FieldService.Cloud.Entities.Container` é a entidade concreta compartilhada,
+com dados do provedor, status, configuração e janela de execução. O construtor
+recebe `resourceName`, persistido em `Name`; não há herança nem `GetResourceName`.
+Superset define seu prefixo em `SupersetTenant.ContainerResourceName(Guid)`.
+Outras aplicações usam a mesma entidade e fornecem seus próprios nomes.
+
+Cloud é dono da tabela `Container` e de suas gravações via `IContainerRepository`.
+O contexto Superset mapeia essa tabela com `ExcludeFromMigrations()` para manter
+`SupersetTenant.Container`, filtros e `Include`, mas recusa alterações de containers
+em `SaveChanges`. Os dois contextos precisam apontar para o mesmo banco/schema.
+A busca de provisionamento usa tenant e nome, permitindo diferentes aplicações
+no mesmo tenant, inclusive antes de existir o registro de `SupersetTenant`.
+
+Na atualização do banco, aplique primeiro as migrations de `CloudDbContext`
+(incluindo `AddCloudContainer`) e depois as de `SupersetDbContext`
+(incluindo `UseCloudContainer`), com os workers parados durante a transição.
+A segunda migration copia os containers legados, preserva IDs e configuração,
+preenche os nomes e troca a FK antes de remover a tabela antiga.
+Para rollback, reverta Superset antes de Cloud. Migrations históricas continuam
+referenciando a tabela antiga para preservar instalações existentes e bancos novos.
+
+O provisionamento grava o container em Cloud antes do checkpoint em Superset.
+Não há transação compartilhada entre os contextos: se o checkpoint falhar, o retry
+reencontra o container por tenant/nome e reutiliza seu ID.
+
+O core de infraestrutura é registrado por `AddCloudModule`: `IAzureContainerService`
+compartilha o `ArmClient`, resolve subscription/resource group/environment por
+`AzureIdentityOptions` e executa consulta, criação, atualização, resolução de FQDN
+e leitura de status dos Container Apps. `IAzureContainerConfigurationService`
+centraliza as regras HTTP/cron e a aplicação idempotente da escala.
+O deployment e o job de atualização de Superset injetam esse serviço de Cloud
+diretamente, passando `SupersetOptions.Provisioning.KedaCronTimezone`.
+`IContainerProcessingLock` mantém os handles distribuídos em um singleton,
+com chaves separadas por aplicação. O timeout de aquisição é um tempo de espera,
+não uma expiração do lock; os handles devem ser liberados em `finally`, mesmo
+quando a operação é cancelada.
+
+Os serviços Superset existentes delegam a infraestrutura a esses contratos.
+Continuam no Superset o prefixo dos recursos/locks, as opções de provisionamento,
+a imagem, o bootstrap, as variáveis de ambiente, a obtenção de secrets e conexão
+do banco do tenant, o cache/repositório e os checks de saúde/autenticação.
+Cloud não depende de Superset. As regras e limites de escala existentes foram
+preservados nesta extração.
+
+No provisionamento do banco, `CreateSupersetDataInfraJobConsumer` é o dono do
+lock do tenant até a persistência do checkpoint. `SupersetDataBaseService` não
+readquire esse mesmo lock dentro da operação.
+
+As origens do frontend são configuradas em `ApplicationAccount:AllowedFrameAncestors`,
+compartilhadas entre os módulos via `ApplicationAccountOptions` do módulo Shared.
+As origens CORS são validadas pelo
+`HttpCoreMiddleware` no pipeline HTTP, inclusive para o proxy e o SignalR.
+O container Superset mantém CORS desativado e configura apenas a incorporação
+em iframe: a mesma lista alimenta `ALLOWED_FRAME_ANCESTORS`,
+usado pelo CSP `frame-ancestors` junto com `'self'`, sem depender do módulo
+`FieldService.Http`. Use origens HTTP/HTTPS exatas, sem caminhos ou curingas,
+para que a lista também possa ser usada por CORS com credenciais.
+Alterações na lista de iframe exigem reconfigurar os containers existentes.
+
 Este documento estabelece o blueprint arquitetural e as instruções detalhadas para reconfigurar o container multi-tenant do Apache Superset, incorporando nativamente o servidor Superset MCP (Model Context Protocol) no mesmo ambiente de execução dentro do Azure Container Apps (ACA).
 
 1. Visão Geral da Arquitetura
